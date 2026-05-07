@@ -1,3 +1,4 @@
+<<<<<<< codex/analyze-repository-structure-and-components-argnnz
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { CadastrosManager } from '@/components/cadastros/CadastrosManager';
@@ -21,6 +22,13 @@ export default async function CadastrosPage() {
       <h1 className="text-2xl font-bold">Cadastros Operacionais</h1>
       <p className="text-zinc-600">CRUD básico com ativação/inativação, controlado por perfil.</p>
       <CadastrosManager role={profile.perfil} />
+=======
+export default function Page() {
+  return (
+    <div className="space-y-2">
+      <h1 className="text-2xl font-bold">Cadastros</h1>
+      <p className="text-zinc-600">Página base em construção (sem regras de negócio nesta fase).</p>
+>>>>>>> main
     </div>
   );
 }
