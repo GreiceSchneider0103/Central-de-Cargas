@@ -84,7 +84,8 @@ export function AgendaCalendar({ loads, profile }: { loads: LoadRow[]; profile: 
     if (profile.perfil === 'gerente_ecommerce' && load.tipo !== 'FULL_MARKETPLACE') return;
     const next = prompt('Nova data agendada (YYYY-MM-DD HH:mm)', load.data_agendada ? new Date(load.data_agendada).toISOString().slice(0, 16).replace('T', ' ') : '');
     if (!next) return;
-    await supabase.from('loads').update({ data_agendada: new Date(next).toISOString() }).eq('id', load.id);
+    const res = await fetch(`/api/loads/${load.id}/schedule`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dataAgendada: next }) });
+    if (!res.ok) return;
     window.location.reload();
   }
 

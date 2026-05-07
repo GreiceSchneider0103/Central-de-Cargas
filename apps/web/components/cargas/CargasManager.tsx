@@ -89,7 +89,8 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
 
   async function toggleChecklist(field: string, value: boolean) {
     if (!selected || !checklist || !canChecklist) return;
-    await supabase.from('load_checklists').update({ [field]: value }).eq('id', checklist.id);
+    const res = await fetch(`/api/loads/${selected.id}/checklist`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ field, value }) });
+    if (!res.ok) { const j = await res.json(); setError(j.error || 'Erro checklist'); return; }
     await openLoad(selected);
   }
 
@@ -97,9 +98,8 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
     if (!selected || !canWrite) return;
     const motivo = prompt('Motivo do cancelamento');
     if (!motivo) return;
-    const authUser = (await supabase.auth.getUser()).data.user;
-    const { data: me } = await supabase.from('users_profile').select('id').eq('auth_user_id', authUser?.id!).single();
-    await supabase.from('loads').update({ status: 'Cancelada', cancelada_em: new Date().toISOString(), cancelada_por: me.id, motivo_cancelamento: motivo }).eq('id', selected.id);
+    const res = await fetch(`/api/loads/${selected.id}/cancel`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ motivo }) });
+    if (!res.ok) { const j = await res.json(); setError(j.error || 'Erro cancelamento'); return; }
     await openLoad({ ...selected, status: 'Cancelada' });
     await loadData();
   }
@@ -107,8 +107,10 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
   async function finalizeLoad() {
     if (!selected || !canWrite) return;
     if (checklist && !checklist.nf_emitida && !confirm('NF não emitida. Deseja finalizar mesmo assim?')) return;
-    await supabase.from('loads').update({ status: 'Finalizada' }).eq('id', selected.id);
-    if (checklist) await supabase.from('load_checklists').update({ finalizada: true }).eq('id', checklist.id);
+    const res = await fetch(`/api/loads/${selected.id}/finalize`, { method: 'POST' });
+    const j = await res.json();
+    if (!res.ok) { setError(j.error || 'Erro finalização'); return; }
+    if (j.warning) alert('Alerta: finalizada sem NF emitida');
     await openLoad({ ...selected, status: 'Finalizada' });
     await loadData();
   }

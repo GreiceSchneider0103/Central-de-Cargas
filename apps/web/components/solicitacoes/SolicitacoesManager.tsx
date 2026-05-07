@@ -30,7 +30,7 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
 
   async function load() {
     const [reqs, c, s, ch, d, sup] = await Promise.all([
-      supabase.from('load_requests').select('id,codigo,tipo,status,created_at').order('created_at', { ascending: false }),
+      supabase.from('load_requests').select('id,codigo,tipo,status,created_at,carga_id').order('created_at', { ascending: false }),
       supabase.from('companies').select('id,nome').eq('ativo', true),
       supabase.from('stores').select('id,nome').eq('ativo', true),
       supabase.from('channels').select('id,nome,tipo').eq('ativo', true),
@@ -86,11 +86,19 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
 
   async function changeStatus(id: string, status: string, motivo?: string) {
     if (!canApprove) return;
-    const authUser = (await supabase.auth.getUser()).data.user;
-    const { data: me } = await supabase.from('users_profile').select('id').eq('auth_user_id', authUser?.id!).single();
-    const { data: prev } = await supabase.from('load_requests').select('status').eq('id', id).single();
-    await supabase.from('load_requests').update({ status, motivo_recusa: motivo ?? null }).eq('id', id);
-    await supabase.from('load_request_history').insert({ request_id: id, acao: 'STATUS_ATUALIZADO', status_anterior: prev?.status, status_novo: status, observacao: motivo ?? null, autor_profile_id: me.id });
+    const url = status === 'Aprovada' ? `/api/load-requests/${id}/approve` : status === 'Recusada' ? `/api/load-requests/${id}/reject` : `/api/load-requests/${id}/request-adjust`;
+    const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ motivo }) });
+    if (!res.ok) { const j = await res.json(); setError(j.error || 'Erro'); return; }
+    await load();
+  }
+
+
+  async function convertToLoad(id: string) {
+    if (!confirm('Deseja transformar esta solicitação em carga oficial?')) return;
+    const res = await fetch(`/api/load-requests/${id}/convert`, { method: 'POST' });
+    const j = await res.json();
+    if (!res.ok) { setError(j.error || 'Erro na conversão'); return; }
+    alert(`Carga criada com sucesso: ${j.loadId}`);
     await load();
   }
 
@@ -136,6 +144,8 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
                   {canApprove && <button className="text-emerald-700" onClick={() => changeStatus(r.id, 'Aprovada')}>Aprovar</button>}
                   {canApprove && <button className="text-rose-700" onClick={() => { const m=prompt('Motivo da recusa'); if(m) changeStatus(r.id, 'Recusada', m); }}>Recusar</button>}
                   {canApprove && <button className="text-amber-700" onClick={() => { const m=prompt('Solicitar ajuste:'); if(m) changeStatus(r.id, 'Ajuste solicitado', m); }}>Solicitar ajuste</button>}
+                  {canApprove && r.status === 'Aprovada' && !(r as any).carga_id && <button className="text-indigo-700" onClick={() => convertToLoad(r.id)}>Transformar em carga</button>}
+                  {(r as any).carga_id && <a className="text-indigo-700" href={`/cargas/${(r as any).carga_id}`}>Abrir carga</a>}
                 </td>
               </tr>
             ))}
