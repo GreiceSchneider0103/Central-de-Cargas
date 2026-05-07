@@ -2,17 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { canChecklist, requireProfile } from '@/lib/server/authz';
 
 const ALLOWED_FIELDS = [
-  'pedido_realizado',
-  'pedido_confirmado_fornecedor',
-  'produto_recebido',
-  'montada',
-  'agendada',
-  'etiqueta_impressa',
-  'carga_separada',
-  'carga_etiquetada',
-  'nf_emitida',
-  'carga_carregada',
-  'finalizada',
+  'pedido_realizado','pedido_confirmado_fornecedor','produto_recebido','montada','agendada','etiqueta_impressa','carga_separada','carga_etiquetada','nf_emitida','carga_carregada','finalizada',
 ] as const;
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -34,21 +24,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const { error: updChecklistErr } = await supabase.from('load_checklists').update({ [field]: value }).eq('id', checklist.id);
     if (updChecklistErr) return NextResponse.json({ error: updChecklistErr.message }, { status: 500 });
 
-    if (field === 'finalizada' && value) {
-      const { error } = await supabase.from('loads').update({ status: 'Finalizada' }).eq('id', id);
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-    if (field === 'carga_carregada' && value) {
-      const { error } = await supabase.from('loads').update({ status: 'Carregada' }).eq('id', id);
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-    if (field === 'agendada' && value) {
-      const { error } = await supabase.from('loads').update({ status: 'Agendada' }).eq('id', id);
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    }
+    if (field === 'finalizada' && value) { const { error } = await supabase.from('loads').update({ status: 'Finalizada' }).eq('id', id); if (error) return NextResponse.json({ error: error.message }, { status: 500 }); }
+    if (field === 'carga_carregada' && value) { const { error } = await supabase.from('loads').update({ status: 'Carregada' }).eq('id', id); if (error) return NextResponse.json({ error: error.message }, { status: 500 }); }
+    if (field === 'agendada' && value) { const { error } = await supabase.from('loads').update({ status: 'Agendada' }).eq('id', id); if (error) return NextResponse.json({ error: error.message }, { status: 500 }); }
 
-    const { error: auditErr } = await supabase.from('audit_logs').insert({ tabela: 'load_checklists', registro_id: checklist.id, acao: 'CHECKLIST_FIELD_UPDATED', payload: { field, previous, next: value }, profile_id: profile.id });
+    const { error: auditErr } = await supabase.rpc('write_audit_log_safe', {
+      p_tabela: 'load_checklists',
+      p_registro_id: checklist.id,
+      p_acao: 'CHECKLIST_FIELD_UPDATED',
+      p_payload: { field, previous, next: value },
+    });
     if (auditErr) return NextResponse.json({ error: auditErr.message }, { status: 500 });
+
     return NextResponse.json({ ok: true });
   } catch (e: any) {
     const msg = e?.message || 'INTERNAL_ERROR';

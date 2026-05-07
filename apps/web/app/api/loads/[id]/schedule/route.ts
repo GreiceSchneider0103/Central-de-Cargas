@@ -22,7 +22,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const { error: updErr } = await supabase.from('loads').update({ data_agendada: iso }).eq('id', id);
     if (updErr) return NextResponse.json({ error: updErr.message }, { status: 500 });
 
-    const { error: auditErr } = await supabase.from('audit_logs').insert({ tabela: 'loads', registro_id: id, acao: 'LOAD_SCHEDULE_UPDATED', payload: { previous_data_agendada: load.data_agendada, next_data_agendada: iso }, profile_id: profile.id });
+    const { error: auditErr } = await supabase.rpc('write_audit_log_safe', {
+      p_tabela: 'loads',
+      p_registro_id: id,
+      p_acao: 'LOAD_SCHEDULE_UPDATED',
+      p_payload: { previous_data_agendada: load.data_agendada, next_data_agendada: iso },
+    });
     if (auditErr) return NextResponse.json({ error: auditErr.message }, { status: 500 });
 
     return NextResponse.json({ ok: true });
