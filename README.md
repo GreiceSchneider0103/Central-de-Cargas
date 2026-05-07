@@ -41,3 +41,10 @@ Toda a implementação React/Vite/Firebase foi movida para `legacy-vite/` sem ex
 2. Definir schema SQL inicial e migrations versionadas.
 3. Implementar autenticação e RBAC com RLS.
 4. Migrar gradualmente módulos (dashboard, solicitações, cargas, produtos, agenda).
+
+
+## Sincronização de produtos (Google Sheets)
+- Endpoint interno: `POST /api/products/sync`
+- Manual: usuário `admin` autenticado pode acionar na tela de Produtos.
+- Cron futuro: enviar header `Authorization: Bearer <CRON_SECRET>`.
+- Em caso de variáveis do Google não configuradas, a API retorna erro amigável.

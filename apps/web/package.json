@@ -16,7 +16,8 @@
     "next": "15.3.2",
     "react": "19.0.0",
     "react-dom": "19.0.0",
-    "tailwind-merge": "^3.5.0"
+    "tailwind-merge": "^3.5.0",
+    "googleapis": "^144.0.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.1",
