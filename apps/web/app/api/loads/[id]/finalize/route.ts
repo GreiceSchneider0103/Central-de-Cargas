@@ -1,19 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { canManageLoad, requireProfile } from '@/lib/server/authz';
 
+function mapRpcError(message?: string) {
+  if (message?.includes('UNAUTHORIZED')) return { status: 401, error: 'UNAUTHORIZED' };
+  if (message?.includes('FORBIDDEN')) return { status: 403, error: 'FORBIDDEN' };
+  if (message?.includes('LOAD_NOT_FOUND')) return { status: 404, error: 'NOT_FOUND' };
+  if (message?.includes('INVALID_STATUS')) return { status: 422, error: 'INVALID_STATUS' };
+  return { status: 500, error: 'INTERNAL_ERROR' };
+}
+
 export async function POST(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
     const { supabase, profile } = await requireProfile();
-    const { data: load } = await supabase.from('loads').select('*').eq('id', id).single();
+    const { data: load, error: loadErr } = await supabase.from('loads').select('id,tipo,status').eq('id', id).single();
+    if (loadErr) return NextResponse.json({ error: loadErr.message }, { status: 500 });
     if (!load) return NextResponse.json({ error: 'NOT_FOUND' }, { status: 404 });
     if (!canManageLoad(profile, load)) return NextResponse.json({ error: 'FORBIDDEN' }, { status: 403 });
-    if (['Cancelada','Finalizada'].includes(load.status)) return NextResponse.json({ error: 'INVALID_STATUS' }, { status: 422 });
 
-    const { data: checklist } = await supabase.from('load_checklists').select('*').eq('load_id', id).single();
-    await supabase.from('loads').update({ status: 'Finalizada' }).eq('id', id);
-    if (checklist) await supabase.from('load_checklists').update({ finalizada: true }).eq('id', checklist.id);
+    const { data, error } = await supabase.rpc('finalize_load_with_checklist', { p_load_id: id });
+    if (error) {
+      const mapped = mapRpcError(error.message);
+      return NextResponse.json({ error: mapped.error, detail: error.message }, { status: mapped.status });
+    }
 
-    return NextResponse.json({ ok: true, warning: checklist && !checklist.nf_emitida ? 'NF_NOT_EMITTED' : null });
-  } catch (e: any) { return NextResponse.json({ error: e.message }, { status: 400 }); }
+    const row = Array.isArray(data) ? data[0] : data;
+    return NextResponse.json({ ok: true, warning: row?.warning ?? null });
+  } catch (e: any) {
+    const mapped = mapRpcError(e?.message);
+    return NextResponse.json({ error: mapped.error, detail: e?.message ?? 'unknown' }, { status: mapped.status });
+  }
 }
