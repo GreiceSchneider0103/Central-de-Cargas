@@ -11,7 +11,12 @@ export default async function DashboardPage() {
   const { data: profile } = await supabase.from('users_profile').select('*').eq('auth_user_id', userData.user.id).single<UserProfile>();
   if (!profile) redirect('/');
 
-  let loadQuery = supabase.from('loads').select('*').order('created_at', { ascending: false }).limit(500);
+  const canSeeFinancial = ['admin', 'gerente_estoque', 'financeiro', 'gerente_ecommerce'].includes(profile.perfil);
+  const selectFields = canSeeFinancial
+    ? '*'
+    : 'id,codigo_interno,tipo,status,data_agendada,data_prevista_recebimento,created_at,empresa_id,canal_id,marketplace_id,loja_destino_id,responsavel_operacional_id';
+
+  let loadQuery = supabase.from('loads').select(selectFields).order('created_at', { ascending: false }).limit(500);
   if (profile.perfil === 'gerente_ecommerce') loadQuery = loadQuery.eq('tipo', 'FULL_MARKETPLACE');
   if (profile.perfil === 'vendedor_loja') loadQuery = loadQuery.eq('loja_destino_id', profile.loja_id);
 
