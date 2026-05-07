@@ -6,6 +6,8 @@ export type SheetProductRow = {
   cmv: number;
 };
 
+const normalize = (text: string) => text.trim().toLowerCase();
+
 export async function fetchProductsFromGoogleSheets(): Promise<SheetProductRow[]> {
   const sheetsId = process.env.GOOGLE_SHEETS_ID;
   const range = process.env.GOOGLE_SHEETS_RANGE;
@@ -29,9 +31,10 @@ export async function fetchProductsFromGoogleSheets(): Promise<SheetProductRow[]
   if (!values.length) return [];
 
   const [header, ...rows] = values;
-  const skuIndex = header.findIndex((h) => h.trim().toLowerCase() === 'sku');
-  const nameIndex = header.findIndex((h) => h.trim().toLowerCase() === 'nome do produto');
-  const cmvIndex = header.findIndex((h) => h.trim().toLowerCase() === 'cmv');
+  const normalizedHeader = header.map((h) => normalize(String(h)));
+  const skuIndex = normalizedHeader.findIndex((h) => h === 'sku');
+  const nameIndex = normalizedHeader.findIndex((h) => h === 'nome do produto' || h === 'nome');
+  const cmvIndex = normalizedHeader.findIndex((h) => h === 'cmv');
 
   if (skuIndex < 0 || nameIndex < 0 || cmvIndex < 0) {
     throw new Error('Cabeçalhos esperados não encontrados. Use: SKU | Nome do produto | CMV');
@@ -39,8 +42,8 @@ export async function fetchProductsFromGoogleSheets(): Promise<SheetProductRow[]
 
   return rows
     .map((row) => {
-      const sku = (row[skuIndex] ?? '').trim();
-      const nome = (row[nameIndex] ?? '').trim();
+      const sku = (row[skuIndex] ?? '').toString().trim();
+      const nome = (row[nameIndex] ?? '').toString().trim();
       const cmvRaw = (row[cmvIndex] ?? '').toString().replace(',', '.').trim();
       const cmv = Number(cmvRaw || '0');
       return { sku, nome, cmv: Number.isFinite(cmv) ? cmv : 0 };

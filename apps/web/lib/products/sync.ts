@@ -11,31 +11,34 @@ export async function syncProducts() {
 
   const supabase = createClient(supabaseUrl, serviceRole, { auth: { persistSession: false } });
   const rows = await fetchProductsFromGoogleSheets();
+  const now = new Date().toISOString();
+
+  const payload = rows.map((row) => ({
+    sku: row.sku,
+    nome: row.nome,
+    cmv: row.cmv,
+    last_synced_at: now,
+  }));
+
+  if (payload.length === 0) {
+    return { totalRows: 0, created: 0, updated: 0 };
+  }
+
+  const { data: before } = await supabase.from('products').select('sku');
+  const existing = new Set((before ?? []).map((p) => p.sku));
+
+  const { error } = await supabase
+    .from('products')
+    .upsert(payload, { onConflict: 'sku', ignoreDuplicates: false });
+
+  if (error) throw error;
 
   let created = 0;
   let updated = 0;
-
-  for (const row of rows) {
-    const { data: existing } = await supabase.from('products').select('id').eq('sku', row.sku).maybeSingle();
-
-    if (!existing) {
-      const { error } = await supabase.from('products').insert({
-        sku: row.sku,
-        nome: row.nome,
-        cmv: row.cmv,
-        last_synced_at: new Date().toISOString(),
-      });
-      if (error) throw error;
-      created += 1;
-    } else {
-      const { error } = await supabase
-        .from('products')
-        .update({ nome: row.nome, cmv: row.cmv, last_synced_at: new Date().toISOString() })
-        .eq('id', existing.id);
-      if (error) throw error;
-      updated += 1;
-    }
+  for (const p of payload) {
+    if (existing.has(p.sku)) updated += 1;
+    else created += 1;
   }
 
-  return { totalRows: rows.length, created, updated };
+  return { totalRows: payload.length, created, updated };
 }
