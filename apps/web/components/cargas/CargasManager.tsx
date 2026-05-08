@@ -1,34 +1,34 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import type { UserProfile } from '@/lib/auth/roles';
 
 export function CargasManager({ profile }: { profile: UserProfile }) {
   const supabase = createClient();
-  const [loads, setLoads] = useState<any[]>([]);
-  const [selected, setSelected] = useState<any | null>(null);
-  const [items, setItems] = useState<any[]>([]);
-  const [checklist, setChecklist] = useState<any | null>(null);
-  const [form, setForm] = useState<any>({ tipo: 'LOJA_FISICA', status: 'Rascunho', prioridade: 'Média', custo_frete: 0, outros_custos: 0 });
-  const [newItem, setNewItem] = useState<any>({ sku: '', nome_produto: '', quantidade: 1, cmv_unitario: 0 });
+  const [loads, setLoads] = useState<unknown[]>([]);
+  const [selected, setSelected] = useState<unknown | null>(null);
+  const [items, setItems] = useState<unknown[]>([]);
+  const [checklist, setChecklist] = useState<unknown | null>(null);
+  const [form, setForm] = useState<Record<string, string | number>>({ tipo: 'LOJA_FISICA', status: 'Rascunho', prioridade: 'Média', custo_frete: 0, outros_custos: 0 });
+  const [newItem, setNewItem] = useState<Record<string, string | number>>({ sku: '', nome_produto: '', quantidade: 1, cmv_unitario: 0 });
   const [error, setError] = useState<string | null>(null);
 
   const canWrite = ['admin', 'gerente_estoque', 'gerente_ecommerce'].includes(profile.perfil);
   const canChecklist = ['admin', 'gerente_estoque', 'operador_carga'].includes(profile.perfil);
 
-  async function loadData() {
+  const loadData = useCallback(async () => {
     const { data } = await supabase.from('loads').select('*').order('created_at', { ascending: false });
     setLoads(data ?? []);
-  }
+  }, [supabase]);
 
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => { loadData(); }, [loadData]);
 
   async function createLoad() {
     if (!canWrite) return;
     setError(null);
     const authUser = (await supabase.auth.getUser()).data.user;
-    const { data: me } = await supabase.from('users_profile').select('id').eq('auth_user_id', authUser?.id!).single();
+    const { data: me } = await supabase.from('users_profile').select('id').eq('auth_user_id', authUser?.id ?? '').single();
 
     const { data, error } = await supabase.from('loads').insert({
       tipo: form.tipo,
@@ -54,7 +54,7 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
     await loadData();
   }
 
-  async function openLoad(load: any) {
+  async function openLoad(load) {
     setSelected(load);
     const [it, chk] = await Promise.all([
       supabase.from('load_items').select('*').eq('load_id', load.id).order('created_at', { ascending: true }),

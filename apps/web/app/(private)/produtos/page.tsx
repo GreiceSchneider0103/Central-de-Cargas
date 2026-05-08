@@ -21,7 +21,7 @@ export default async function ProdutosPage() {
     .select('id,sku,nome,cmv,ativo,last_synced_at,suppliers(nome)')
     .order('nome', { ascending: true });
 
-  const normalized = (products ?? []).map((p: any) => ({
+  const normalized = (products ?? []).map((p) => ({
     ...p,
     supplier_name: p.suppliers?.nome ?? null,
   }));

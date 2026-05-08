@@ -21,8 +21,9 @@ export async function POST(_: NextRequest, { params }: { params: Promise<{ id: s
     if (histErr) return NextResponse.json({ error: histErr.message }, { status: 500 });
 
     return NextResponse.json({ ok: true });
-  } catch (e: any) {
-    const msg = e?.message || 'INTERNAL_ERROR';
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Erro inesperado';
+    const msg = message || 'INTERNAL_ERROR';
     if (msg.includes('UNAUTHORIZED')) return NextResponse.json({ error: 'UNAUTHORIZED' }, { status: 401 });
     if (msg.includes('FORBIDDEN')) return NextResponse.json({ error: 'FORBIDDEN' }, { status: 403 });
     return NextResponse.json({ error: 'INTERNAL_ERROR', detail: msg }, { status: 500 });

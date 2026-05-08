@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import type { UserProfile } from '@/lib/auth/roles';
 
-type Load = any;
+type Load = Record<string, string | number | null | undefined>;
 
 type Props = {
   profile: UserProfile;
@@ -37,12 +37,11 @@ export function DashboardView({ profile, loads, pendingRequests }: Props) {
     return true;
   }), [loads, statusFilter, typeFilter, empresaFilter, canalFilter, marketplaceFilter, lojaFilter, fornecedorFilter, responsavelFilter]);
 
-  const now = new Date();
-  const startDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const startWeek = new Date(startDay); startWeek.setDate(startDay.getDate() - startDay.getDay());
-  const startMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-
   const cards = useMemo(() => {
+    const now = new Date();
+    const startDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startWeek = new Date(startDay); startWeek.setDate(startDay.getDate() - startDay.getDay());
+    const startMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const d = countBy(filtered, l => l.data_agendada && new Date(l.data_agendada) >= startDay && new Date(l.data_agendada) < new Date(startDay.getTime()+86400000));
     const w = countBy(filtered, l => l.data_agendada && new Date(l.data_agendada) >= startWeek);
     const m = countBy(filtered, l => l.data_agendada && new Date(l.data_agendada) >= startMonth);
@@ -63,6 +62,7 @@ export function DashboardView({ profile, loads, pendingRequests }: Props) {
   }, [filtered]);
 
   const alerts = useMemo(() => {
+    const now = new Date();
     const oldPendingReq = pendingRequests;
     return {
       hoje: countBy(filtered, l => l.data_agendada && new Date(l.data_agendada).toDateString() === now.toDateString()),
@@ -77,8 +77,8 @@ export function DashboardView({ profile, loads, pendingRequests }: Props) {
     };
   }, [filtered, pendingRequests]);
 
-  const reportBy = (key: string) => Object.entries(filtered.reduce((acc: any, l: any) => { const k = l[key] || 'N/A'; acc[k] = (acc[k]||0)+1; return acc; }, {}));
-  const reportMonth = Object.entries(filtered.reduce((acc: any, l: any) => { const k = l.created_at ? new Date(l.created_at).toISOString().slice(0,7) : 'N/A'; acc[k]=(acc[k]||0)+1; return acc; }, {}));
+  const reportBy = (key: string) => Object.entries(filtered.reduce<Record<string, number>>((acc, l) => { const k = String(l[key] ?? 'N/A'); acc[k] = (acc[k] ?? 0) + 1; return acc; }, {}));
+  const reportMonth = Object.entries(filtered.reduce<Record<string, number>>((acc, l) => { const k = l.created_at ? new Date(String(l.created_at)).toISOString().slice(0, 7) : 'N/A'; acc[k] = (acc[k] ?? 0) + 1; return acc; }, {}));
 
   return <div className="space-y-6">
     <div className="flex flex-wrap gap-2">
@@ -111,7 +111,7 @@ export function DashboardView({ profile, loads, pendingRequests }: Props) {
       <div className="grid md:grid-cols-3 gap-2 text-amber-700">
         <div>Cargas hoje: {alerts.hoje}</div><div>Cargas atrasadas: {alerts.atrasadas}</div><div>Cargas sem CMV: {alerts.semCmv}</div>
         <div>Sem data recebimento: {alerts.semReceb}</div><div>Aguardando fornecedor: {alerts.aguardFornecedor}</div><div>Aguardando NF: {alerts.aguardNF}</div>
-        <div>Aguardando etiqueta: {alerts.aguardEtiqueta}</div><div>Produto não recebido: {alerts.produtoNaoReceb}</div><div>Solicitações pendentes > X dias: {alerts.reqPendOld}</div>
+        <div>Aguardando etiqueta: {alerts.aguardEtiqueta}</div><div>Produto não recebido: {alerts.produtoNaoReceb}</div><div>Solicitações pendentes {'>'} X dias: {alerts.reqPendOld}</div>
       </div>
     </div>
 
