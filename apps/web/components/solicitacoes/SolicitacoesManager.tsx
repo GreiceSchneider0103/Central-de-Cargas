@@ -1,20 +1,22 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import type { UserProfile } from '@/lib/auth/roles';
 
 type Item = { sku: string; nome_produto: string; quantidade: number; fornecedor_origem_id?: string; cmv_unitario: number; cmv_total: number };
+type NamedOption = { id: string; nome: string; tipo?: string | null };
+type RequestRow = { id: string; codigo: string; tipo: string; status: string; created_at: string; carga_id?: string | null };
 
 export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
   const supabase = createClient();
-  const [rows, setRows] = useState<any[]>([]);
-  const [companies, setCompanies] = useState<any[]>([]);
-  const [stores, setStores] = useState<any[]>([]);
-  const [channels, setChannels] = useState<any[]>([]);
-  const [destinations, setDestinations] = useState<any[]>([]);
-  const [suppliers, setSuppliers] = useState<any[]>([]);
+  const [rows, setRows] = useState<RequestRow[]>([]);
+  const [companies, setCompanies] = useState<NamedOption[]>([]);
+  const [stores, setStores] = useState<NamedOption[]>([]);
+  const [channels, setChannels] = useState<NamedOption[]>([]);
+  const [destinations, setDestinations] = useState<NamedOption[]>([]);
+  const [suppliers, setSuppliers] = useState<NamedOption[]>([]);
   const [items, setItems] = useState<Item[]>([{ sku: '', nome_produto: '', quantidade: 1, cmv_unitario: 0, cmv_total: 0 }]);
   const [tipo, setTipo] = useState<'LOJA_FISICA' | 'FULL_MARKETPLACE'>('LOJA_FISICA');
   const [lojaDestinoId, setLojaDestinoId] = useState('');
@@ -22,13 +24,13 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
   const [destinoFullId, setDestinoFullId] = useState('');
   const [empresaId, setEmpresaId] = useState('');
   const [canalId, setCanalId] = useState('');
-  const [prioridade, setPrioridade] = useState('Média');
-  const [observacoes, setObservacoes] = useState('');
+  const [prioridade] = useState('Média');
+  const [observacoes] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   const canApprove = profile.perfil === 'admin' || profile.perfil === 'gerente_estoque';
 
-  async function load() {
+  const load = useCallback(async () => {
     const [reqs, c, s, ch, d, sup] = await Promise.all([
       supabase.from('load_requests').select('id,codigo,tipo,status,created_at,carga_id').order('created_at', { ascending: false }),
       supabase.from('companies').select('id,nome').eq('ativo', true),
@@ -37,15 +39,15 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
       supabase.from('full_destinations').select('id,nome').eq('ativo', true),
       supabase.from('suppliers').select('id,nome').eq('ativo', true),
     ]);
-    setRows(reqs.data ?? []);
-    setCompanies(c.data ?? []); setStores(s.data ?? []); setChannels(ch.data ?? []); setDestinations(d.data ?? []); setSuppliers(sup.data ?? []);
-  }
+    setRows((reqs.data ?? []) as RequestRow[]);
+    setCompanies((c.data ?? []) as NamedOption[]); setStores((s.data ?? []) as NamedOption[]); setChannels((ch.data ?? []) as NamedOption[]); setDestinations((d.data ?? []) as NamedOption[]); setSuppliers((sup.data ?? []) as NamedOption[]);
+  }, [supabase]);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load]);
 
-  function updateItem(index: number, field: keyof Item, value: any) {
+  function updateItem(index: number, field: keyof Item, value: Item[keyof Item]) {
     const next = [...items];
-    (next[index] as any)[field] = value;
+    (next[index] as Record<string, unknown>)[field] = value;
     next[index].cmv_total = Number(next[index].quantidade) * Number(next[index].cmv_unitario || 0);
     setItems(next);
   }
@@ -71,7 +73,8 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
     if (items.some((i) => !i.sku || !i.nome_produto || i.quantidade <= 0)) return setError('Cada item precisa SKU, nome e quantidade.');
 
     const authUser = (await supabase.auth.getUser()).data.user;
-    const { data: me } = await supabase.from('users_profile').select('id').eq('auth_user_id', authUser?.id!).single();
+    const { data: me } = await supabase.from('users_profile').select('id').eq('auth_user_id', authUser?.id ?? '').single();
+    if (!me) return setError('Perfil do usuário não encontrado.');
     const code = `REQ-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
     const { data: req, error } = await supabase.from('load_requests').insert({ codigo: code, tipo, empresa_id: empresaId || null, canal_id: canalId || null, marketplace_id: marketplaceId || null, destino_full_id: destinoFullId || null, loja_destino_id: lojaDestinoId || null, prioridade, status: 'Pendente', solicitante_id: me.id, observacoes }).select('id').single();
     if (error) return setError(error.message);
@@ -107,7 +110,7 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
       <div className="bg-white border rounded-xl p-4 space-y-3">
         <h2 className="font-semibold">Nova solicitação</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-          <select value={tipo} onChange={(e) => setTipo(e.target.value as any)} className="h-10 border rounded px-2"><option value="LOJA_FISICA">Loja física</option><option value="FULL_MARKETPLACE">Full Marketplace</option></select>
+          <select value={tipo} onChange={(e) => setTipo(e.target.value as 'LOJA_FISICA' | 'FULL_MARKETPLACE')} className="h-10 border rounded px-2"><option value="LOJA_FISICA">Loja física</option><option value="FULL_MARKETPLACE">Full Marketplace</option></select>
           <select value={empresaId} onChange={(e) => setEmpresaId(e.target.value)} className="h-10 border rounded px-2"><option value="">Empresa</option>{companies.map(c=><option key={c.id} value={c.id}>{c.nome}</option>)}</select>
           <select value={canalId} onChange={(e) => setCanalId(e.target.value)} className="h-10 border rounded px-2"><option value="">Canal</option>{channels.map(c=><option key={c.id} value={c.id}>{c.nome}</option>)}</select>
           <select value={marketplaceId} onChange={(e) => setMarketplaceId(e.target.value)} className="h-10 border rounded px-2"><option value="">Marketplace</option>{channels.filter(c=>c.tipo==='Marketplace Full').map(c=><option key={c.id} value={c.id}>{c.nome}</option>)}</select>
@@ -144,8 +147,8 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
                   {canApprove && <button className="text-emerald-700" onClick={() => changeStatus(r.id, 'Aprovada')}>Aprovar</button>}
                   {canApprove && <button className="text-rose-700" onClick={() => { const m=prompt('Motivo da recusa'); if(m) changeStatus(r.id, 'Recusada', m); }}>Recusar</button>}
                   {canApprove && <button className="text-amber-700" onClick={() => { const m=prompt('Solicitar ajuste:'); if(m) changeStatus(r.id, 'Ajuste solicitado', m); }}>Solicitar ajuste</button>}
-                  {canApprove && r.status === 'Aprovada' && !(r as any).carga_id && <button className="text-indigo-700" onClick={() => convertToLoad(r.id)}>Transformar em carga</button>}
-                  {(r as any).carga_id && <a className="text-indigo-700" href={`/cargas/${(r as any).carga_id}`}>Abrir carga</a>}
+                  {canApprove && r.status === 'Aprovada' && !r.carga_id && <button className="text-indigo-700" onClick={() => convertToLoad(r.id)}>Transformar em carga</button>}
+                  {r.carga_id && <Link className="text-indigo-700" href={`/cargas/${r.carga_id}`}>Abrir carga</Link>}
                 </td>
               </tr>
             ))}

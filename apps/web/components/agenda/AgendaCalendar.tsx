@@ -2,7 +2,6 @@
 
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
 import type { UserProfile } from '@/lib/auth/roles';
 
 type LoadRow = {
@@ -41,9 +40,8 @@ function monthMatrix(year: number, month: number) {
 }
 
 export function AgendaCalendar({ loads, profile }: { loads: LoadRow[]; profile: UserProfile }) {
-  const supabase = createClient();
   const now = new Date();
-  const [year, setYear] = useState(now.getFullYear());
+  const [year] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth());
   const [fType, setFType] = useState('');
   const [fStatus, setFStatus] = useState('');
