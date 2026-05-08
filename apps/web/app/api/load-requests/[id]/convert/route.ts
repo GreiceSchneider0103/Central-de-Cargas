@@ -25,8 +25,9 @@ export async function POST(_: NextRequest, { params }: { params: Promise<{ id: s
 
     const row = Array.isArray(data) ? data[0] : data;
     return NextResponse.json({ ok: true, loadId: row?.load_id, codigoInterno: row?.codigo_interno });
-  } catch (e: any) {
-    const mapped = mapRpcError(e?.message);
-    return NextResponse.json({ error: mapped.error, detail: e?.message ?? 'unknown' }, { status: mapped.status });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Erro inesperado';
+    const mapped = mapRpcError(message);
+    return NextResponse.json({ error: mapped.error, detail: message ?? 'unknown' }, { status: mapped.status });
   }
 }

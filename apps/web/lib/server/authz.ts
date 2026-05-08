@@ -15,16 +15,16 @@ export async function requireProfile() {
   return { supabase, user: userData.user, profile };
 }
 
-export function canApprove(profile: any) {
+export function canApprove(profile: { perfil: string }) {
   return ['admin', 'gerente_estoque'].includes(profile.perfil);
 }
 
-export function canManageLoad(profile: any, load?: any) {
+export function canManageLoad(profile: { perfil: string }, load?: { tipo?: string }) {
   if (['admin', 'gerente_estoque'].includes(profile.perfil)) return true;
   if (profile.perfil === 'gerente_ecommerce') return load?.tipo === 'FULL_MARKETPLACE';
   return false;
 }
 
-export function canChecklist(profile: any) {
+export function canChecklist(profile: { perfil: string }) {
   return ['admin', 'gerente_estoque', 'operador_carga'].includes(profile.perfil);
 }
