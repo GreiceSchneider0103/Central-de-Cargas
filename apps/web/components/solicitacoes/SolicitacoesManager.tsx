@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import type { UserProfile } from '@/lib/auth/roles';
 
@@ -28,7 +28,7 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
 
   const canApprove = profile.perfil === 'admin' || profile.perfil === 'gerente_estoque';
 
-  async function load() {
+  const load = useCallback(async () => {
     const [reqs, c, s, ch, d, sup] = await Promise.all([
       supabase.from('load_requests').select('id,codigo,tipo,status,created_at,carga_id').order('created_at', { ascending: false }),
       supabase.from('companies').select('id,nome').eq('ativo', true),
@@ -39,9 +39,9 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
     ]);
     setRows(reqs.data ?? []);
     setCompanies(c.data ?? []); setStores(s.data ?? []); setChannels(ch.data ?? []); setDestinations(d.data ?? []); setSuppliers(sup.data ?? []);
-  }
+  }, [supabase]);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load]);
 
   function updateItem(index: number, field: keyof Item, value) {
     const next = [...items];

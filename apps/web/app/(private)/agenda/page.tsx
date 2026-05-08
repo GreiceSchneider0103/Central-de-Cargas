@@ -1,8 +1,10 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import type { ComponentProps } from 'react';
 import { createClient } from '@/lib/supabase/server';
 import type { UserProfile } from '@/lib/auth/roles';
 import { AgendaCalendar } from '@/components/agenda/AgendaCalendar';
+type AgendaLoads = ComponentProps<typeof AgendaCalendar>['loads'];
 
 export default async function AgendaPage() {
   const supabase = await createClient();
@@ -49,7 +51,7 @@ export default async function AgendaPage() {
         </div>
         <Link href="/cargas" className="px-3 py-2 bg-indigo-600 text-white rounded">Nova carga</Link>
       </div>
-      <AgendaCalendar loads={enriched} profile={profile} />
+      <AgendaCalendar loads={enriched as AgendaLoads} profile={profile} />
     </div>
   );
 }

@@ -37,12 +37,11 @@ export function DashboardView({ profile, loads, pendingRequests }: Props) {
     return true;
   }), [loads, statusFilter, typeFilter, empresaFilter, canalFilter, marketplaceFilter, lojaFilter, fornecedorFilter, responsavelFilter]);
 
-  const now = new Date();
-  const startDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const startWeek = new Date(startDay); startWeek.setDate(startDay.getDate() - startDay.getDay());
-  const startMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-
   const cards = useMemo(() => {
+    const now = new Date();
+    const startDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startWeek = new Date(startDay); startWeek.setDate(startDay.getDate() - startDay.getDay());
+    const startMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const d = countBy(filtered, l => l.data_agendada && new Date(l.data_agendada) >= startDay && new Date(l.data_agendada) < new Date(startDay.getTime()+86400000));
     const w = countBy(filtered, l => l.data_agendada && new Date(l.data_agendada) >= startWeek);
     const m = countBy(filtered, l => l.data_agendada && new Date(l.data_agendada) >= startMonth);
@@ -63,6 +62,7 @@ export function DashboardView({ profile, loads, pendingRequests }: Props) {
   }, [filtered]);
 
   const alerts = useMemo(() => {
+    const now = new Date();
     const oldPendingReq = pendingRequests;
     return {
       hoje: countBy(filtered, l => l.data_agendada && new Date(l.data_agendada).toDateString() === now.toDateString()),

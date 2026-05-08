@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import type { UserProfile } from '@/lib/auth/roles';
 
@@ -17,12 +17,12 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
   const canWrite = ['admin', 'gerente_estoque', 'gerente_ecommerce'].includes(profile.perfil);
   const canChecklist = ['admin', 'gerente_estoque', 'operador_carga'].includes(profile.perfil);
 
-  async function loadData() {
+  const loadData = useCallback(async () => {
     const { data } = await supabase.from('loads').select('*').order('created_at', { ascending: false });
     setLoads(data ?? []);
-  }
+  }, [supabase]);
 
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => { loadData(); }, [loadData]);
 
   async function createLoad() {
     if (!canWrite) return;
