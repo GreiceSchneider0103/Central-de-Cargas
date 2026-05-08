@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import type { UserProfileRole } from '@/lib/auth/roles';
 
@@ -29,7 +29,7 @@ const sections: Section[] = [
 
 export function CadastrosManager({ role }: { role: UserProfileRole }) {
   const [activeSection, setActiveSection] = useState<Section>(sections[0]);
-  const [rows, setRows] = useState<any[]>([]);
+  const [rows, setRows] = useState<unknown[]>([]);
   const [showInactive, setShowInactive] = useState(false);
   const [form, setForm] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
@@ -38,7 +38,7 @@ export function CadastrosManager({ role }: { role: UserProfileRole }) {
 
   const baseSelect = useMemo(() => 'id,nome,ativo,created_at,updated_at,cnpj,telefone,contato_nome,tipo,marketplace_id,endereco,codigo_agendamento_padrao', []);
 
-  async function loadData() {
+  const loadData = useCallback(async () => {
     const supabase = createClient();
     const query = supabase.from(activeSection.table).select(baseSelect).order('nome', { ascending: true });
     if (!showInactive) query.eq('ativo', true);
@@ -49,12 +49,12 @@ export function CadastrosManager({ role }: { role: UserProfileRole }) {
     }
     setRows(data ?? []);
     setError(null);
-  }
+  }, [activeSection.table, baseSelect, showInactive]);
 
   useEffect(() => {
     loadData();
     setForm({});
-  }, [activeSection, showInactive]);
+  }, [activeSection, showInactive, loadData]);
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
