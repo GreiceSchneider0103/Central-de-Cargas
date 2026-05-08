@@ -10,6 +10,12 @@ type BaseRow = {
   ativo: boolean;
 };
 
+function isBaseRow(value: unknown): value is BaseRow {
+  if (!value || typeof value !== 'object') return false;
+  const row = value as Record<string, unknown>;
+  return typeof row.id === 'string' && typeof row.nome === 'string' && typeof row.ativo === 'boolean';
+}
+
 type Section = {
   key: string;
   label: string;
@@ -29,7 +35,7 @@ const sections: Section[] = [
 
 export function CadastrosManager({ role }: { role: UserProfileRole }) {
   const [activeSection, setActiveSection] = useState<Section>(sections[0]);
-  const [rows, setRows] = useState<unknown[]>([]);
+  const [rows, setRows] = useState<BaseRow[]>([]);
   const [showInactive, setShowInactive] = useState(false);
   const [form, setForm] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
@@ -47,7 +53,9 @@ export function CadastrosManager({ role }: { role: UserProfileRole }) {
       setError(error.message);
       return;
     }
-    setRows(data ?? []);
+    const sourceRows: unknown[] = Array.isArray(data) ? [...data] : [];
+    const normalizedRows = sourceRows.filter(isBaseRow);
+    setRows(normalizedRows);
     setError(null);
   }, [activeSection.table, baseSelect, showInactive]);
 

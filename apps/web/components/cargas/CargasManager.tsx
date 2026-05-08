@@ -4,12 +4,36 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import type { UserProfile } from '@/lib/auth/roles';
 
+type LoadRow = {
+  id: string;
+  codigo_interno?: string | null;
+  tipo?: string | null;
+  status?: string | null;
+  cmv_total?: number | null;
+  faturamento_estimado?: number | null;
+  custo_frete?: number | null;
+  outros_custos?: number | null;
+  [key: string]: string | number | boolean | null | undefined;
+};
+
+type LoadItemRow = {
+  id: string;
+  sku?: string | null;
+  nome_produto?: string | null;
+  quantidade?: number | null;
+  cmv_unitario?: number | null;
+  cmv_total?: number | null;
+  cubagem?: string | null;
+};
+
+type ChecklistRow = Record<string, boolean | null | undefined> & { id: string; nf_emitida?: boolean | null };
+
 export function CargasManager({ profile }: { profile: UserProfile }) {
   const supabase = createClient();
-  const [loads, setLoads] = useState<unknown[]>([]);
-  const [selected, setSelected] = useState<unknown | null>(null);
-  const [items, setItems] = useState<unknown[]>([]);
-  const [checklist, setChecklist] = useState<unknown | null>(null);
+  const [loads, setLoads] = useState<LoadRow[]>([]);
+  const [selected, setSelected] = useState<LoadRow | null>(null);
+  const [items, setItems] = useState<LoadItemRow[]>([]);
+  const [checklist, setChecklist] = useState<ChecklistRow | null>(null);
   const [form, setForm] = useState<Record<string, string | number>>({ tipo: 'LOJA_FISICA', status: 'Rascunho', prioridade: 'Média', custo_frete: 0, outros_custos: 0 });
   const [newItem, setNewItem] = useState<Record<string, string | number>>({ sku: '', nome_produto: '', quantidade: 1, cmv_unitario: 0 });
   const [error, setError] = useState<string | null>(null);
@@ -19,7 +43,7 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
 
   const loadData = useCallback(async () => {
     const { data } = await supabase.from('loads').select('*').order('created_at', { ascending: false });
-    setLoads(data ?? []);
+    setLoads((data ?? []) as LoadRow[]);
   }, [supabase]);
 
   useEffect(() => { loadData(); }, [loadData]);
@@ -29,6 +53,7 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
     setError(null);
     const authUser = (await supabase.auth.getUser()).data.user;
     const { data: me } = await supabase.from('users_profile').select('id').eq('auth_user_id', authUser?.id ?? '').single();
+    if (!me) return setError('Perfil do usuário não encontrado.');
 
     const { data, error } = await supabase.from('loads').insert({
       tipo: form.tipo,
@@ -54,14 +79,14 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
     await loadData();
   }
 
-  async function openLoad(load) {
+  async function openLoad(load: LoadRow) {
     setSelected(load);
     const [it, chk] = await Promise.all([
       supabase.from('load_items').select('*').eq('load_id', load.id).order('created_at', { ascending: true }),
       supabase.from('load_checklists').select('*').eq('load_id', load.id).single(),
     ]);
-    setItems(it.data ?? []);
-    setChecklist(chk.data);
+    setItems((it.data ?? []) as LoadItemRow[]);
+    setChecklist(chk.data as ChecklistRow | null);
   }
 
   async function addItem() {

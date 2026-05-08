@@ -32,7 +32,7 @@ export function DashboardView({ profile, loads, pendingRequests }: Props) {
     if (canalFilter && l.canal_id !== canalFilter) return false;
     if (marketplaceFilter && l.marketplace_id !== marketplaceFilter) return false;
     if (lojaFilter && l.loja_destino_id !== lojaFilter) return false;
-    if (fornecedorFilter && !(l.fornecedores || '').toLowerCase().includes(fornecedorFilter.toLowerCase())) return false;
+    if (fornecedorFilter && !String(l.fornecedores ?? '').toLowerCase().includes(fornecedorFilter.toLowerCase())) return false;
     if (responsavelFilter && l.responsavel_operacional_id !== responsavelFilter) return false;
     return true;
   }), [loads, statusFilter, typeFilter, empresaFilter, canalFilter, marketplaceFilter, lojaFilter, fornecedorFilter, responsavelFilter]);
@@ -42,11 +42,11 @@ export function DashboardView({ profile, loads, pendingRequests }: Props) {
     const startDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const startWeek = new Date(startDay); startWeek.setDate(startDay.getDate() - startDay.getDay());
     const startMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const d = countBy(filtered, l => l.data_agendada && new Date(l.data_agendada) >= startDay && new Date(l.data_agendada) < new Date(startDay.getTime()+86400000));
-    const w = countBy(filtered, l => l.data_agendada && new Date(l.data_agendada) >= startWeek);
-    const m = countBy(filtered, l => l.data_agendada && new Date(l.data_agendada) >= startMonth);
+    const d = countBy(filtered, l => Boolean(l.data_agendada) && new Date(String(l.data_agendada)) >= startDay && new Date(String(l.data_agendada)) < new Date(startDay.getTime()+86400000));
+    const w = countBy(filtered, l => Boolean(l.data_agendada) && new Date(String(l.data_agendada)) >= startWeek);
+    const m = countBy(filtered, l => Boolean(l.data_agendada) && new Date(String(l.data_agendada)) >= startMonth);
     const pend = countBy(filtered, l => l.status === 'Rascunho' || l.status === 'Aguardando aprovação');
-    const atras = countBy(filtered, l => l.data_agendada && new Date(l.data_agendada) < now && !['Finalizada','Entregue','Cancelada'].includes(l.status));
+    const atras = countBy(filtered, l => Boolean(l.data_agendada) && new Date(String(l.data_agendada)) < now && !['Finalizada','Entregue','Cancelada'].includes(String(l.status)));
     const aguForn = countBy(filtered, l => l.status === 'Aguardando fornecedor');
     const aguRec = countBy(filtered, l => l.status === 'Aguardando recebimento');
     const aguEtiq = countBy(filtered, l => l.status === 'Etiquetando');
@@ -65,8 +65,8 @@ export function DashboardView({ profile, loads, pendingRequests }: Props) {
     const now = new Date();
     const oldPendingReq = pendingRequests;
     return {
-      hoje: countBy(filtered, l => l.data_agendada && new Date(l.data_agendada).toDateString() === now.toDateString()),
-      atrasadas: countBy(filtered, l => l.data_agendada && new Date(l.data_agendada) < now && !['Finalizada','Entregue','Cancelada'].includes(l.status)),
+      hoje: countBy(filtered, l => Boolean(l.data_agendada) && new Date(String(l.data_agendada)).toDateString() === now.toDateString()),
+      atrasadas: countBy(filtered, l => Boolean(l.data_agendada) && new Date(String(l.data_agendada)) < now && !['Finalizada','Entregue','Cancelada'].includes(String(l.status))),
       semCmv: countBy(filtered, l => Number(l.cmv_total || 0) <= 0),
       semReceb: countBy(filtered, l => !l.data_prevista_recebimento),
       aguardFornecedor: countBy(filtered, l => l.status === 'Aguardando fornecedor'),
