@@ -22,9 +22,12 @@ export default async function DashboardPage() {
 
   const { data: loadsBase } = await loadQuery;
 
-  const loads = await Promise.all((loadsBase ?? []).map(async (l: any) => {
+  const loads = await Promise.all((loadsBase ?? []).map(async (l) => {
     const { data: items } = await supabase.from('load_items').select('suppliers(nome)').eq('load_id', l.id);
-    const fornecedores = Array.from(new Set((items ?? []).map((i: any) => i.suppliers?.nome).filter(Boolean))).join(', ');
+    const fornecedores = Array.from(new Set((items ?? []).map((i) => {
+      const supplier = i.suppliers as { nome?: string }[] | { nome?: string } | null;
+      return Array.isArray(supplier) ? supplier[0]?.nome : supplier?.nome;
+    }).filter(Boolean))).join(', ');
     return { ...l, fornecedores };
   }));
 

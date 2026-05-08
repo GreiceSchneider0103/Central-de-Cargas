@@ -9,12 +9,12 @@ type Item = { sku: string; nome_produto: string; quantidade: number; fornecedor_
 
 export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
   const supabase = createClient();
-  const [rows, setRows] = useState<any[]>([]);
-  const [companies, setCompanies] = useState<any[]>([]);
-  const [stores, setStores] = useState<any[]>([]);
-  const [channels, setChannels] = useState<any[]>([]);
-  const [destinations, setDestinations] = useState<any[]>([]);
-  const [suppliers, setSuppliers] = useState<any[]>([]);
+  const [rows, setRows] = useState<unknown[]>([]);
+  const [companies, setCompanies] = useState<unknown[]>([]);
+  const [stores, setStores] = useState<unknown[]>([]);
+  const [channels, setChannels] = useState<unknown[]>([]);
+  const [destinations, setDestinations] = useState<unknown[]>([]);
+  const [suppliers, setSuppliers] = useState<unknown[]>([]);
   const [items, setItems] = useState<Item[]>([{ sku: '', nome_produto: '', quantidade: 1, cmv_unitario: 0, cmv_total: 0 }]);
   const [tipo, setTipo] = useState<'LOJA_FISICA' | 'FULL_MARKETPLACE'>('LOJA_FISICA');
   const [lojaDestinoId, setLojaDestinoId] = useState('');
@@ -22,8 +22,8 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
   const [destinoFullId, setDestinoFullId] = useState('');
   const [empresaId, setEmpresaId] = useState('');
   const [canalId, setCanalId] = useState('');
-  const [prioridade, setPrioridade] = useState('Média');
-  const [observacoes, setObservacoes] = useState('');
+  const [prioridade] = useState('Média');
+  const [observacoes] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   const canApprove = profile.perfil === 'admin' || profile.perfil === 'gerente_estoque';
@@ -43,9 +43,9 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
 
   useEffect(() => { load(); }, []);
 
-  function updateItem(index: number, field: keyof Item, value: any) {
+  function updateItem(index: number, field: keyof Item, value) {
     const next = [...items];
-    (next[index] as any)[field] = value;
+    (next[index] as Record<string, unknown>)[field] = value;
     next[index].cmv_total = Number(next[index].quantidade) * Number(next[index].cmv_unitario || 0);
     setItems(next);
   }
@@ -71,7 +71,7 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
     if (items.some((i) => !i.sku || !i.nome_produto || i.quantidade <= 0)) return setError('Cada item precisa SKU, nome e quantidade.');
 
     const authUser = (await supabase.auth.getUser()).data.user;
-    const { data: me } = await supabase.from('users_profile').select('id').eq('auth_user_id', authUser?.id!).single();
+    const { data: me } = await supabase.from('users_profile').select('id').eq('auth_user_id', authUser?.id ?? '').single();
     const code = `REQ-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
     const { data: req, error } = await supabase.from('load_requests').insert({ codigo: code, tipo, empresa_id: empresaId || null, canal_id: canalId || null, marketplace_id: marketplaceId || null, destino_full_id: destinoFullId || null, loja_destino_id: lojaDestinoId || null, prioridade, status: 'Pendente', solicitante_id: me.id, observacoes }).select('id').single();
     if (error) return setError(error.message);
@@ -107,7 +107,7 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
       <div className="bg-white border rounded-xl p-4 space-y-3">
         <h2 className="font-semibold">Nova solicitação</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-          <select value={tipo} onChange={(e) => setTipo(e.target.value as any)} className="h-10 border rounded px-2"><option value="LOJA_FISICA">Loja física</option><option value="FULL_MARKETPLACE">Full Marketplace</option></select>
+          <select value={tipo} onChange={(e) => setTipo(e.target.value as Record<string, unknown>)} className="h-10 border rounded px-2"><option value="LOJA_FISICA">Loja física</option><option value="FULL_MARKETPLACE">Full Marketplace</option></select>
           <select value={empresaId} onChange={(e) => setEmpresaId(e.target.value)} className="h-10 border rounded px-2"><option value="">Empresa</option>{companies.map(c=><option key={c.id} value={c.id}>{c.nome}</option>)}</select>
           <select value={canalId} onChange={(e) => setCanalId(e.target.value)} className="h-10 border rounded px-2"><option value="">Canal</option>{channels.map(c=><option key={c.id} value={c.id}>{c.nome}</option>)}</select>
           <select value={marketplaceId} onChange={(e) => setMarketplaceId(e.target.value)} className="h-10 border rounded px-2"><option value="">Marketplace</option>{channels.filter(c=>c.tipo==='Marketplace Full').map(c=><option key={c.id} value={c.id}>{c.nome}</option>)}</select>
@@ -144,8 +144,8 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
                   {canApprove && <button className="text-emerald-700" onClick={() => changeStatus(r.id, 'Aprovada')}>Aprovar</button>}
                   {canApprove && <button className="text-rose-700" onClick={() => { const m=prompt('Motivo da recusa'); if(m) changeStatus(r.id, 'Recusada', m); }}>Recusar</button>}
                   {canApprove && <button className="text-amber-700" onClick={() => { const m=prompt('Solicitar ajuste:'); if(m) changeStatus(r.id, 'Ajuste solicitado', m); }}>Solicitar ajuste</button>}
-                  {canApprove && r.status === 'Aprovada' && !(r as any).carga_id && <button className="text-indigo-700" onClick={() => convertToLoad(r.id)}>Transformar em carga</button>}
-                  {(r as any).carga_id && <a className="text-indigo-700" href={`/cargas/${(r as any).carga_id}`}>Abrir carga</a>}
+                  {canApprove && r.status === 'Aprovada' && !(r as { carga_id?: string }).carga_id && <button className="text-indigo-700" onClick={() => convertToLoad(r.id)}>Transformar em carga</button>}
+                  {(r as { carga_id?: string }).carga_id && <a className="text-indigo-700" href={`/cargas/${(r as { carga_id?: string }).carga_id}`}>Abrir carga</a>}
                 </td>
               </tr>
             ))}

@@ -29,7 +29,7 @@ const sections: Section[] = [
 
 export function CadastrosManager({ role }: { role: UserProfileRole }) {
   const [activeSection, setActiveSection] = useState<Section>(sections[0]);
-  const [rows, setRows] = useState<any[]>([]);
+  const [rows, setRows] = useState<unknown[]>([]);
   const [showInactive, setShowInactive] = useState(false);
   const [form, setForm] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
