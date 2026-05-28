@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { ProductsTable } from '@/components/products/ProductsTable';
@@ -19,7 +20,9 @@ type ProductWithSupplier = {
   supplier_name?: string | null;
 };
 
-export default async function ProdutosPage() {
+const PAGE_SIZE = 50;
+
+export default async function ProdutosPage({ searchParams }: { searchParams?: Promise<{ page?: string }> }) {
   const supabase = await createClient();
   const { data: userData } = await supabase.auth.getUser();
   if (!userData.user) redirect('/login');
@@ -32,18 +35,23 @@ export default async function ProdutosPage() {
 
   if (!profile) redirect('/');
 
+  const resolvedSearchParams = await searchParams;
+  const currentPage = Math.max(1, Number(resolvedSearchParams?.page ?? '1') || 1);
+
   const { data: products } = await supabase.rpc('get_visible_products');
 
   const typedProducts = (products ?? []) as ProductWithSupplier[];
 
-  const normalized = typedProducts.map((p) => {
+  const paginatedProducts = typedProducts.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
+  const normalized = paginatedProducts.map((p) => {
     const supplier = Array.isArray(p.suppliers) ? p.suppliers[0] : p.suppliers;
 
     return {
       ...p,
       cmv: p.cmv ?? 0,
       ativo: p.ativo ?? false,
-      supplier_name: supplier?.nome ?? p.fornecedor_id ?? null,
+      supplier_name: p.supplier_name ?? supplier?.nome ?? p.fornecedor_id ?? null,
     };
   });
 
@@ -52,6 +60,11 @@ export default async function ProdutosPage() {
       <h1 className="text-2xl font-bold">Produtos</h1>
       <p className="text-zinc-600">Sincronização inicial de SKU, nome e CMV via Google Sheets.</p>
       <ProductsTable products={normalized} role={profile.perfil} />
+      <div className="flex gap-2 text-sm">
+        <Link className={`px-2 py-1 border rounded ${currentPage === 1 ? 'pointer-events-none opacity-50' : ''}`} href={`/produtos?page=${Math.max(1, currentPage - 1)}`}>Anterior</Link>
+        <span className="py-1">Página {currentPage}</span>
+        <Link className={`px-2 py-1 border rounded ${currentPage * PAGE_SIZE >= typedProducts.length ? 'pointer-events-none opacity-50' : ''}`} href={`/produtos?page=${currentPage + 1}`}>Próxima</Link>
+      </div>
     </div>
   );
 }

@@ -9,6 +9,18 @@ type Item = { sku: string; nome_produto: string; quantidade: number; fornecedor_
 type NamedOption = { id: string; nome: string; tipo?: string | null };
 type RequestRow = { id: string; codigo: string; tipo: string; status: string; created_at: string; carga_id?: string | null };
 
+const PAGE_SIZE = 50;
+const STATUS_FILTERS = [
+  { label: 'Todas', value: '' },
+  { label: 'Pendentes', value: 'Pendente' },
+  { label: 'Em análise', value: 'Em análise' },
+  { label: 'Aprovadas', value: 'Aprovada' },
+  { label: 'Recusadas', value: 'Recusada' },
+  { label: 'Ajuste solicitado', value: 'Ajuste solicitado' },
+  { label: 'Transformadas em carga', value: 'Transformada em carga' },
+  { label: 'Canceladas', value: 'Cancelada' },
+];
+
 export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
   const supabase = createClient();
   const [rows, setRows] = useState<RequestRow[]>([]);
@@ -27,13 +39,19 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
   const [prioridade] = useState('Média');
   const [observacoes] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState('');
+  const [page, setPage] = useState(0);
 
   const canApprove = profile.perfil === 'admin' || profile.perfil === 'gerente_estoque';
   const canSeeFinancial = ['admin', 'gerente_estoque', 'gerente_ecommerce', 'financeiro'].includes(profile.perfil);
 
   const load = useCallback(async () => {
     const [reqs, c, s, ch, d, sup] = await Promise.all([
-      supabase.from('load_requests').select('id,codigo,tipo,status,created_at,carga_id').order('created_at', { ascending: false }),
+      (() => {
+        let query = supabase.from('load_requests').select('id,codigo,tipo,status,created_at,carga_id').order('created_at', { ascending: false }).range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1);
+        if (statusFilter) query = query.eq('status', statusFilter);
+        return query;
+      })(),
       supabase.from('companies').select('id,nome').eq('ativo', true),
       supabase.from('stores').select('id,nome').eq('ativo', true),
       supabase.from('channels').select('id,nome,tipo').eq('ativo', true),
@@ -42,7 +60,7 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
     ]);
     setRows((reqs.data ?? []) as RequestRow[]);
     setCompanies((c.data ?? []) as NamedOption[]); setStores((s.data ?? []) as NamedOption[]); setChannels((ch.data ?? []) as NamedOption[]); setDestinations((d.data ?? []) as NamedOption[]); setSuppliers((sup.data ?? []) as NamedOption[]);
-  }, [supabase]);
+  }, [supabase, page, statusFilter]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -138,7 +156,12 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
       </div>
 
       <div className="bg-white border rounded-xl p-4">
-        <h2 className="font-semibold mb-3">Lista de solicitações</h2>
+        <div className="flex flex-wrap items-center gap-2 mb-3">
+          <h2 className="font-semibold mr-2">Lista de solicitações</h2>
+          {STATUS_FILTERS.map((filter) => (
+            <button key={filter.label} className={`px-2 py-1 border rounded text-sm ${statusFilter === filter.value ? 'bg-zinc-900 text-white' : ''}`} onClick={() => { setStatusFilter(filter.value); setPage(0); }}>{filter.label}</button>
+          ))}
+        </div>
         <table className="w-full text-sm">
           <thead><tr className="border-b"><th>Código</th><th>Tipo</th><th>Status</th><th>Criada em</th><th>Ações</th></tr></thead>
           <tbody>
@@ -156,6 +179,11 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
             ))}
           </tbody>
         </table>
+        <div className="flex gap-2 mt-3 text-sm">
+          <button className="px-2 py-1 border rounded disabled:opacity-50" disabled={page === 0} onClick={() => setPage((p) => Math.max(0, p - 1))}>Anterior</button>
+          <span className="py-1">Página {page + 1}</span>
+          <button className="px-2 py-1 border rounded disabled:opacity-50" disabled={rows.length < PAGE_SIZE} onClick={() => setPage((p) => p + 1)}>Próxima</button>
+        </div>
       </div>
     </div>
   );
