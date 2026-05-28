@@ -14,17 +14,15 @@ export default async function AgendaPage() {
   const { data: profile } = await supabase.from('users_profile').select('*').eq('auth_user_id', userData.user.id).single<UserProfile>();
   if (!profile) redirect('/');
 
-  let query = supabase.from('loads').select('id,codigo_interno,numero_carga_marketplace,codigo_agendamento,tipo,status,data_agendada,data_prevista_recebimento,data_real_recebimento,cmv_total,loja_destino_id,marketplace_id,empresa_id,responsavel_operacional_id,channels(nome),stores(nome),users_profile(nome)').order('data_agendada', { ascending: true });
-  if (profile.perfil === 'vendedor_loja') query = query.eq('loja_destino_id', profile.loja_id);
+  const { data: loads } = await supabase.rpc('get_visible_loads');
 
-  const { data: loads } = await query;
-
-  const enriched = await Promise.all((loads ?? []).map(async (l) => {
+  const orderedLoads = [...(loads ?? [])].sort((a, b) => String(a.data_agendada ?? '').localeCompare(String(b.data_agendada ?? '')));
+  const enriched = await Promise.all(orderedLoads.map(async (l) => {
     const load = l as {
-      channels?: { nome?: string }[] | { nome?: string } | null;
-      stores?: { nome?: string }[] | { nome?: string } | null;
-      users_profile?: { nome?: string }[] | { nome?: string } | null;
       id: string;
+      canal_id?: string | null;
+      loja_destino_id?: string | null;
+      responsavel_operacional_id?: string | null;
     };
     const { data: items } = await supabase.from('load_items').select('suppliers(nome)').eq('load_id', load.id);
     const { data: comments } = await supabase.from('comments').select('texto,created_at').eq('entidade', 'load').eq('entidade_id', load.id).order('created_at', { ascending: false }).limit(1);
@@ -34,9 +32,9 @@ export default async function AgendaPage() {
     }).filter(Boolean))).join(', ');
     return {
       ...load,
-      canal_nome: (Array.isArray(load.channels) ? load.channels[0]?.nome : load.channels?.nome) ?? null,
-      loja_nome: (Array.isArray(load.stores) ? load.stores[0]?.nome : load.stores?.nome) ?? null,
-      responsavel_nome: (Array.isArray(load.users_profile) ? load.users_profile[0]?.nome : load.users_profile?.nome) ?? null,
+      canal_nome: load.canal_id ?? null,
+      loja_nome: load.loja_destino_id ?? null,
+      responsavel_nome: load.responsavel_operacional_id ?? null,
       fornecedores,
       comentario: comments?.[0]?.texto ?? null,
     };

@@ -55,7 +55,8 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
   async function handleSkuChange(index: number, sku: string) {
     const next = [...items];
     next[index].sku = sku;
-    const { data: product } = await supabase.from('products').select('id,nome,cmv').eq('sku', sku).maybeSingle();
+    const { data: productRows } = await supabase.rpc('get_visible_product_by_sku', { p_sku: sku });
+    const product = Array.isArray(productRows) ? productRows[0] : null;
     if (product) {
       next[index].nome_produto = product.nome;
       next[index].cmv_unitario = Number(product.cmv || 0);

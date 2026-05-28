@@ -24,9 +24,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const { error: updChecklistErr } = await supabase.from('load_checklists').update({ [field]: value }).eq('id', checklist.id);
     if (updChecklistErr) return NextResponse.json({ error: updChecklistErr.message }, { status: 500 });
 
-    if (field === 'finalizada' && value) { const { error } = await supabase.from('loads').update({ status: 'Finalizada' }).eq('id', id); if (error) return NextResponse.json({ error: error.message }, { status: 500 }); }
-    if (field === 'carga_carregada' && value) { const { error } = await supabase.from('loads').update({ status: 'Carregada' }).eq('id', id); if (error) return NextResponse.json({ error: error.message }, { status: 500 }); }
-    if (field === 'agendada' && value) { const { error } = await supabase.from('loads').update({ status: 'Agendada' }).eq('id', id); if (error) return NextResponse.json({ error: error.message }, { status: 500 }); }
+    const statusByField: Record<string, string> = {
+      finalizada: 'Finalizada',
+      carga_carregada: 'Carregada',
+      agendada: 'Agendada',
+    };
+
+    if (value && statusByField[field]) {
+      const { error } = await supabase.rpc('set_load_operational_status_from_checklist', {
+        p_load_id: id,
+        p_status: statusByField[field],
+      });
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    }
 
     const { error: auditErr } = await supabase.rpc('write_audit_log_safe', {
       p_tabela: 'load_checklists',
