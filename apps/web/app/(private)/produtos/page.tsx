@@ -16,6 +16,7 @@ type ProductWithSupplier = {
   last_synced_at: string | null;
   fornecedor_id?: string | null;
   suppliers?: ProductSupplier[] | ProductSupplier | null;
+  supplier_name?: string | null;
 };
 
 export default async function ProdutosPage() {

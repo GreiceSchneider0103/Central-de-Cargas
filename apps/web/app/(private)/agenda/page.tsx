@@ -23,6 +23,9 @@ export default async function AgendaPage() {
       canal_id?: string | null;
       loja_destino_id?: string | null;
       responsavel_operacional_id?: string | null;
+      canal_nome?: string | null;
+      loja_nome?: string | null;
+      responsavel_nome?: string | null;
     };
     const { data: items } = await supabase.from('load_items').select('suppliers(nome)').eq('load_id', load.id);
     const { data: comments } = await supabase.from('comments').select('texto,created_at').eq('entidade', 'load').eq('entidade_id', load.id).order('created_at', { ascending: false }).limit(1);
@@ -32,9 +35,9 @@ export default async function AgendaPage() {
     }).filter(Boolean))).join(', ');
     return {
       ...load,
-      canal_nome: load.canal_id ?? null,
-      loja_nome: load.loja_destino_id ?? null,
-      responsavel_nome: load.responsavel_operacional_id ?? null,
+      canal_nome: load.canal_nome ?? load.canal_id ?? null,
+      loja_nome: load.loja_nome ?? load.loja_destino_id ?? null,
+      responsavel_nome: load.responsavel_nome ?? load.responsavel_operacional_id ?? null,
       fornecedores,
       comentario: comments?.[0]?.texto ?? null,
     };

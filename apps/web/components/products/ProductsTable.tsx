@@ -18,6 +18,7 @@ export function ProductsTable({ products, role }: { products: ProductRow[]; role
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const isAdmin = role === 'admin';
+  const canSeeFinancial = ['admin', 'gerente_estoque', 'gerente_ecommerce', 'financeiro'].includes(role);
 
   const filtered = useMemo(() => {
     const term = search.toLowerCase();
@@ -62,7 +63,7 @@ export function ProductsTable({ products, role }: { products: ProductRow[]; role
           <tr className="text-left border-b bg-zinc-50">
             <th className="p-3">SKU</th>
             <th className="p-3">Nome</th>
-            <th className="p-3">CMV</th>
+            {canSeeFinancial && <th className="p-3">CMV</th>}
             <th className="p-3">Fornecedor</th>
             <th className="p-3">Última sincronização</th>
             <th className="p-3">Status</th>
@@ -73,9 +74,11 @@ export function ProductsTable({ products, role }: { products: ProductRow[]; role
             <tr key={p.id} className="border-b">
               <td className="p-3 font-mono">{p.sku}</td>
               <td className="p-3">{p.nome}</td>
-              <td className="p-3">
-                {Number(p.cmv) <= 0 ? <span className="text-rose-600 font-semibold">CMV pendente</span> : `R$ ${Number(p.cmv).toFixed(2)}`}
-              </td>
+              {canSeeFinancial && (
+                <td className="p-3">
+                  {Number(p.cmv) <= 0 ? <span className="text-rose-600 font-semibold">CMV pendente</span> : `R$ ${Number(p.cmv).toFixed(2)}`}
+                </td>
+              )}
               <td className="p-3">{p.supplier_name || '-'}</td>
               <td className="p-3">{p.last_synced_at ? new Date(p.last_synced_at).toLocaleString('pt-BR') : '-'}</td>
               <td className="p-3">{p.ativo ? 'Ativo' : 'Inativo'}</td>
