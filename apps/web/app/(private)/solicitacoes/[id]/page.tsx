@@ -1,6 +1,18 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import type { UserProfile } from '@/lib/auth/roles';
+import { CommentForm } from '@/components/comments/CommentForm';
+
+type VisibleRequestItem = {
+  id: string;
+  sku: string | null;
+  nome_produto: string | null;
+  quantidade: number | null;
+  cmv_unitario: number | null;
+  cmv_total: number | null;
+};
+
+type CommentRow = { id: string; texto: string | null; created_at: string };
 
 export default async function SolicitacaoDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -17,8 +29,11 @@ export default async function SolicitacaoDetailPage({ params }: { params: Promis
     .eq('id', id)
     .single();
 
-  const { data: items } = await supabase.from('load_request_items').select('*').eq('request_id', id);
+  const canSeeFinancial = ['admin', 'gerente_estoque', 'gerente_ecommerce', 'financeiro'].includes(profile.perfil);
+
+  const { data: items } = await supabase.rpc('get_visible_load_request_items', { p_request_id: id });
   const { data: history } = await supabase.from('load_request_history').select('*').eq('request_id', id).order('created_at', { ascending: false });
+  const { data: comments } = await supabase.from('comments').select('id,texto,created_at').eq('entidade', 'load_request').eq('entidade_id', id).order('created_at', { ascending: false }).limit(20);
 
   if (!request) redirect('/solicitacoes');
 
@@ -41,9 +56,15 @@ export default async function SolicitacaoDetailPage({ params }: { params: Promis
 
       <div className="bg-white border rounded-xl p-4">
         <h2 className="font-semibold mb-2">Itens</h2>
-        <table className="w-full text-sm"><thead><tr className="border-b"><th>SKU</th><th>Produto</th><th>Qtd</th><th>CMV Unit.</th><th>CMV Total</th></tr></thead><tbody>
-          {(items ?? []).map((i) => <tr key={i.id} className="border-b"><td>{i.sku}</td><td>{i.nome_produto}</td><td>{i.quantidade}</td><td>{i.cmv_unitario}</td><td>{i.cmv_total}</td></tr>)}
+        <table className="w-full text-sm"><thead><tr className="border-b"><th>SKU</th><th>Produto</th><th>Qtd</th>{canSeeFinancial && <th>CMV Unit.</th>}{canSeeFinancial && <th>CMV Total</th>}</tr></thead><tbody>
+          {((items ?? []) as VisibleRequestItem[]).map((i) => <tr key={i.id} className="border-b"><td>{i.sku}</td><td>{i.nome_produto}</td><td>{i.quantidade}</td>{canSeeFinancial && <td>{i.cmv_unitario}</td>}{canSeeFinancial && <td>{i.cmv_total}</td>}</tr>)}
         </tbody></table>
+      </div>
+
+      <div className="bg-white border rounded-xl p-4 space-y-3">
+        <h2 className="font-semibold">Comentários</h2>
+        <CommentForm entidade="load_request" entidadeId={id} />
+        <ul className="text-sm space-y-2">{((comments ?? []) as CommentRow[]).map((c) => <li key={c.id} className="border-b pb-2">{c.texto}<br /><span className="text-xs text-zinc-500">{new Date(c.created_at).toLocaleString('pt-BR')}</span></li>)}</ul>
       </div>
 
       <div className="bg-white border rounded-xl p-4">

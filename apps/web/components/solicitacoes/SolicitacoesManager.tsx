@@ -9,6 +9,18 @@ type Item = { sku: string; nome_produto: string; quantidade: number; fornecedor_
 type NamedOption = { id: string; nome: string; tipo?: string | null };
 type RequestRow = { id: string; codigo: string; tipo: string; status: string; created_at: string; carga_id?: string | null };
 
+const PAGE_SIZE = 50;
+const STATUS_FILTERS = [
+  { label: 'Todas', value: '' },
+  { label: 'Pendentes', value: 'Pendente' },
+  { label: 'Em análise', value: 'Em análise' },
+  { label: 'Aprovadas', value: 'Aprovada' },
+  { label: 'Recusadas', value: 'Recusada' },
+  { label: 'Ajuste solicitado', value: 'Ajuste solicitado' },
+  { label: 'Transformadas em carga', value: 'Transformada em carga' },
+  { label: 'Canceladas', value: 'Cancelada' },
+];
+
 export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
   const supabase = createClient();
   const [rows, setRows] = useState<RequestRow[]>([]);
@@ -27,12 +39,20 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
   const [prioridade] = useState('Média');
   const [observacoes] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState('');
+  const [page, setPage] = useState(0);
+  const [totalRequests, setTotalRequests] = useState(0);
 
   const canApprove = profile.perfil === 'admin' || profile.perfil === 'gerente_estoque';
+  const canSeeFinancial = ['admin', 'gerente_estoque', 'gerente_ecommerce', 'financeiro'].includes(profile.perfil);
 
   const load = useCallback(async () => {
     const [reqs, c, s, ch, d, sup] = await Promise.all([
-      supabase.from('load_requests').select('id,codigo,tipo,status,created_at,carga_id').order('created_at', { ascending: false }),
+      (() => {
+        let query = supabase.from('load_requests').select('id,codigo,tipo,status,created_at,carga_id', { count: 'exact' }).order('created_at', { ascending: false }).range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1);
+        if (statusFilter) query = query.eq('status', statusFilter);
+        return query;
+      })(),
       supabase.from('companies').select('id,nome').eq('ativo', true),
       supabase.from('stores').select('id,nome').eq('ativo', true),
       supabase.from('channels').select('id,nome,tipo').eq('ativo', true),
@@ -40,8 +60,9 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
       supabase.from('suppliers').select('id,nome').eq('ativo', true),
     ]);
     setRows((reqs.data ?? []) as RequestRow[]);
+    setTotalRequests(reqs.count ?? 0);
     setCompanies((c.data ?? []) as NamedOption[]); setStores((s.data ?? []) as NamedOption[]); setChannels((ch.data ?? []) as NamedOption[]); setDestinations((d.data ?? []) as NamedOption[]); setSuppliers((sup.data ?? []) as NamedOption[]);
-  }, [supabase]);
+  }, [supabase, page, statusFilter]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -55,7 +76,8 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
   async function handleSkuChange(index: number, sku: string) {
     const next = [...items];
     next[index].sku = sku;
-    const { data: product } = await supabase.from('products').select('id,nome,cmv').eq('sku', sku).maybeSingle();
+    const { data: productRows } = await supabase.rpc('get_visible_product_by_sku', { p_sku: sku });
+    const product = Array.isArray(productRows) ? productRows[0] : null;
     if (product) {
       next[index].nome_produto = product.nome;
       next[index].cmv_unitario = Number(product.cmv || 0);
@@ -105,6 +127,8 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
     await load();
   }
 
+  const totalRequestPages = Math.max(1, Math.ceil(totalRequests / PAGE_SIZE));
+
   return (
     <div className="space-y-6">
       <div className="bg-white border rounded-xl p-4 space-y-3">
@@ -123,9 +147,9 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
             <input placeholder="Nome" className="h-10 border rounded px-2" value={item.nome_produto} onChange={(e) => updateItem(idx, 'nome_produto', e.target.value)} />
             <input placeholder="Quantidade" type="number" className="h-10 border rounded px-2" value={item.quantidade} onChange={(e) => updateItem(idx, 'quantidade', Number(e.target.value))} />
             <select className="h-10 border rounded px-2" value={item.fornecedor_origem_id || ''} onChange={(e) => updateItem(idx, 'fornecedor_origem_id', e.target.value)}><option value="">Fornecedor</option>{suppliers.map(s=><option key={s.id} value={s.id}>{s.nome}</option>)}</select>
-            <input placeholder="CMV unitário" type="number" className="h-10 border rounded px-2" value={item.cmv_unitario} onChange={(e) => updateItem(idx, 'cmv_unitario', Number(e.target.value))} />
-            <div className="h-10 border rounded px-2 flex items-center">CMV total: {item.cmv_total.toFixed(2)}</div>
-            {Number(item.cmv_unitario) <= 0 && <p className="text-xs text-amber-600 col-span-6">Produto sem CMV cadastrado. Informe manualmente.</p>}
+            {canSeeFinancial && <input placeholder="CMV unitário" type="number" className="h-10 border rounded px-2" value={item.cmv_unitario} onChange={(e) => updateItem(idx, 'cmv_unitario', Number(e.target.value))} />}
+            {canSeeFinancial && <div className="h-10 border rounded px-2 flex items-center">CMV total: {item.cmv_total.toFixed(2)}</div>}
+            {canSeeFinancial && Number(item.cmv_unitario) <= 0 && <p className="text-xs text-amber-600 col-span-6">Produto sem CMV cadastrado. Informe manualmente.</p>}
           </div>
         ))}
         <div className="flex gap-2">
@@ -136,7 +160,12 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
       </div>
 
       <div className="bg-white border rounded-xl p-4">
-        <h2 className="font-semibold mb-3">Lista de solicitações</h2>
+        <div className="flex flex-wrap items-center gap-2 mb-3">
+          <h2 className="font-semibold mr-2">Lista de solicitações</h2>
+          {STATUS_FILTERS.map((filter) => (
+            <button key={filter.label} className={`px-2 py-1 border rounded text-sm ${statusFilter === filter.value ? 'bg-zinc-900 text-white' : ''}`} onClick={() => { setStatusFilter(filter.value); setPage(0); }}>{filter.label}</button>
+          ))}
+        </div>
         <table className="w-full text-sm">
           <thead><tr className="border-b"><th>Código</th><th>Tipo</th><th>Status</th><th>Criada em</th><th>Ações</th></tr></thead>
           <tbody>
@@ -154,6 +183,11 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
             ))}
           </tbody>
         </table>
+        <div className="flex gap-2 mt-3 text-sm">
+          <button className="px-2 py-1 border rounded disabled:opacity-50" disabled={page === 0} onClick={() => setPage((p) => Math.max(0, p - 1))}>Anterior</button>
+          <span className="py-1">Página {page + 1} de {totalRequestPages} ({totalRequests} solicitações)</span>
+          <button className="px-2 py-1 border rounded disabled:opacity-50" disabled={page + 1 >= totalRequestPages} onClick={() => setPage((p) => p + 1)}>Próxima</button>
+        </div>
       </div>
     </div>
   );
