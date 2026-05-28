@@ -14,6 +14,15 @@ type VisibleRequestItem = {
 
 type CommentRow = { id: string; texto: string | null; created_at: string };
 
+type VisibleRequestItem = {
+  id: string;
+  sku: string | null;
+  nome_produto: string | null;
+  quantidade: number | null;
+  cmv_unitario: number | null;
+  cmv_total: number | null;
+};
+
 export default async function SolicitacaoDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = await createClient();

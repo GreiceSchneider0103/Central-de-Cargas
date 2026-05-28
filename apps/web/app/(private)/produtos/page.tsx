@@ -44,7 +44,9 @@ export default async function ProdutosPage({ searchParams }: { searchParams?: Pr
   const totalProducts = Number(typedProducts[0]?.total_count ?? 0);
   const totalPages = Math.max(1, Math.ceil(totalProducts / PAGE_SIZE));
 
-  const normalized = typedProducts.map((p) => {
+  const paginatedProducts = typedProducts.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
+  const normalized = paginatedProducts.map((p) => {
     const supplier = Array.isArray(p.suppliers) ? p.suppliers[0] : p.suppliers;
 
     return {
