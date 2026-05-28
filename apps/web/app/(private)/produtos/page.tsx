@@ -14,7 +14,8 @@ type ProductWithSupplier = {
   cmv: number | null;
   ativo: boolean | null;
   last_synced_at: string | null;
-  suppliers: ProductSupplier[] | ProductSupplier | null;
+  fornecedor_id?: string | null;
+  suppliers?: ProductSupplier[] | ProductSupplier | null;
 };
 
 export default async function ProdutosPage() {
@@ -30,10 +31,7 @@ export default async function ProdutosPage() {
 
   if (!profile) redirect('/');
 
-  const { data: products } = await supabase
-    .from('products')
-    .select('id,sku,nome,cmv,ativo,last_synced_at,suppliers(nome)')
-    .order('nome', { ascending: true });
+  const { data: products } = await supabase.rpc('get_visible_products');
 
   const typedProducts = (products ?? []) as ProductWithSupplier[];
 
@@ -44,7 +42,7 @@ export default async function ProdutosPage() {
       ...p,
       cmv: p.cmv ?? 0,
       ativo: p.ativo ?? false,
-      supplier_name: supplier?.nome ?? null,
+      supplier_name: supplier?.nome ?? p.fornecedor_id ?? null,
     };
   });
 
