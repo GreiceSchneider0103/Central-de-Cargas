@@ -46,7 +46,7 @@ export function CadastrosManager({ role }: { role: UserProfileRole }) {
 
   const loadData = useCallback(async () => {
     const supabase = createClient();
-    const query = supabase.from(activeSection.table).select(baseSelect).order('nome', { ascending: true });
+    const query = supabase.from(activeSection.table).select(baseSelect).order('nome', { ascending: true }).limit(100);
     if (!showInactive) query.eq('ativo', true);
     const { data, error } = await query;
     if (error) {

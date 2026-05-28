@@ -8,7 +8,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (!motivo || typeof motivo !== 'string') return NextResponse.json({ error: 'MOTIVO_REQUIRED' }, { status: 422 });
 
     const { supabase, profile } = await requireProfile();
-    const { data: load, error: loadErr } = await supabase.from('loads').select('*').eq('id', id).single();
+    const { data: load, error: loadErr } = await supabase.from('loads').select('id,tipo,status').eq('id', id).single();
     if (loadErr) return NextResponse.json({ error: loadErr.message }, { status: 500 });
     if (!load) return NextResponse.json({ error: 'NOT_FOUND' }, { status: 404 });
     if (!canManageLoad(profile, load)) return NextResponse.json({ error: 'FORBIDDEN' }, { status: 403 });

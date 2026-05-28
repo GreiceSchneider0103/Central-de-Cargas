@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import type { UserProfile } from '@/lib/auth/roles';
+import { LOAD_STATUSES } from '@/lib/loads/statuses';
 
 type LoadRow = {
   id: string;
@@ -28,6 +29,8 @@ type LoadItemRow = {
 
 type ChecklistRow = Record<string, boolean | null | undefined> & { id: string; nf_emitida?: boolean | null };
 
+const PAGE_SIZE = 50;
+
 export function CargasManager({ profile }: { profile: UserProfile }) {
   const supabase = createClient();
   const [loads, setLoads] = useState<LoadRow[]>([]);
@@ -37,13 +40,15 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
   const [form, setForm] = useState<Record<string, string | number>>({ tipo: 'LOJA_FISICA', status: 'Rascunho', prioridade: 'Média', custo_frete: 0, outros_custos: 0 });
   const [newItem, setNewItem] = useState<Record<string, string | number>>({ sku: '', nome_produto: '', quantidade: 1, cmv_unitario: 0 });
   const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(0);
 
   const canWrite = ['admin', 'gerente_estoque', 'gerente_ecommerce'].includes(profile.perfil);
   const canChecklist = ['admin', 'gerente_estoque', 'operador_carga'].includes(profile.perfil);
+  const canSeeFinancial = ['admin', 'gerente_estoque', 'gerente_ecommerce', 'financeiro'].includes(profile.perfil);
 
   const loadData = useCallback(async () => {
-    const { data } = await supabase.from('loads').select('*').order('created_at', { ascending: false });
-    setLoads((data ?? []) as LoadRow[]);
+    const { data } = await supabase.rpc('get_visible_loads');
+    setLoads(((data ?? []) as LoadRow[]).sort((a, b) => String(b.created_at ?? '').localeCompare(String(a.created_at ?? ''))));
   }, [supabase]);
 
   useEffect(() => { loadData(); }, [loadData]);
@@ -51,38 +56,47 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
   async function createLoad() {
     if (!canWrite) return;
     setError(null);
-    const authUser = (await supabase.auth.getUser()).data.user;
-    const { data: me } = await supabase.from('users_profile').select('id').eq('auth_user_id', authUser?.id ?? '').single();
-    if (!me) return setError('Perfil do usuário não encontrado.');
+    if (!newItem.sku || !newItem.nome_produto || Number(newItem.quantidade || 0) <= 0) {
+      setError('Informe ao menos um item com SKU, nome e quantidade maior que zero.');
+      return;
+    }
 
-    const { data, error } = await supabase.from('loads').insert({
-      tipo: form.tipo,
-      status: form.status,
-      prioridade: form.prioridade,
-      empresa_id: form.empresa_id || null,
-      canal_id: form.canal_id || null,
-      marketplace_id: form.marketplace_id || null,
-      destino_full_id: form.destino_full_id || null,
-      loja_destino_id: form.loja_destino_id || null,
-      cd_origem_id: form.cd_origem_id || null,
-      custo_frete: Number(form.custo_frete || 0),
-      outros_custos: Number(form.outros_custos || 0),
-      faturamento_estimado: form.faturamento_estimado ? Number(form.faturamento_estimado) : null,
-      numero_carga_marketplace: form.numero_carga_marketplace || null,
-      codigo_agendamento: form.codigo_agendamento || null,
-      solicitante_id: me.id,
-      observacoes: form.observacoes || null,
-    }).select('*').single();
-    if (error) return setError(error.message);
-    await supabase.from('load_checklists').insert({ load_id: data.id });
-    await supabase.from('load_request_history').insert({ request_id: null, acao: 'CARGA_CRIADA', observacao: data.codigo_interno, autor_profile_id: me.id });
+    const response = await fetch('/api/loads', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        load: {
+          tipo: form.tipo,
+          status: form.status,
+          prioridade: form.prioridade,
+          empresa_id: form.empresa_id || null,
+          canal_id: form.canal_id || null,
+          marketplace_id: form.marketplace_id || null,
+          destino_full_id: form.destino_full_id || null,
+          loja_destino_id: form.loja_destino_id || null,
+          cd_origem_id: form.cd_origem_id || null,
+          custo_frete: Number(form.custo_frete || 0),
+          outros_custos: Number(form.outros_custos || 0),
+          faturamento_estimado: form.faturamento_estimado ? Number(form.faturamento_estimado) : null,
+          numero_carga_marketplace: form.numero_carga_marketplace || null,
+          codigo_agendamento: form.codigo_agendamento || null,
+          observacoes: form.observacoes || null,
+        },
+        items: [{ ...newItem, quantidade: Number(newItem.quantidade || 0), cmv_unitario: Number(newItem.cmv_unitario || 0) }],
+      }),
+    });
+
+    const result = await response.json();
+    if (!response.ok) return setError(result.error || 'Erro ao criar carga.');
+
+    setNewItem({ sku: '', nome_produto: '', quantidade: 1, cmv_unitario: 0 });
     await loadData();
   }
 
   async function openLoad(load: LoadRow) {
     setSelected(load);
     const [it, chk] = await Promise.all([
-      supabase.from('load_items').select('*').eq('load_id', load.id).order('created_at', { ascending: true }),
+      supabase.rpc('get_visible_load_items', { p_load_id: load.id }),
       supabase.from('load_checklists').select('*').eq('load_id', load.id).single(),
     ]);
     setItems((it.data ?? []) as LoadItemRow[]);
@@ -91,7 +105,8 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
 
   async function addItem() {
     if (!selected || !canWrite) return;
-    const { data: product } = await supabase.from('products').select('id,nome,cmv').eq('sku', newItem.sku).maybeSingle();
+    const { data: productRows } = await supabase.rpc('get_visible_product_by_sku', { p_sku: String(newItem.sku) });
+    const product = Array.isArray(productRows) ? productRows[0] : null;
     const payload = {
       load_id: selected.id,
       product_id: product?.id ?? null,
@@ -140,6 +155,8 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
     await loadData();
   }
 
+  const paginatedLoads = useMemo(() => loads.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE), [loads, page]);
+
   const totals = useMemo(() => {
     const cmv = items.reduce((sum, i) => sum + Number(i.cmv_total || 0), 0);
     const fat = Number(selected?.faturamento_estimado || 0);
@@ -158,10 +175,19 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
         <input className="h-10 border rounded px-2" placeholder="Empresa ID" onChange={e=>setForm({...form,empresa_id:e.target.value})}/>
         <input className="h-10 border rounded px-2" placeholder="Canal ID" onChange={e=>setForm({...form,canal_id:e.target.value})}/>
         <input className="h-10 border rounded px-2" placeholder="Loja destino ID" onChange={e=>setForm({...form,loja_destino_id:e.target.value})}/>
+        <input className="h-10 border rounded px-2" placeholder="Marketplace ID" onChange={e=>setForm({...form,marketplace_id:e.target.value})}/>
+        <input className="h-10 border rounded px-2" placeholder="Destino Full ID" onChange={e=>setForm({...form,destino_full_id:e.target.value})}/>
         <input className="h-10 border rounded px-2" placeholder="Número marketplace" onChange={e=>setForm({...form,numero_carga_marketplace:e.target.value})}/>
         <input className="h-10 border rounded px-2" placeholder="Código agendamento" onChange={e=>setForm({...form,codigo_agendamento:e.target.value})}/>
         <input className="h-10 border rounded px-2" placeholder="Faturamento estimado" type="number" onChange={e=>setForm({...form,faturamento_estimado:e.target.value})}/>
         <input className="h-10 border rounded px-2" placeholder="Custo frete" type="number" onChange={e=>setForm({...form,custo_frete:e.target.value})}/>
+        <select className="h-10 border rounded px-2" value={form.status} onChange={e=>setForm({...form,status:e.target.value})}>{LOAD_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}</select>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+        <input className="h-10 border rounded px-2" placeholder="SKU item inicial" value={newItem.sku||''} onChange={e=>setNewItem({...newItem,sku:e.target.value})}/>
+        <input className="h-10 border rounded px-2" placeholder="Nome item inicial" value={newItem.nome_produto||''} onChange={e=>setNewItem({...newItem,nome_produto:e.target.value})}/>
+        <input className="h-10 border rounded px-2" placeholder="Quantidade" type="number" value={newItem.quantidade||1} onChange={e=>setNewItem({...newItem,quantidade:e.target.value})}/>
+        {canSeeFinancial && <input className="h-10 border rounded px-2" placeholder="CMV unitário" type="number" value={newItem.cmv_unitario||0} onChange={e=>setNewItem({...newItem,cmv_unitario:e.target.value})}/>}
       </div>
       {canWrite && <button className="px-3 py-2 bg-indigo-600 text-white rounded" onClick={createLoad}>Criar carga</button>}
       {error && <p className="text-sm text-rose-600">{error}</p>}
@@ -169,9 +195,14 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
 
     <div className="bg-white border rounded-xl p-4">
       <h2 className="font-semibold mb-2">Lista de cargas</h2>
-      <table className="w-full text-sm"><thead><tr className="border-b"><th>Código</th><th>Tipo</th><th>Status</th><th>CMV total</th><th>Ações</th></tr></thead><tbody>
-        {loads.map(l => <tr key={l.id} className="border-b"><td>{l.codigo_interno}</td><td>{l.tipo}</td><td>{l.status}</td><td>{Number(l.cmv_total||0).toFixed(2)}</td><td><button className="text-indigo-600" onClick={()=>openLoad(l)}>Detalhe</button></td></tr>)}
+      <table className="w-full text-sm"><thead><tr className="border-b"><th>Código</th><th>Tipo</th><th>Status</th>{canSeeFinancial && <th>CMV total</th>}<th>Ações</th></tr></thead><tbody>
+        {paginatedLoads.map(l => <tr key={l.id} className="border-b"><td>{l.codigo_interno}</td><td>{l.tipo}</td><td>{l.status}</td>{canSeeFinancial && <td>{Number(l.cmv_total||0).toFixed(2)}</td>}<td><button className="text-indigo-600" onClick={()=>openLoad(l)}>Detalhe</button></td></tr>)}
       </tbody></table>
+      <div className="flex gap-2 mt-3 text-sm">
+        <button className="px-2 py-1 border rounded disabled:opacity-50" disabled={page === 0} onClick={() => setPage((p) => Math.max(0, p - 1))}>Anterior</button>
+        <span className="py-1">Página {page + 1}</span>
+        <button className="px-2 py-1 border rounded disabled:opacity-50" disabled={(page + 1) * PAGE_SIZE >= loads.length} onClick={() => setPage((p) => p + 1)}>Próxima</button>
+      </div>
     </div>
 
     {selected && <div className="bg-white border rounded-xl p-4 space-y-4">
@@ -188,15 +219,15 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
       {Number(newItem.cmv_unitario||0)<=0 && <p className='text-xs text-amber-600'>Produto sem CMV, preencher manualmente.</p>}
       {canWrite && <button className="px-3 py-2 border rounded" onClick={addItem}>Adicionar item</button>}
 
-      <table className="w-full text-sm"><thead><tr className="border-b"><th>SKU</th><th>Nome</th><th>Qtd</th><th>CMV unit</th><th>CMV total</th><th>Cubagem</th></tr></thead><tbody>
-        {items.map(i=><tr key={i.id} className="border-b"><td>{i.sku}</td><td>{i.nome_produto}</td><td>{i.quantidade}</td><td>{i.cmv_unitario}</td><td>{i.cmv_total}</td><td>{i.cubagem ?? '-'}</td></tr>)}
+      <table className="w-full text-sm"><thead><tr className="border-b"><th>SKU</th><th>Nome</th><th>Qtd</th>{canSeeFinancial && <th>CMV unit</th>}{canSeeFinancial && <th>CMV total</th>}<th>Cubagem</th></tr></thead><tbody>
+        {items.map(i=><tr key={i.id} className="border-b"><td>{i.sku}</td><td>{i.nome_produto}</td><td>{i.quantidade}</td>{canSeeFinancial && <td>{i.cmv_unitario}</td>}{canSeeFinancial && <td>{i.cmv_total}</td>}<td>{i.cubagem ?? '-'}</td></tr>)}
       </tbody></table>
 
-      <div className="bg-zinc-50 p-3 rounded text-sm">
+      {canSeeFinancial && <div className="bg-zinc-50 p-3 rounded text-sm">
         <p>CMV total: {totals.cmv.toFixed(2)}</p>
         <p>Margem estimativa (valor): {totals.margemValor.toFixed(2)}</p>
         <p>Margem estimativa (%): {totals.margemPct === null ? '-' : (totals.margemPct*100).toFixed(2) + '%'}</p>
-      </div>
+      </div>}
 
       {checklist && <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
         {['pedido_realizado','pedido_confirmado_fornecedor','produto_recebido','montada','agendada','etiqueta_impressa','carga_separada','carga_etiquetada','nf_emitida','carga_carregada','finalizada'].map((k)=><label key={k} className="flex items-center gap-2"><input type="checkbox" checked={!!checklist[k]} onChange={e=>toggleChecklist(k,e.target.checked)} disabled={!canChecklist}/>{k}</label>)}
