@@ -41,6 +41,7 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState('');
   const [page, setPage] = useState(0);
+  const [totalRequests, setTotalRequests] = useState(0);
 
   const canApprove = profile.perfil === 'admin' || profile.perfil === 'gerente_estoque';
   const canSeeFinancial = ['admin', 'gerente_estoque', 'gerente_ecommerce', 'financeiro'].includes(profile.perfil);
@@ -48,7 +49,7 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
   const load = useCallback(async () => {
     const [reqs, c, s, ch, d, sup] = await Promise.all([
       (() => {
-        let query = supabase.from('load_requests').select('id,codigo,tipo,status,created_at,carga_id').order('created_at', { ascending: false }).range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1);
+        let query = supabase.from('load_requests').select('id,codigo,tipo,status,created_at,carga_id', { count: 'exact' }).order('created_at', { ascending: false }).range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1);
         if (statusFilter) query = query.eq('status', statusFilter);
         return query;
       })(),
@@ -59,6 +60,7 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
       supabase.from('suppliers').select('id,nome').eq('ativo', true),
     ]);
     setRows((reqs.data ?? []) as RequestRow[]);
+    setTotalRequests(reqs.count ?? 0);
     setCompanies((c.data ?? []) as NamedOption[]); setStores((s.data ?? []) as NamedOption[]); setChannels((ch.data ?? []) as NamedOption[]); setDestinations((d.data ?? []) as NamedOption[]); setSuppliers((sup.data ?? []) as NamedOption[]);
   }, [supabase, page, statusFilter]);
 
@@ -125,6 +127,8 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
     await load();
   }
 
+  const totalRequestPages = Math.max(1, Math.ceil(totalRequests / PAGE_SIZE));
+
   return (
     <div className="space-y-6">
       <div className="bg-white border rounded-xl p-4 space-y-3">
@@ -181,8 +185,8 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
         </table>
         <div className="flex gap-2 mt-3 text-sm">
           <button className="px-2 py-1 border rounded disabled:opacity-50" disabled={page === 0} onClick={() => setPage((p) => Math.max(0, p - 1))}>Anterior</button>
-          <span className="py-1">Página {page + 1}</span>
-          <button className="px-2 py-1 border rounded disabled:opacity-50" disabled={rows.length < PAGE_SIZE} onClick={() => setPage((p) => p + 1)}>Próxima</button>
+          <span className="py-1">Página {page + 1} de {totalRequestPages} ({totalRequests} solicitações)</span>
+          <button className="px-2 py-1 border rounded disabled:opacity-50" disabled={page + 1 >= totalRequestPages} onClick={() => setPage((p) => p + 1)}>Próxima</button>
         </div>
       </div>
     </div>

@@ -10,6 +10,9 @@ type LoadRow = {
   codigo_interno?: string | null;
   tipo?: string | null;
   status?: string | null;
+  prioridade?: string | null;
+  data_agendada?: string | null;
+  observacoes?: string | null;
   cmv_total?: number | null;
   faturamento_estimado?: number | null;
   custo_frete?: number | null;
@@ -28,6 +31,9 @@ type LoadItemRow = {
 };
 
 type ChecklistRow = Record<string, boolean | null | undefined> & { id: string; nf_emitida?: boolean | null };
+type Option = { id: string; nome: string; tipo?: string | null };
+
+const PAGE_SIZE = 50;
 
 const PAGE_SIZE = 50;
 
@@ -40,18 +46,38 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
   const [form, setForm] = useState<Record<string, string | number>>({ tipo: 'LOJA_FISICA', status: 'Rascunho', prioridade: 'Média', custo_frete: 0, outros_custos: 0 });
   const [newItem, setNewItem] = useState<Record<string, string | number>>({ sku: '', nome_produto: '', quantidade: 1, cmv_unitario: 0 });
   const [error, setError] = useState<string | null>(null);
+  const [options, setOptions] = useState<{ companies: Option[]; channels: Option[]; stores: Option[]; destinations: Option[]; cds: Option[]; suppliers: Option[]; transports: Option[] }>({ companies: [], channels: [], stores: [], destinations: [], cds: [], suppliers: [], transports: [] });
   const [page, setPage] = useState(0);
+  const [totalLoads, setTotalLoads] = useState(0);
 
   const canWrite = ['admin', 'gerente_estoque', 'gerente_ecommerce'].includes(profile.perfil);
   const canChecklist = ['admin', 'gerente_estoque', 'operador_carga'].includes(profile.perfil);
   const canSeeFinancial = ['admin', 'gerente_estoque', 'gerente_ecommerce', 'financeiro'].includes(profile.perfil);
 
   const loadData = useCallback(async () => {
-    const { data } = await supabase.rpc('get_visible_loads');
-    setLoads(((data ?? []) as LoadRow[]).sort((a, b) => String(b.created_at ?? '').localeCompare(String(a.created_at ?? ''))));
-  }, [supabase]);
+    const { data } = await supabase.rpc('get_visible_loads_page', { p_page: page + 1, p_page_size: PAGE_SIZE });
+    const rows = (data ?? []) as (LoadRow & { total_count?: number })[];
+    setLoads(rows);
+    setTotalLoads(Number(rows[0]?.total_count ?? 0));
+  }, [supabase, page]);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  useEffect(() => {
+    async function loadOptions() {
+      const [companies, channels, stores, destinations, cds, suppliers, transports] = await Promise.all([
+        supabase.from('companies').select('id,nome').eq('ativo', true).order('nome'),
+        supabase.from('channels').select('id,nome,tipo').eq('ativo', true).order('nome'),
+        supabase.from('stores').select('id,nome').eq('ativo', true).order('nome'),
+        supabase.from('full_destinations').select('id,nome').eq('ativo', true).order('nome'),
+        supabase.from('distribution_centers').select('id,nome').eq('ativo', true).order('nome'),
+        supabase.from('suppliers').select('id,nome').eq('ativo', true).order('nome'),
+        supabase.from('transport_types').select('id,nome,tipo').eq('ativo', true).order('nome'),
+      ]);
+      setOptions({ companies: companies.data ?? [], channels: channels.data ?? [], stores: stores.data ?? [], destinations: destinations.data ?? [], cds: cds.data ?? [], suppliers: suppliers.data ?? [], transports: transports.data ?? [] });
+    }
+    loadOptions();
+  }, [supabase]);
 
   async function createLoad() {
     if (!canWrite) return;
@@ -80,6 +106,8 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
           faturamento_estimado: form.faturamento_estimado ? Number(form.faturamento_estimado) : null,
           numero_carga_marketplace: form.numero_carga_marketplace || null,
           codigo_agendamento: form.codigo_agendamento || null,
+          tipo_coleta_id: form.tipo_coleta_id || null,
+          transportador_id: form.transportador_id || null,
           observacoes: form.observacoes || null,
         },
         items: [{ ...newItem, quantidade: Number(newItem.quantidade || 0), cmv_unitario: Number(newItem.cmv_unitario || 0) }],
@@ -120,10 +148,44 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
       profundidade: newItem.profundidade ? Number(newItem.profundidade) : null,
       peso: newItem.peso ? Number(newItem.peso) : null,
     };
-    const { error } = await supabase.from('load_items').insert(payload);
-    if (error) return setError(error.message);
+    const res = await fetch(`/api/loads/${selected.id}/items`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    if (!res.ok) { const j = await res.json(); return setError(j.error || 'Erro ao adicionar item.'); }
     setNewItem({ sku: '', nome_produto: '', quantidade: 1, cmv_unitario: 0 });
     await openLoad(selected);
+    await loadData();
+  }
+
+  async function editItem(item: LoadItemRow) {
+    if (!selected || !canWrite) return;
+    const quantidade = prompt('Quantidade', String(item.quantidade ?? 1));
+    if (!quantidade) return;
+    const cmv = canSeeFinancial ? prompt('CMV unitário', String(item.cmv_unitario ?? 0)) : String(item.cmv_unitario ?? 0);
+    const res = await fetch(`/api/loads/${selected.id}/items`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...item, quantidade: Number(quantidade), cmv_unitario: Number(cmv || 0) }),
+    });
+    if (!res.ok) { const j = await res.json(); setError(j.error || 'Erro ao editar item.'); return; }
+    await openLoad(selected);
+    await loadData();
+  }
+
+  async function removeItem(item: LoadItemRow) {
+    if (!selected || !canWrite || !confirm('Remover item da carga?')) return;
+    const res = await fetch(`/api/loads/${selected.id}/items?itemId=${item.id}`, { method: 'DELETE' });
+    if (!res.ok) { const j = await res.json(); setError(j.error || 'Erro ao remover item.'); return; }
+    await openLoad(selected);
+    await loadData();
+  }
+
+  async function patchSelectedLoad() {
+    if (!selected || !canWrite) return;
+    const res = await fetch(`/api/loads/${selected.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: selected.status, prioridade: selected.prioridade, data_agendada: selected.data_agendada, observacoes: selected.observacoes }),
+    });
+    if (!res.ok) { const j = await res.json(); setError(j.error || 'Erro ao atualizar carga.'); return; }
     await loadData();
   }
 
@@ -155,7 +217,7 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
     await loadData();
   }
 
-  const paginatedLoads = useMemo(() => loads.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE), [loads, page]);
+  const totalLoadPages = Math.max(1, Math.ceil(totalLoads / PAGE_SIZE));
 
   const totals = useMemo(() => {
     const cmv = items.reduce((sum, i) => sum + Number(i.cmv_total || 0), 0);
@@ -172,13 +234,16 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
       <h2 className="font-semibold">Nova carga</h2>
       <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
         <select className="h-10 border rounded px-2" value={form.tipo} onChange={e=>setForm({...form,tipo:e.target.value})}><option value="LOJA_FISICA">Loja</option><option value="FULL_MARKETPLACE">Full</option></select>
-        <input className="h-10 border rounded px-2" placeholder="Empresa ID" onChange={e=>setForm({...form,empresa_id:e.target.value})}/>
-        <input className="h-10 border rounded px-2" placeholder="Canal ID" onChange={e=>setForm({...form,canal_id:e.target.value})}/>
-        <input className="h-10 border rounded px-2" placeholder="Loja destino ID" onChange={e=>setForm({...form,loja_destino_id:e.target.value})}/>
-        <input className="h-10 border rounded px-2" placeholder="Marketplace ID" onChange={e=>setForm({...form,marketplace_id:e.target.value})}/>
-        <input className="h-10 border rounded px-2" placeholder="Destino Full ID" onChange={e=>setForm({...form,destino_full_id:e.target.value})}/>
+        <select className="h-10 border rounded px-2" onChange={e=>setForm({...form,empresa_id:e.target.value})}><option value="">Empresa</option>{options.companies.map(o=><option key={o.id} value={o.id}>{o.nome}</option>)}</select>
+        <select className="h-10 border rounded px-2" onChange={e=>setForm({...form,canal_id:e.target.value})}><option value="">Canal</option>{options.channels.map(o=><option key={o.id} value={o.id}>{o.nome}</option>)}</select>
+        <select className="h-10 border rounded px-2" onChange={e=>setForm({...form,loja_destino_id:e.target.value})}><option value="">Loja destino</option>{options.stores.map(o=><option key={o.id} value={o.id}>{o.nome}</option>)}</select>
+        <select className="h-10 border rounded px-2" onChange={e=>setForm({...form,marketplace_id:e.target.value})}><option value="">Marketplace</option>{options.channels.filter(o=>o.tipo==='Marketplace Full').map(o=><option key={o.id} value={o.id}>{o.nome}</option>)}</select>
+        <select className="h-10 border rounded px-2" onChange={e=>setForm({...form,destino_full_id:e.target.value})}><option value="">Destino Full</option>{options.destinations.map(o=><option key={o.id} value={o.id}>{o.nome}</option>)}</select>
         <input className="h-10 border rounded px-2" placeholder="Número marketplace" onChange={e=>setForm({...form,numero_carga_marketplace:e.target.value})}/>
         <input className="h-10 border rounded px-2" placeholder="Código agendamento" onChange={e=>setForm({...form,codigo_agendamento:e.target.value})}/>
+        <select className="h-10 border rounded px-2" onChange={e=>setForm({...form,cd_origem_id:e.target.value})}><option value="">CD origem</option>{options.cds.map(o=><option key={o.id} value={o.id}>{o.nome}</option>)}</select>
+        <select className="h-10 border rounded px-2" onChange={e=>setForm({...form,tipo_coleta_id:e.target.value})}><option value="">Tipo de coleta</option>{options.transports.map(o=><option key={o.id} value={o.id}>{o.nome}</option>)}</select>
+        <select className="h-10 border rounded px-2" onChange={e=>setForm({...form,transportador_id:e.target.value})}><option value="">Transportador</option>{options.transports.map(o=><option key={o.id} value={o.id}>{o.nome}</option>)}</select>
         <input className="h-10 border rounded px-2" placeholder="Faturamento estimado" type="number" onChange={e=>setForm({...form,faturamento_estimado:e.target.value})}/>
         <input className="h-10 border rounded px-2" placeholder="Custo frete" type="number" onChange={e=>setForm({...form,custo_frete:e.target.value})}/>
         <select className="h-10 border rounded px-2" value={form.status} onChange={e=>setForm({...form,status:e.target.value})}>{LOAD_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}</select>
@@ -187,6 +252,7 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
         <input className="h-10 border rounded px-2" placeholder="SKU item inicial" value={newItem.sku||''} onChange={e=>setNewItem({...newItem,sku:e.target.value})}/>
         <input className="h-10 border rounded px-2" placeholder="Nome item inicial" value={newItem.nome_produto||''} onChange={e=>setNewItem({...newItem,nome_produto:e.target.value})}/>
         <input className="h-10 border rounded px-2" placeholder="Quantidade" type="number" value={newItem.quantidade||1} onChange={e=>setNewItem({...newItem,quantidade:e.target.value})}/>
+        <select className="h-10 border rounded px-2" value={newItem.fornecedor_origem_id||''} onChange={e=>setNewItem({...newItem,fornecedor_origem_id:e.target.value})}><option value="">Fornecedor</option>{options.suppliers.map(o=><option key={o.id} value={o.id}>{o.nome}</option>)}</select>
         {canSeeFinancial && <input className="h-10 border rounded px-2" placeholder="CMV unitário" type="number" value={newItem.cmv_unitario||0} onChange={e=>setNewItem({...newItem,cmv_unitario:e.target.value})}/>}
       </div>
       {canWrite && <button className="px-3 py-2 bg-indigo-600 text-white rounded" onClick={createLoad}>Criar carga</button>}
@@ -196,31 +262,37 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
     <div className="bg-white border rounded-xl p-4">
       <h2 className="font-semibold mb-2">Lista de cargas</h2>
       <table className="w-full text-sm"><thead><tr className="border-b"><th>Código</th><th>Tipo</th><th>Status</th>{canSeeFinancial && <th>CMV total</th>}<th>Ações</th></tr></thead><tbody>
-        {paginatedLoads.map(l => <tr key={l.id} className="border-b"><td>{l.codigo_interno}</td><td>{l.tipo}</td><td>{l.status}</td>{canSeeFinancial && <td>{Number(l.cmv_total||0).toFixed(2)}</td>}<td><button className="text-indigo-600" onClick={()=>openLoad(l)}>Detalhe</button></td></tr>)}
+        {loads.map(l => <tr key={l.id} className="border-b"><td>{l.codigo_interno}</td><td>{l.tipo}</td><td>{l.status}</td>{canSeeFinancial && <td>{Number(l.cmv_total||0).toFixed(2)}</td>}<td><button className="text-indigo-600" onClick={()=>openLoad(l)}>Detalhe</button></td></tr>)}
       </tbody></table>
       <div className="flex gap-2 mt-3 text-sm">
         <button className="px-2 py-1 border rounded disabled:opacity-50" disabled={page === 0} onClick={() => setPage((p) => Math.max(0, p - 1))}>Anterior</button>
-        <span className="py-1">Página {page + 1}</span>
-        <button className="px-2 py-1 border rounded disabled:opacity-50" disabled={(page + 1) * PAGE_SIZE >= loads.length} onClick={() => setPage((p) => p + 1)}>Próxima</button>
+        <span className="py-1">Página {page + 1} de {totalLoadPages} ({totalLoads} cargas)</span>
+        <button className="px-2 py-1 border rounded disabled:opacity-50" disabled={page + 1 >= totalLoadPages} onClick={() => setPage((p) => p + 1)}>Próxima</button>
       </div>
     </div>
 
     {selected && <div className="bg-white border rounded-xl p-4 space-y-4">
       <h3 className="font-semibold">{selected.codigo_interno} • {selected.status}</h3>
       <p className="text-sm text-zinc-600">Aviso: cargas agendadas antes do recebimento e finalização sem NF são permitidas com alerta.</p>
+      {canWrite && <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+        <select className="h-10 border rounded px-2" value={selected.status || ''} onChange={e=>setSelected({...selected,status:e.target.value})}>{LOAD_STATUSES.map(s=><option key={s} value={s}>{s}</option>)}</select>
+        <input className="h-10 border rounded px-2" placeholder="Prioridade" value={selected.prioridade || ''} onChange={e=>setSelected({...selected,prioridade:e.target.value})}/>
+        <input className="h-10 border rounded px-2" placeholder="Data agendada ISO" value={selected.data_agendada || ''} onChange={e=>setSelected({...selected,data_agendada:e.target.value})}/>
+        <button className="px-3 py-2 border rounded" onClick={patchSelectedLoad}>Salvar dados da carga</button>
+      </div>}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
         <input className="h-10 border rounded px-2" placeholder="SKU" value={newItem.sku||''} onChange={e=>setNewItem({...newItem,sku:e.target.value})}/>
         <input className="h-10 border rounded px-2" placeholder="Nome produto" value={newItem.nome_produto||''} onChange={e=>setNewItem({...newItem,nome_produto:e.target.value})}/>
         <input className="h-10 border rounded px-2" placeholder="Quantidade" type="number" value={newItem.quantidade||1} onChange={e=>setNewItem({...newItem,quantidade:e.target.value})}/>
-        <input className="h-10 border rounded px-2" placeholder="Fornecedor ID" value={newItem.fornecedor_origem_id||''} onChange={e=>setNewItem({...newItem,fornecedor_origem_id:e.target.value})}/>
-        <input className="h-10 border rounded px-2" placeholder="CMV unitário" type="number" value={newItem.cmv_unitario||0} onChange={e=>setNewItem({...newItem,cmv_unitario:e.target.value})}/>
+        <select className="h-10 border rounded px-2" value={newItem.fornecedor_origem_id||''} onChange={e=>setNewItem({...newItem,fornecedor_origem_id:e.target.value})}><option value="">Fornecedor</option>{options.suppliers.map(o=><option key={o.id} value={o.id}>{o.nome}</option>)}</select>
+        {canSeeFinancial && <input className="h-10 border rounded px-2" placeholder="CMV unitário" type="number" value={newItem.cmv_unitario||0} onChange={e=>setNewItem({...newItem,cmv_unitario:e.target.value})}/>}
         <input className="h-10 border rounded px-2" placeholder="Altura" type="number" onChange={e=>setNewItem({...newItem,altura:e.target.value})}/>
       </div>
-      {Number(newItem.cmv_unitario||0)<=0 && <p className='text-xs text-amber-600'>Produto sem CMV, preencher manualmente.</p>}
+      {canSeeFinancial && Number(newItem.cmv_unitario||0)<=0 && <p className='text-xs text-amber-600'>Produto sem CMV, preencher manualmente.</p>}
       {canWrite && <button className="px-3 py-2 border rounded" onClick={addItem}>Adicionar item</button>}
 
-      <table className="w-full text-sm"><thead><tr className="border-b"><th>SKU</th><th>Nome</th><th>Qtd</th>{canSeeFinancial && <th>CMV unit</th>}{canSeeFinancial && <th>CMV total</th>}<th>Cubagem</th></tr></thead><tbody>
-        {items.map(i=><tr key={i.id} className="border-b"><td>{i.sku}</td><td>{i.nome_produto}</td><td>{i.quantidade}</td>{canSeeFinancial && <td>{i.cmv_unitario}</td>}{canSeeFinancial && <td>{i.cmv_total}</td>}<td>{i.cubagem ?? '-'}</td></tr>)}
+      <table className="w-full text-sm"><thead><tr className="border-b"><th>SKU</th><th>Nome</th><th>Qtd</th>{canSeeFinancial && <th>CMV unit</th>}{canSeeFinancial && <th>CMV total</th>}<th>Cubagem</th>{canWrite && <th>Ações</th>}</tr></thead><tbody>
+        {items.map(i=><tr key={i.id} className="border-b"><td>{i.sku}</td><td>{i.nome_produto}</td><td>{i.quantidade}</td>{canSeeFinancial && <td>{i.cmv_unitario}</td>}{canSeeFinancial && <td>{i.cmv_total}</td>}<td>{i.cubagem ?? '-'}</td>{canWrite && <td className="space-x-2"><button className="text-indigo-600" onClick={()=>editItem(i)}>Editar</button><button className="text-rose-700" onClick={()=>removeItem(i)}>Remover</button></td>}</tr>)}
       </tbody></table>
 
       {canSeeFinancial && <div className="bg-zinc-50 p-3 rounded text-sm">

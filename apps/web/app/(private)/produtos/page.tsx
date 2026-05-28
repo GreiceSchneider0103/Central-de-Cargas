@@ -38,9 +38,11 @@ export default async function ProdutosPage({ searchParams }: { searchParams?: Pr
   const resolvedSearchParams = await searchParams;
   const currentPage = Math.max(1, Number(resolvedSearchParams?.page ?? '1') || 1);
 
-  const { data: products } = await supabase.rpc('get_visible_products');
+  const { data: products } = await supabase.rpc('get_visible_products_page', { p_page: currentPage, p_page_size: PAGE_SIZE });
 
-  const typedProducts = (products ?? []) as ProductWithSupplier[];
+  const typedProducts = (products ?? []) as (ProductWithSupplier & { total_count?: number })[];
+  const totalProducts = Number(typedProducts[0]?.total_count ?? 0);
+  const totalPages = Math.max(1, Math.ceil(totalProducts / PAGE_SIZE));
 
   const paginatedProducts = typedProducts.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
@@ -62,8 +64,8 @@ export default async function ProdutosPage({ searchParams }: { searchParams?: Pr
       <ProductsTable products={normalized} role={profile.perfil} />
       <div className="flex gap-2 text-sm">
         <Link className={`px-2 py-1 border rounded ${currentPage === 1 ? 'pointer-events-none opacity-50' : ''}`} href={`/produtos?page=${Math.max(1, currentPage - 1)}`}>Anterior</Link>
-        <span className="py-1">Página {currentPage}</span>
-        <Link className={`px-2 py-1 border rounded ${currentPage * PAGE_SIZE >= typedProducts.length ? 'pointer-events-none opacity-50' : ''}`} href={`/produtos?page=${currentPage + 1}`}>Próxima</Link>
+        <span className="py-1">Página {currentPage} de {totalPages} ({totalProducts} produtos)</span>
+        <Link className={`px-2 py-1 border rounded ${currentPage >= totalPages ? 'pointer-events-none opacity-50' : ''}`} href={`/produtos?page=${currentPage + 1}`}>Próxima</Link>
       </div>
     </div>
   );

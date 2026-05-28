@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import type { UserProfile } from '@/lib/auth/roles';
+import { CommentForm } from '@/components/comments/CommentForm';
 
 type VisibleLoad = {
   id: string;
@@ -16,6 +17,8 @@ type VisibleLoadItem = {
   quantidade: number | null;
   cmv_total: number | null;
 };
+
+type CommentRow = { id: string; texto: string | null; created_at: string };
 
 export default async function CargaDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -36,6 +39,7 @@ export default async function CargaDetailPage({ params }: { params: Promise<{ id
   const load = ((loads ?? []) as VisibleLoad[]).find((row) => row.id === id);
   const { data: items } = await supabase.rpc('get_visible_load_items', { p_load_id: id });
   const { data: checklist } = await supabase.from('load_checklists').select('*').eq('load_id', id).single();
+  const { data: comments } = await supabase.from('comments').select('id,texto,created_at').eq('entidade', 'load').eq('entidade_id', id).order('created_at', { ascending: false }).limit(20);
 
   if (!load) redirect('/cargas');
 
@@ -48,6 +52,11 @@ export default async function CargaDetailPage({ params }: { params: Promise<{ id
         {((items ?? []) as VisibleLoadItem[]).map((i) => <tr key={i.id}><td>{i.sku}</td><td>{i.nome_produto}</td><td>{i.quantidade}</td>{canSeeFinancial && <td>{i.cmv_total}</td>}</tr>)}
       </tbody></table>
       <pre className="bg-zinc-100 p-3 rounded text-xs overflow-auto">{JSON.stringify(checklist, null, 2)}</pre>
+      <div className="bg-white border rounded-xl p-4 space-y-3">
+        <h2 className="font-semibold">Comentários</h2>
+        <CommentForm entidade="load" entidadeId={id} />
+        <ul className="text-sm space-y-2">{((comments ?? []) as CommentRow[]).map((c) => <li key={c.id} className="border-b pb-2">{c.texto}<br /><span className="text-xs text-zinc-500">{new Date(c.created_at).toLocaleString('pt-BR')}</span></li>)}</ul>
+      </div>
     </div>
   );
 }
