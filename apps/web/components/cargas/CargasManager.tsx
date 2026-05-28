@@ -40,10 +40,11 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
 
   const canWrite = ['admin', 'gerente_estoque', 'gerente_ecommerce'].includes(profile.perfil);
   const canChecklist = ['admin', 'gerente_estoque', 'operador_carga'].includes(profile.perfil);
+  const canSeeFinancial = ['admin', 'gerente_estoque', 'gerente_ecommerce', 'financeiro'].includes(profile.perfil);
 
   const loadData = useCallback(async () => {
-    const { data } = await supabase.from('loads').select('*').order('created_at', { ascending: false });
-    setLoads((data ?? []) as LoadRow[]);
+    const { data } = await supabase.rpc('get_visible_loads');
+    setLoads(((data ?? []) as LoadRow[]).sort((a, b) => String(b.created_at ?? '').localeCompare(String(a.created_at ?? ''))));
   }, [supabase]);
 
   useEffect(() => { loadData(); }, [loadData]);
@@ -72,7 +73,7 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
       codigo_agendamento: form.codigo_agendamento || null,
       solicitante_id: me.id,
       observacoes: form.observacoes || null,
-    }).select('*').single();
+    }).select('id,codigo_interno,tipo,status,created_at').single();
     if (error) return setError(error.message);
     await supabase.from('load_checklists').insert({ load_id: data.id });
     await supabase.from('load_request_history').insert({ request_id: null, acao: 'CARGA_CRIADA', observacao: data.codigo_interno, autor_profile_id: me.id });
@@ -82,7 +83,7 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
   async function openLoad(load: LoadRow) {
     setSelected(load);
     const [it, chk] = await Promise.all([
-      supabase.from('load_items').select('*').eq('load_id', load.id).order('created_at', { ascending: true }),
+      supabase.rpc('get_visible_load_items', { p_load_id: load.id }),
       supabase.from('load_checklists').select('*').eq('load_id', load.id).single(),
     ]);
     setItems((it.data ?? []) as LoadItemRow[]);
@@ -91,7 +92,8 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
 
   async function addItem() {
     if (!selected || !canWrite) return;
-    const { data: product } = await supabase.from('products').select('id,nome,cmv').eq('sku', newItem.sku).maybeSingle();
+    const { data: productRows } = await supabase.rpc('get_visible_product_by_sku', { p_sku: String(newItem.sku) });
+    const product = Array.isArray(productRows) ? productRows[0] : null;
     const payload = {
       load_id: selected.id,
       product_id: product?.id ?? null,
@@ -169,8 +171,8 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
 
     <div className="bg-white border rounded-xl p-4">
       <h2 className="font-semibold mb-2">Lista de cargas</h2>
-      <table className="w-full text-sm"><thead><tr className="border-b"><th>Código</th><th>Tipo</th><th>Status</th><th>CMV total</th><th>Ações</th></tr></thead><tbody>
-        {loads.map(l => <tr key={l.id} className="border-b"><td>{l.codigo_interno}</td><td>{l.tipo}</td><td>{l.status}</td><td>{Number(l.cmv_total||0).toFixed(2)}</td><td><button className="text-indigo-600" onClick={()=>openLoad(l)}>Detalhe</button></td></tr>)}
+      <table className="w-full text-sm"><thead><tr className="border-b"><th>Código</th><th>Tipo</th><th>Status</th>{canSeeFinancial && <th>CMV total</th>}<th>Ações</th></tr></thead><tbody>
+        {loads.map(l => <tr key={l.id} className="border-b"><td>{l.codigo_interno}</td><td>{l.tipo}</td><td>{l.status}</td>{canSeeFinancial && <td>{Number(l.cmv_total||0).toFixed(2)}</td>}<td><button className="text-indigo-600" onClick={()=>openLoad(l)}>Detalhe</button></td></tr>)}
       </tbody></table>
     </div>
 
@@ -188,15 +190,15 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
       {Number(newItem.cmv_unitario||0)<=0 && <p className='text-xs text-amber-600'>Produto sem CMV, preencher manualmente.</p>}
       {canWrite && <button className="px-3 py-2 border rounded" onClick={addItem}>Adicionar item</button>}
 
-      <table className="w-full text-sm"><thead><tr className="border-b"><th>SKU</th><th>Nome</th><th>Qtd</th><th>CMV unit</th><th>CMV total</th><th>Cubagem</th></tr></thead><tbody>
-        {items.map(i=><tr key={i.id} className="border-b"><td>{i.sku}</td><td>{i.nome_produto}</td><td>{i.quantidade}</td><td>{i.cmv_unitario}</td><td>{i.cmv_total}</td><td>{i.cubagem ?? '-'}</td></tr>)}
+      <table className="w-full text-sm"><thead><tr className="border-b"><th>SKU</th><th>Nome</th><th>Qtd</th>{canSeeFinancial && <th>CMV unit</th>}{canSeeFinancial && <th>CMV total</th>}<th>Cubagem</th></tr></thead><tbody>
+        {items.map(i=><tr key={i.id} className="border-b"><td>{i.sku}</td><td>{i.nome_produto}</td><td>{i.quantidade}</td>{canSeeFinancial && <td>{i.cmv_unitario}</td>}{canSeeFinancial && <td>{i.cmv_total}</td>}<td>{i.cubagem ?? '-'}</td></tr>)}
       </tbody></table>
 
-      <div className="bg-zinc-50 p-3 rounded text-sm">
+      {canSeeFinancial && <div className="bg-zinc-50 p-3 rounded text-sm">
         <p>CMV total: {totals.cmv.toFixed(2)}</p>
         <p>Margem estimativa (valor): {totals.margemValor.toFixed(2)}</p>
         <p>Margem estimativa (%): {totals.margemPct === null ? '-' : (totals.margemPct*100).toFixed(2) + '%'}</p>
-      </div>
+      </div>}
 
       {checklist && <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
         {['pedido_realizado','pedido_confirmado_fornecedor','produto_recebido','montada','agendada','etiqueta_impressa','carga_separada','carga_etiquetada','nf_emitida','carga_carregada','finalizada'].map((k)=><label key={k} className="flex items-center gap-2"><input type="checkbox" checked={!!checklist[k]} onChange={e=>toggleChecklist(k,e.target.checked)} disabled={!canChecklist}/>{k}</label>)}

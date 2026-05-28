@@ -27,20 +27,9 @@ export default async function DashboardPage() {
   const { data: profile } = await supabase.from('users_profile').select('*').eq('auth_user_id', userData.user.id).single<UserProfile>();
   if (!profile) redirect('/');
 
-  const canSeeFinancial = ['admin', 'gerente_estoque', 'financeiro', 'gerente_ecommerce'].includes(profile.perfil);
-  let loadQuery = canSeeFinancial
-    ? supabase.from('loads').select('*').order('created_at', { ascending: false }).limit(500)
-    : supabase
-        .from('loads')
-        .select('id,codigo_interno,tipo,status,data_agendada,data_prevista_recebimento,created_at,empresa_id,canal_id,marketplace_id,loja_destino_id,responsavel_operacional_id')
-        .order('created_at', { ascending: false })
-        .limit(500);
-  if (profile.perfil === 'gerente_ecommerce') loadQuery = loadQuery.eq('tipo', 'FULL_MARKETPLACE');
-  if (profile.perfil === 'vendedor_loja') loadQuery = loadQuery.eq('loja_destino_id', profile.loja_id);
+  const { data: loadsBase } = await supabase.rpc('get_visible_loads');
 
-  const { data: loadsBase } = await loadQuery;
-
-  const dashboardLoadsBase = (loadsBase ?? []) as DashboardLoadBase[];
+  const dashboardLoadsBase = ((loadsBase ?? []) as DashboardLoadBase[]).slice(0, 500);
   const loads = await Promise.all(dashboardLoadsBase.map(async (l) => {
     const { data: items } = await supabase.from('load_items').select('suppliers(nome)').eq('load_id', l.id);
     const fornecedores = Array.from(new Set((items ?? []).map((i) => {

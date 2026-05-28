@@ -29,6 +29,7 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
   const [error, setError] = useState<string | null>(null);
 
   const canApprove = profile.perfil === 'admin' || profile.perfil === 'gerente_estoque';
+  const canSeeFinancial = ['admin', 'gerente_estoque', 'gerente_ecommerce', 'financeiro'].includes(profile.perfil);
 
   const load = useCallback(async () => {
     const [reqs, c, s, ch, d, sup] = await Promise.all([
@@ -55,7 +56,8 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
   async function handleSkuChange(index: number, sku: string) {
     const next = [...items];
     next[index].sku = sku;
-    const { data: product } = await supabase.from('products').select('id,nome,cmv').eq('sku', sku).maybeSingle();
+    const { data: productRows } = await supabase.rpc('get_visible_product_by_sku', { p_sku: sku });
+    const product = Array.isArray(productRows) ? productRows[0] : null;
     if (product) {
       next[index].nome_produto = product.nome;
       next[index].cmv_unitario = Number(product.cmv || 0);
@@ -123,9 +125,9 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
             <input placeholder="Nome" className="h-10 border rounded px-2" value={item.nome_produto} onChange={(e) => updateItem(idx, 'nome_produto', e.target.value)} />
             <input placeholder="Quantidade" type="number" className="h-10 border rounded px-2" value={item.quantidade} onChange={(e) => updateItem(idx, 'quantidade', Number(e.target.value))} />
             <select className="h-10 border rounded px-2" value={item.fornecedor_origem_id || ''} onChange={(e) => updateItem(idx, 'fornecedor_origem_id', e.target.value)}><option value="">Fornecedor</option>{suppliers.map(s=><option key={s.id} value={s.id}>{s.nome}</option>)}</select>
-            <input placeholder="CMV unitário" type="number" className="h-10 border rounded px-2" value={item.cmv_unitario} onChange={(e) => updateItem(idx, 'cmv_unitario', Number(e.target.value))} />
-            <div className="h-10 border rounded px-2 flex items-center">CMV total: {item.cmv_total.toFixed(2)}</div>
-            {Number(item.cmv_unitario) <= 0 && <p className="text-xs text-amber-600 col-span-6">Produto sem CMV cadastrado. Informe manualmente.</p>}
+            {canSeeFinancial && <input placeholder="CMV unitário" type="number" className="h-10 border rounded px-2" value={item.cmv_unitario} onChange={(e) => updateItem(idx, 'cmv_unitario', Number(e.target.value))} />}
+            {canSeeFinancial && <div className="h-10 border rounded px-2 flex items-center">CMV total: {item.cmv_total.toFixed(2)}</div>}
+            {canSeeFinancial && Number(item.cmv_unitario) <= 0 && <p className="text-xs text-amber-600 col-span-6">Produto sem CMV cadastrado. Informe manualmente.</p>}
           </div>
         ))}
         <div className="flex gap-2">
