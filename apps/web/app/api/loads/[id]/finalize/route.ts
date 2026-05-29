@@ -6,6 +6,8 @@ function mapRpcError(message?: string) {
   if (message?.includes('FORBIDDEN')) return { status: 403, error: 'FORBIDDEN' };
   if (message?.includes('LOAD_NOT_FOUND')) return { status: 404, error: 'NOT_FOUND' };
   if (message?.includes('INVALID_STATUS')) return { status: 422, error: 'INVALID_STATUS' };
+  if (message?.includes('FULL_MARKETPLACE_NUMBER_REQUIRED')) return { status: 422, error: 'FULL_MARKETPLACE_NUMBER_REQUIRED' };
+  if (message?.includes('FULL_MARKETPLACE_SCHEDULE_CODE_REQUIRED')) return { status: 422, error: 'FULL_MARKETPLACE_SCHEDULE_CODE_REQUIRED' };
   return { status: 500, error: 'INTERNAL_ERROR' };
 }
 
