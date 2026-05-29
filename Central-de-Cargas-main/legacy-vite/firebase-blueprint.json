@@ -1,0 +1,223 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "User Profile",
+      "description": "Extra data for users",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["ADMIN", "STOCK_MANAGER", "ECOMMERCE_MANAGER", "SALESPERSON", "OPERATOR", "FINANCE"] },
+        "storeId": { "type": "string" },
+        "companyId": { "type": "string" },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "email", "role", "active"]
+    },
+    "Company": {
+      "title": "Company",
+      "description": "Companies managed by the system",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "cnpj": { "type": "string" },
+        "active": { "type": "boolean" }
+      },
+      "required": ["name", "cnpj", "active"]
+    },
+    "DistributionCenter": {
+      "title": "Distribution Center",
+      "description": "Distribution centers (CDs)",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "active": { "type": "boolean" }
+      },
+      "required": ["name", "active"]
+    },
+    "Store": {
+      "title": "Store",
+      "description": "Physical stores",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "active": { "type": "boolean" }
+      },
+      "required": ["name", "active"]
+    },
+    "Supplier": {
+      "title": "Supplier",
+      "description": "Suppliers",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "cnpj": { "type": "string" },
+        "phone": { "type": "string" },
+        "contactName": { "type": "string" },
+        "active": { "type": "boolean" }
+      },
+      "required": ["name", "active"]
+    },
+    "Channel": {
+      "title": "Channel",
+      "description": "Destinations / Channels",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "type": { "type": "string", "enum": ["MARKETPLACE_FULL", "LOJA_FISICA", "TRANSFER_INTERNA", "OTHER"] },
+        "active": { "type": "boolean" }
+      },
+      "required": ["name", "type", "active"]
+    },
+    "FullDestination": {
+      "title": "Full Destination",
+      "description": "Specific Full destinations",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "channelId": { "type": "string" },
+        "address": { "type": "string" },
+        "defaultScheduleCode": { "type": "string" },
+        "active": { "type": "boolean" }
+      },
+      "required": ["name", "channelId", "active"]
+    },
+    "TransportType": {
+      "title": "Transport Type",
+      "description": "Types of collection/transport",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "type": { "type": "string" },
+        "active": { "type": "boolean" }
+      },
+      "required": ["name", "type", "active"]
+    },
+    "Product": {
+      "title": "Product",
+      "description": "Products imported from sheets",
+      "type": "object",
+      "properties": {
+        "sku": { "type": "string" },
+        "name": { "type": "string" },
+        "cmv": { "type": "number" },
+        "supplierId": { "type": "string" },
+        "active": { "type": "boolean" },
+        "lastSyncedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["sku", "name", "active"]
+    },
+    "LoadRequest": {
+      "title": "Load Request",
+      "description": "Initial solicitation",
+      "type": "object",
+      "properties": {
+        "code": { "type": "string" },
+        "type": { "type": "string", "enum": ["LOJA_FISICA", "FULL_MARKETPLACE"] },
+        "companyId": { "type": "string" },
+        "channelId": { "type": "string" },
+        "marketplaceId": { "type": "string" },
+        "fullDestinationId": { "type": "string" },
+        "targetStoreId": { "type": "string" },
+        "priority": { "type": "string", "enum": ["LOW", "MEDIUM", "HIGH", "URGENT"] },
+        "desiredDate": { "type": "string", "format": "date-time" },
+        "status": { "type": "string" },
+        "requesterId": { "type": "string" },
+        "observations": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["type", "companyId", "channelId", "status", "requesterId"]
+    },
+    "Load": {
+      "title": "Load",
+      "description": "Official load entry",
+      "type": "object",
+      "properties": {
+        "internalCode": { "type": "string" },
+        "marketplaceLoadNumber": { "type": "string" },
+        "scheduleCode": { "type": "string" },
+        "type": { "type": "string" },
+        "companyId": { "type": "string" },
+        "channelId": { "type": "string" },
+        "marketplaceId": { "type": "string" },
+        "fullDestinationId": { "type": "string" },
+        "targetStoreId": { "type": "string" },
+        "originDcId": { "type": "string" },
+        "status": { "type": "string" },
+        "priority": { "type": "string" },
+        "scheduledAt": { "type": "string", "format": "date-time" },
+        "expectedReceivingDate": { "type": "string", "format": "date-time" },
+        "actualReceivingDate": { "type": "string", "format": "date-time" },
+        "collectionTypeId": { "type": "string" },
+        "carrierId": { "type": "string" },
+        "freightCost": { "type": "number" },
+        "otherCosts": { "type": "number" },
+        "estimatedRevenue": { "type": "number" },
+        "totalCmv": { "type": "number" },
+        "estimatedMarginValue": { "type": "number" },
+        "estimatedMarginPercent": { "type": "number" },
+        "requesterId": { "type": "string" },
+        "operationalResponsibleId": { "type": "string" },
+        "observations": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["internalCode", "type", "companyId", "status"]
+    },
+    "LoadItem": {
+      "title": "Load Item",
+      "description": "Product inside a load",
+      "type": "object",
+      "properties": {
+        "loadId": { "type": "string" },
+        "productId": { "type": "string" },
+        "sku": { "type": "string" },
+        "productName": { "type": "string" },
+        "quantity": { "type": "number" },
+        "supplierOriginId": { "type": "string" },
+        "unitCmv": { "type": "number" },
+        "totalCmv": { "type": "number" },
+        "weight": { "type": "number" },
+        "height": { "type": "number" },
+        "width": { "type": "number" },
+        "depth": { "type": "number" },
+        "cubage": { "type": "number" },
+        "expectedReceivingDate": { "type": "string", "format": "date-time" },
+        "actualReceivingDate": { "type": "string", "format": "date-time" },
+        "itemStatus": { "type": "string" },
+        "observation": { "type": "string" }
+      },
+      "required": ["loadId", "sku", "productName", "quantity", "unitCmv"]
+    },
+    "Comment": {
+      "title": "Comment",
+      "type": "object",
+      "properties": {
+        "entityType": { "type": "string" },
+        "entityId": { "type": "string" },
+        "userId": { "type": "string" },
+        "comment": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["entityType", "entityId", "userId", "comment", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users_profile/{userId}": { "schema": "UserProfile", "description": "Users information" },
+    "/companies/{companyId}": { "schema": "Company", "description": "Companies" },
+    "/distribution_centers/{dcId}": { "schema": "DistributionCenter", "description": "CDs" },
+    "/stores/{storeId}": { "schema": "Store", "description": "Stores" },
+    "/suppliers/{supplierId}": { "schema": "Supplier", "description": "Suppliers" },
+    "/channels/{channelId}": { "schema": "Channel", "description": "Canais" },
+    "/full_destinations/{destId}": { "schema": "FullDestination", "description": "Destinos Full" },
+    "/transport_types/{transpId}": { "schema": "TransportType", "description": "Transportes" },
+    "/products/{productId}": { "schema": "Product", "description": "Produtos" },
+    "/load_requests/{requestId}": { "schema": "LoadRequest", "description": "Solicitações" },
+    "/loads/{loadId}": { "schema": "Load", "description": "Cargas" },
+    "/loads/{loadId}/items/{itemId}": { "schema": "LoadItem", "description": "Itens da carga" },
+    "/comments/{commentId}": { "schema": "Comment", "description": "Comentários" }
+  }
+}
