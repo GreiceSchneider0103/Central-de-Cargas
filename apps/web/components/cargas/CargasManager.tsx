@@ -12,6 +12,14 @@ type LoadRow = {
   status?: string | null;
   prioridade?: string | null;
   data_agendada?: string | null;
+  data_prevista_recebimento?: string | null;
+  data_real_recebimento?: string | null;
+  responsavel_operacional_id?: string | null;
+  cd_origem_id?: string | null;
+  tipo_coleta_id?: string | null;
+  transportador_id?: string | null;
+  numero_carga_marketplace?: string | null;
+  codigo_agendamento?: string | null;
   observacoes?: string | null;
   cmv_total?: number | null;
   faturamento_estimado?: number | null;
@@ -25,9 +33,18 @@ type LoadItemRow = {
   sku?: string | null;
   nome_produto?: string | null;
   quantidade?: number | null;
+  fornecedor_origem_id?: string | null;
   cmv_unitario?: number | null;
   cmv_total?: number | null;
-  cubagem?: string | null;
+  peso?: number | null;
+  altura?: number | null;
+  largura?: number | null;
+  profundidade?: number | null;
+  cubagem?: number | string | null;
+  data_prevista_recebimento?: string | null;
+  data_real_recebimento?: string | null;
+  status_item?: string | null;
+  observacao?: string | null;
 };
 
 type ChecklistRow = Record<string, boolean | null | undefined> & { id: string; nf_emitida?: boolean | null };
@@ -43,6 +60,7 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
   const [checklist, setChecklist] = useState<ChecklistRow | null>(null);
   const [form, setForm] = useState<Record<string, string | number>>({ tipo: 'LOJA_FISICA', status: 'Rascunho', prioridade: 'Média', custo_frete: 0, outros_custos: 0 });
   const [newItem, setNewItem] = useState<Record<string, string | number>>({ sku: '', nome_produto: '', quantidade: 1, cmv_unitario: 0 });
+  const [editingItem, setEditingItem] = useState<LoadItemRow | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [options, setOptions] = useState<{ companies: Option[]; channels: Option[]; stores: Option[]; destinations: Option[]; cds: Option[]; suppliers: Option[]; transports: Option[] }>({ companies: [], channels: [], stores: [], destinations: [], cds: [], suppliers: [], transports: [] });
   const [page, setPage] = useState(0);
@@ -51,6 +69,8 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
   const canWrite = ['admin', 'gerente_estoque', 'gerente_ecommerce'].includes(profile.perfil);
   const canChecklist = ['admin', 'gerente_estoque', 'operador_carga'].includes(profile.perfil);
   const canSeeFinancial = ['admin', 'gerente_estoque', 'gerente_ecommerce', 'financeiro'].includes(profile.perfil);
+  const canEditFinancialOnly = profile.perfil === 'financeiro';
+  const canEditFinancial = canSeeFinancial && (canWrite || canEditFinancialOnly);
 
   const loadData = useCallback(async () => {
     const { data } = await supabase.rpc('get_visible_loads_page', { p_page: page + 1, p_page_size: PAGE_SIZE });
@@ -84,33 +104,53 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
       setError('Informe ao menos um item com SKU, nome e quantidade maior que zero.');
       return;
     }
+    if (profile.perfil === 'gerente_ecommerce' && form.tipo !== 'FULL_MARKETPLACE') {
+      setError('Gerente e-commerce pode criar apenas cargas FULL.');
+      return;
+    }
 
     const response = await fetch('/api/loads', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        load: {
-          tipo: form.tipo,
-          status: form.status,
-          prioridade: form.prioridade,
-          empresa_id: form.empresa_id || null,
-          canal_id: form.canal_id || null,
-          marketplace_id: form.marketplace_id || null,
-          destino_full_id: form.destino_full_id || null,
-          loja_destino_id: form.loja_destino_id || null,
-          cd_origem_id: form.cd_origem_id || null,
-          custo_frete: Number(form.custo_frete || 0),
-          outros_custos: Number(form.outros_custos || 0),
-          faturamento_estimado: form.faturamento_estimado ? Number(form.faturamento_estimado) : null,
-          numero_carga_marketplace: form.numero_carga_marketplace || null,
-          codigo_agendamento: form.codigo_agendamento || null,
-          tipo_coleta_id: form.tipo_coleta_id || null,
-          transportador_id: form.transportador_id || null,
-          observacoes: form.observacoes || null,
-        },
-        items: [{ ...newItem, quantidade: Number(newItem.quantidade || 0), cmv_unitario: Number(newItem.cmv_unitario || 0) }],
-      }),
-    });
+	        load: {
+	          tipo: form.tipo,
+	          status: form.status,
+	          prioridade: form.prioridade,
+	          empresa_id: form.empresa_id || null,
+	          canal_id: form.canal_id || null,
+	          marketplace_id: form.marketplace_id || null,
+	          destino_full_id: form.destino_full_id || null,
+	          loja_destino_id: form.loja_destino_id || null,
+	          cd_origem_id: form.cd_origem_id || null,
+	          responsavel_operacional_id: form.responsavel_operacional_id || null,
+	          data_agendada: form.data_agendada || null,
+	          data_prevista_recebimento: form.data_prevista_recebimento || null,
+	          data_real_recebimento: form.data_real_recebimento || null,
+	          custo_frete: Number(form.custo_frete || 0),
+	          outros_custos: Number(form.outros_custos || 0),
+	          faturamento_estimado: form.faturamento_estimado ? Number(form.faturamento_estimado) : null,
+	          numero_carga_marketplace: form.numero_carga_marketplace || null,
+	          codigo_agendamento: form.codigo_agendamento || null,
+	          tipo_coleta_id: form.tipo_coleta_id || null,
+	          transportador_id: form.transportador_id || null,
+	          observacoes: form.observacoes || null,
+	        },
+	        items: [{
+	          ...newItem,
+	          quantidade: Number(newItem.quantidade || 0),
+	          cmv_unitario: Number(newItem.cmv_unitario || 0),
+	          peso: newItem.peso ?? null,
+	          altura: newItem.altura ?? null,
+	          largura: newItem.largura ?? null,
+	          profundidade: newItem.profundidade ?? null,
+	          data_prevista_recebimento: newItem.data_prevista_recebimento ?? null,
+	          data_real_recebimento: newItem.data_real_recebimento ?? null,
+	          status_item: newItem.status_item ?? null,
+	          observacao: newItem.observacao ?? null,
+	        }],
+	      }),
+	    });
 
     const result = await response.json();
     if (!response.ok) return setError(result.error || 'Erro ao criar carga.');
@@ -142,10 +182,14 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
       fornecedor_origem_id: newItem.fornecedor_origem_id || null,
       cmv_unitario: Number(newItem.cmv_unitario || product?.cmv || 0),
       altura: newItem.altura ? Number(newItem.altura) : null,
-      largura: newItem.largura ? Number(newItem.largura) : null,
-      profundidade: newItem.profundidade ? Number(newItem.profundidade) : null,
-      peso: newItem.peso ? Number(newItem.peso) : null,
-    };
+	      largura: newItem.largura ? Number(newItem.largura) : null,
+	      profundidade: newItem.profundidade ? Number(newItem.profundidade) : null,
+	      peso: newItem.peso ? Number(newItem.peso) : null,
+	      data_prevista_recebimento: newItem.data_prevista_recebimento || null,
+	      data_real_recebimento: newItem.data_real_recebimento || null,
+	      status_item: newItem.status_item || null,
+	      observacao: newItem.observacao || null,
+	    };
     const res = await fetch(`/api/loads/${selected.id}/items`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     if (!res.ok) { const j = await res.json(); return setError(j.error || 'Erro ao adicionar item.'); }
     setNewItem({ sku: '', nome_produto: '', quantidade: 1, cmv_unitario: 0 });
@@ -153,7 +197,12 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
     await loadData();
   }
 
-  async function editItem(item: LoadItemRow) {
+  function editItem(item: LoadItemRow) {
+    setEditingItem(item);
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  async function legacyQuickEditItem(item: LoadItemRow) {
     if (!selected || !canWrite) return;
     const quantidade = prompt('Quantidade', String(item.quantidade ?? 1));
     if (!quantidade) return;
@@ -164,6 +213,24 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
       body: JSON.stringify({ ...item, quantidade: Number(quantidade), cmv_unitario: Number(cmv || 0) }),
     });
     if (!res.ok) { const j = await res.json(); setError(j.error || 'Erro ao editar item.'); return; }
+    await openLoad(selected);
+    await loadData();
+  }
+
+  async function saveEditingItem() {
+    if (!selected || !canWrite || !editingItem) return;
+    const res = await fetch(`/api/loads/${selected.id}/items`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...editingItem,
+        id: editingItem.id,
+        quantidade: Number(editingItem.quantidade ?? 0),
+        cmv_unitario: canSeeFinancial ? Number(editingItem.cmv_unitario ?? 0) : Number(editingItem.cmv_unitario ?? 0),
+      }),
+    });
+    if (!res.ok) { const j = await res.json(); setError(j.error || 'Erro ao editar item.'); return; }
+    setEditingItem(null);
     await openLoad(selected);
     await loadData();
   }
@@ -181,9 +248,39 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
     const res = await fetch(`/api/loads/${selected.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: selected.status, prioridade: selected.prioridade, data_agendada: selected.data_agendada, observacoes: selected.observacoes }),
+      body: JSON.stringify({
+        status: selected.status,
+        prioridade: selected.prioridade,
+        responsavel_operacional_id: selected.responsavel_operacional_id ?? null,
+        cd_origem_id: selected.cd_origem_id ?? null,
+        tipo_coleta_id: selected.tipo_coleta_id ?? null,
+        transportador_id: selected.transportador_id ?? null,
+        data_agendada: selected.data_agendada ?? null,
+        data_prevista_recebimento: selected.data_prevista_recebimento ?? null,
+        data_real_recebimento: selected.data_real_recebimento ?? null,
+        numero_carga_marketplace: selected.numero_carga_marketplace ?? null,
+        codigo_agendamento: selected.codigo_agendamento ?? null,
+        observacoes: selected.observacoes ?? null,
+      }),
     });
     if (!res.ok) { const j = await res.json(); setError(j.error || 'Erro ao atualizar carga.'); return; }
+    await loadData();
+  }
+
+  async function patchSelectedFinancial() {
+    if (!selected || !canEditFinancial) return;
+    const route = canWrite ? `/api/loads/${selected.id}` : `/api/loads/${selected.id}/financial`;
+    const res = await fetch(route, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        custo_frete: selected.custo_frete ?? 0,
+        outros_custos: selected.outros_custos ?? 0,
+        faturamento_estimado: selected.faturamento_estimado ?? null,
+      }),
+    });
+    if (!res.ok) { const j = await res.json(); setError(j.error || 'Erro ao atualizar financeiro.'); return; }
+    await openLoad(selected);
     await loadData();
   }
 
@@ -231,7 +328,7 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
     <div className="bg-white border rounded-xl p-4 space-y-3">
       <h2 className="font-semibold">Nova carga</h2>
       <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
-        <select className="h-10 border rounded px-2" value={form.tipo} onChange={e=>setForm({...form,tipo:e.target.value})}><option value="LOJA_FISICA">Loja</option><option value="FULL_MARKETPLACE">Full</option></select>
+        <select className="h-10 border rounded px-2" value={form.tipo} onChange={e=>setForm({...form,tipo:e.target.value})} disabled={profile.perfil === 'gerente_ecommerce'}><option value="LOJA_FISICA">Loja</option><option value="FULL_MARKETPLACE">Full</option></select>
         <select className="h-10 border rounded px-2" onChange={e=>setForm({...form,empresa_id:e.target.value})}><option value="">Empresa</option>{options.companies.map(o=><option key={o.id} value={o.id}>{o.nome}</option>)}</select>
         <select className="h-10 border rounded px-2" onChange={e=>setForm({...form,canal_id:e.target.value})}><option value="">Canal</option>{options.channels.map(o=><option key={o.id} value={o.id}>{o.nome}</option>)}</select>
         <select className="h-10 border rounded px-2" onChange={e=>setForm({...form,loja_destino_id:e.target.value})}><option value="">Loja destino</option>{options.stores.map(o=><option key={o.id} value={o.id}>{o.nome}</option>)}</select>
@@ -240,10 +337,16 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
         <input className="h-10 border rounded px-2" placeholder="Número marketplace" onChange={e=>setForm({...form,numero_carga_marketplace:e.target.value})}/>
         <input className="h-10 border rounded px-2" placeholder="Código agendamento" onChange={e=>setForm({...form,codigo_agendamento:e.target.value})}/>
         <select className="h-10 border rounded px-2" onChange={e=>setForm({...form,cd_origem_id:e.target.value})}><option value="">CD origem</option>{options.cds.map(o=><option key={o.id} value={o.id}>{o.nome}</option>)}</select>
+        <input className="h-10 border rounded px-2" placeholder="Responsável (profile_id)" onChange={e=>setForm({...form,responsavel_operacional_id:e.target.value})}/>
+        <input className="h-10 border rounded px-2" placeholder="Data agendada (ISO)" onChange={e=>setForm({...form,data_agendada:e.target.value})}/>
+        <input className="h-10 border rounded px-2" placeholder="Prev. recebimento (ISO)" onChange={e=>setForm({...form,data_prevista_recebimento:e.target.value})}/>
+        <input className="h-10 border rounded px-2" placeholder="Real recebimento (ISO)" onChange={e=>setForm({...form,data_real_recebimento:e.target.value})}/>
         <select className="h-10 border rounded px-2" onChange={e=>setForm({...form,tipo_coleta_id:e.target.value})}><option value="">Tipo de coleta</option>{options.transports.map(o=><option key={o.id} value={o.id}>{o.nome}</option>)}</select>
         <select className="h-10 border rounded px-2" onChange={e=>setForm({...form,transportador_id:e.target.value})}><option value="">Transportador</option>{options.transports.map(o=><option key={o.id} value={o.id}>{o.nome}</option>)}</select>
-        <input className="h-10 border rounded px-2" placeholder="Faturamento estimado" type="number" onChange={e=>setForm({...form,faturamento_estimado:e.target.value})}/>
-        <input className="h-10 border rounded px-2" placeholder="Custo frete" type="number" onChange={e=>setForm({...form,custo_frete:e.target.value})}/>
+        {canEditFinancial && <input className="h-10 border rounded px-2" placeholder="Faturamento estimado" type="number" onChange={e=>setForm({...form,faturamento_estimado:e.target.value})}/>}
+        {canEditFinancial && <input className="h-10 border rounded px-2" placeholder="Custo frete" type="number" onChange={e=>setForm({...form,custo_frete:e.target.value})}/>}
+        {canEditFinancial && <input className="h-10 border rounded px-2" placeholder="Outros custos" type="number" onChange={e=>setForm({...form,outros_custos:e.target.value})}/>}
+        <input className="h-10 border rounded px-2" placeholder="Observações" onChange={e=>setForm({...form,observacoes:e.target.value})}/>
         <select className="h-10 border rounded px-2" value={form.status} onChange={e=>setForm({...form,status:e.target.value})}>{LOAD_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}</select>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
@@ -251,6 +354,30 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
         <input className="h-10 border rounded px-2" placeholder="Nome item inicial" value={newItem.nome_produto||''} onChange={e=>setNewItem({...newItem,nome_produto:e.target.value})}/>
         <input className="h-10 border rounded px-2" placeholder="Quantidade" type="number" value={newItem.quantidade||1} onChange={e=>setNewItem({...newItem,quantidade:e.target.value})}/>
         <select className="h-10 border rounded px-2" value={newItem.fornecedor_origem_id||''} onChange={e=>setNewItem({...newItem,fornecedor_origem_id:e.target.value})}><option value="">Fornecedor</option>{options.suppliers.map(o=><option key={o.id} value={o.id}>{o.nome}</option>)}</select>
+        <input className="h-10 border rounded px-2" placeholder="Peso" type="number" onChange={e=>setNewItem({...newItem,peso:e.target.value})}/>
+        <input className="h-10 border rounded px-2" placeholder="-" value="" readOnly />
+        <input className="h-10 border rounded px-2" placeholder="Largura" type="number" onChange={e=>setNewItem({...newItem,largura:e.target.value})}/>
+        <input className="h-10 border rounded px-2" placeholder="Profundidade" type="number" onChange={e=>setNewItem({...newItem,profundidade:e.target.value})}/>
+        <input className="h-10 border rounded px-2" placeholder="Prev. receb. item (ISO)" onChange={e=>setNewItem({...newItem,data_prevista_recebimento:e.target.value})}/>
+        <input className="h-10 border rounded px-2" placeholder="Real receb. item (ISO)" onChange={e=>setNewItem({...newItem,data_real_recebimento:e.target.value})}/>
+        <input className="h-10 border rounded px-2" placeholder="Status item" onChange={e=>setNewItem({...newItem,status_item:e.target.value})}/>
+        <input className="h-10 border rounded px-2" placeholder="Observação item" onChange={e=>setNewItem({...newItem,observacao:e.target.value})}/>
+        <input className="h-10 border rounded px-2" placeholder="Peso" type="number" onChange={e=>setNewItem({...newItem,peso:e.target.value})}/>
+        <input className="h-10 border rounded px-2" placeholder="Altura" type="number" onChange={e=>setNewItem({...newItem,altura:e.target.value})}/>
+        <input className="h-10 border rounded px-2" placeholder="Largura" type="number" onChange={e=>setNewItem({...newItem,largura:e.target.value})}/>
+        <input className="h-10 border rounded px-2" placeholder="Profundidade" type="number" onChange={e=>setNewItem({...newItem,profundidade:e.target.value})}/>
+        <input className="h-10 border rounded px-2" placeholder="Prev. receb. item (ISO)" onChange={e=>setNewItem({...newItem,data_prevista_recebimento:e.target.value})}/>
+        <input className="h-10 border rounded px-2" placeholder="Real receb. item (ISO)" onChange={e=>setNewItem({...newItem,data_real_recebimento:e.target.value})}/>
+        <input className="h-10 border rounded px-2" placeholder="Status item" onChange={e=>setNewItem({...newItem,status_item:e.target.value})}/>
+        <input className="h-10 border rounded px-2" placeholder="Observação item" onChange={e=>setNewItem({...newItem,observacao:e.target.value})}/>
+        <input className="h-10 border rounded px-2" placeholder="Peso" type="number" onChange={e=>setNewItem({...newItem,peso:e.target.value})}/>
+        <input className="h-10 border rounded px-2" placeholder="-" value="" readOnly />
+        <input className="h-10 border rounded px-2" placeholder="Largura" type="number" onChange={e=>setNewItem({...newItem,largura:e.target.value})}/>
+        <input className="h-10 border rounded px-2" placeholder="Profundidade" type="number" onChange={e=>setNewItem({...newItem,profundidade:e.target.value})}/>
+        <input className="h-10 border rounded px-2" placeholder="Prev. receb. item (ISO)" onChange={e=>setNewItem({...newItem,data_prevista_recebimento:e.target.value})}/>
+        <input className="h-10 border rounded px-2" placeholder="Real receb. item (ISO)" onChange={e=>setNewItem({...newItem,data_real_recebimento:e.target.value})}/>
+        <input className="h-10 border rounded px-2" placeholder="Status item" onChange={e=>setNewItem({...newItem,status_item:e.target.value})}/>
+        <input className="h-10 border rounded px-2" placeholder="Observação item" onChange={e=>setNewItem({...newItem,observacao:e.target.value})}/>
         {canSeeFinancial && <input className="h-10 border rounded px-2" placeholder="CMV unitário" type="number" value={newItem.cmv_unitario||0} onChange={e=>setNewItem({...newItem,cmv_unitario:e.target.value})}/>}
       </div>
       {canWrite && <button className="px-3 py-2 bg-indigo-600 text-white rounded" onClick={createLoad}>Criar carga</button>}
@@ -278,6 +405,26 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
         <input className="h-10 border rounded px-2" placeholder="Data agendada ISO" value={selected.data_agendada || ''} onChange={e=>setSelected({...selected,data_agendada:e.target.value})}/>
         <button className="px-3 py-2 border rounded" onClick={patchSelectedLoad}>Salvar dados da carga</button>
       </div>}
+
+      {canWrite && <div className="grid grid-cols-1 md:grid-cols-4 gap-2 text-sm">
+        <input className="h-10 border rounded px-2" placeholder="Responsável (profile_id)" value={String(selected.responsavel_operacional_id ?? '')} onChange={e=>setSelected({...selected,responsavel_operacional_id:e.target.value || null})}/>
+        <select className="h-10 border rounded px-2" value={String(selected.cd_origem_id ?? '')} onChange={e=>setSelected({...selected,cd_origem_id:e.target.value || null})}><option value="">CD origem</option>{options.cds.map(o=><option key={o.id} value={o.id}>{o.nome}</option>)}</select>
+        <select className="h-10 border rounded px-2" value={String(selected.tipo_coleta_id ?? '')} onChange={e=>setSelected({...selected,tipo_coleta_id:e.target.value || null})}><option value="">Tipo de coleta</option>{options.transports.map(o=><option key={o.id} value={o.id}>{o.nome}</option>)}</select>
+        <select className="h-10 border rounded px-2" value={String(selected.transportador_id ?? '')} onChange={e=>setSelected({...selected,transportador_id:e.target.value || null})}><option value="">Transportador</option>{options.transports.map(o=><option key={o.id} value={o.id}>{o.nome}</option>)}</select>
+        <input className="h-10 border rounded px-2" placeholder="Prev. recebimento (ISO)" value={String(selected.data_prevista_recebimento ?? '')} onChange={e=>setSelected({...selected,data_prevista_recebimento:e.target.value || null})}/>
+        <input className="h-10 border rounded px-2" placeholder="Real recebimento (ISO)" value={String(selected.data_real_recebimento ?? '')} onChange={e=>setSelected({...selected,data_real_recebimento:e.target.value || null})}/>
+        <input className="h-10 border rounded px-2" placeholder="Número marketplace" value={String(selected.numero_carga_marketplace ?? '')} onChange={e=>setSelected({...selected,numero_carga_marketplace:e.target.value || null})}/>
+        <input className="h-10 border rounded px-2" placeholder="Código agendamento" value={String(selected.codigo_agendamento ?? '')} onChange={e=>setSelected({...selected,codigo_agendamento:e.target.value || null})}/>
+      </div>}
+
+      {canEditFinancial && <div className="bg-zinc-50 p-3 rounded space-y-2">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+          <input className="h-10 border rounded px-2" placeholder="Faturamento estimado" type="number" value={Number(selected.faturamento_estimado ?? 0)} onChange={e=>setSelected({...selected,faturamento_estimado:Number(e.target.value)})}/>
+          <input className="h-10 border rounded px-2" placeholder="Custo frete" type="number" value={Number(selected.custo_frete ?? 0)} onChange={e=>setSelected({...selected,custo_frete:Number(e.target.value)})}/>
+          <input className="h-10 border rounded px-2" placeholder="Outros custos" type="number" value={Number(selected.outros_custos ?? 0)} onChange={e=>setSelected({...selected,outros_custos:Number(e.target.value)})}/>
+        </div>
+        <button className="px-3 py-2 border rounded" onClick={patchSelectedFinancial}>Salvar financeiro</button>
+      </div>}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
         <input className="h-10 border rounded px-2" placeholder="SKU" value={newItem.sku||''} onChange={e=>setNewItem({...newItem,sku:e.target.value})}/>
         <input className="h-10 border rounded px-2" placeholder="Nome produto" value={newItem.nome_produto||''} onChange={e=>setNewItem({...newItem,nome_produto:e.target.value})}/>
@@ -288,6 +435,31 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
       </div>
       {canSeeFinancial && Number(newItem.cmv_unitario||0)<=0 && <p className='text-xs text-amber-600'>Produto sem CMV, preencher manualmente.</p>}
       {canWrite && <button className="px-3 py-2 border rounded" onClick={addItem}>Adicionar item</button>}
+
+      {editingItem && canWrite && (
+        <div className="bg-zinc-50 p-3 rounded space-y-2 text-sm">
+          <h4 className="font-semibold">Editar item</h4>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+            <input className="h-10 border rounded px-2" placeholder="SKU" value={String(editingItem.sku ?? '')} onChange={e=>setEditingItem({ ...editingItem, sku: e.target.value })} />
+            <input className="h-10 border rounded px-2" placeholder="Nome" value={String(editingItem.nome_produto ?? '')} onChange={e=>setEditingItem({ ...editingItem, nome_produto: e.target.value })} />
+            <input className="h-10 border rounded px-2" placeholder="Quantidade" type="number" value={Number(editingItem.quantidade ?? 0)} onChange={e=>setEditingItem({ ...editingItem, quantidade: Number(e.target.value) })} />
+            <select className="h-10 border rounded px-2" value={String(editingItem.fornecedor_origem_id ?? '')} onChange={e=>setEditingItem({ ...editingItem, fornecedor_origem_id: e.target.value || null })}><option value="">Fornecedor</option>{options.suppliers.map(o=><option key={o.id} value={o.id}>{o.nome}</option>)}</select>
+            {canSeeFinancial && <input className="h-10 border rounded px-2" placeholder="CMV unitário" type="number" value={Number(editingItem.cmv_unitario ?? 0)} onChange={e=>setEditingItem({ ...editingItem, cmv_unitario: Number(e.target.value) })} />}
+            <input className="h-10 border rounded px-2" placeholder="Peso" type="number" value={Number(editingItem.peso ?? 0)} onChange={e=>setEditingItem({ ...editingItem, peso: Number(e.target.value) })} />
+            <input className="h-10 border rounded px-2" placeholder="Altura" type="number" value={Number(editingItem.altura ?? 0)} onChange={e=>setEditingItem({ ...editingItem, altura: Number(e.target.value) })} />
+            <input className="h-10 border rounded px-2" placeholder="Largura" type="number" value={Number(editingItem.largura ?? 0)} onChange={e=>setEditingItem({ ...editingItem, largura: Number(e.target.value) })} />
+            <input className="h-10 border rounded px-2" placeholder="Profundidade" type="number" value={Number(editingItem.profundidade ?? 0)} onChange={e=>setEditingItem({ ...editingItem, profundidade: Number(e.target.value) })} />
+            <input className="h-10 border rounded px-2" placeholder="Prev. receb. (ISO)" value={String(editingItem.data_prevista_recebimento ?? '')} onChange={e=>setEditingItem({ ...editingItem, data_prevista_recebimento: e.target.value })} />
+            <input className="h-10 border rounded px-2" placeholder="Real receb. (ISO)" value={String(editingItem.data_real_recebimento ?? '')} onChange={e=>setEditingItem({ ...editingItem, data_real_recebimento: e.target.value })} />
+            <input className="h-10 border rounded px-2" placeholder="Status item" value={String(editingItem.status_item ?? '')} onChange={e=>setEditingItem({ ...editingItem, status_item: e.target.value })} />
+            <input className="h-10 border rounded px-2" placeholder="Observação" value={String(editingItem.observacao ?? '')} onChange={e=>setEditingItem({ ...editingItem, observacao: e.target.value })} />
+          </div>
+          <div className="flex gap-2">
+            <button className="px-3 py-2 border rounded" onClick={saveEditingItem}>Salvar item</button>
+            <button className="px-3 py-2 border rounded" onClick={() => setEditingItem(null)}>Cancelar</button>
+          </div>
+        </div>
+      )}
 
       <table className="w-full text-sm"><thead><tr className="border-b"><th>SKU</th><th>Nome</th><th>Qtd</th>{canSeeFinancial && <th>CMV unit</th>}{canSeeFinancial && <th>CMV total</th>}<th>Cubagem</th>{canWrite && <th>Ações</th>}</tr></thead><tbody>
         {items.map(i=><tr key={i.id} className="border-b"><td>{i.sku}</td><td>{i.nome_produto}</td><td>{i.quantidade}</td>{canSeeFinancial && <td>{i.cmv_unitario}</td>}{canSeeFinancial && <td>{i.cmv_total}</td>}<td>{i.cubagem ?? '-'}</td>{canWrite && <td className="space-x-2"><button className="text-indigo-600" onClick={()=>editItem(i)}>Editar</button><button className="text-rose-700" onClick={()=>removeItem(i)}>Remover</button></td>}</tr>)}
