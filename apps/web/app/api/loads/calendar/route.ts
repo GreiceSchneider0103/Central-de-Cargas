@@ -7,6 +7,12 @@ function parseIso(value: unknown) {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
+type LoadAlertRow = {
+  load_id: string;
+  alert_type: string;
+  message: string | null;
+};
+
 export async function POST(req: NextRequest) {
   try {
     const { supabase } = await requireProfile();
@@ -27,7 +33,33 @@ export async function POST(req: NextRequest) {
       p_limit: 2000,
     });
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    return NextResponse.json({ ok: true, loads: data ?? [] });
+
+    const loads = Array.isArray(data) ? (data as Record<string, unknown>[]) : [];
+    const loadIds = loads.map((l) => String(l.id)).filter((id) => id && id !== 'undefined' && id !== 'null');
+
+    if (loadIds.length === 0) {
+      return NextResponse.json({ ok: true, loads: [] });
+    }
+
+    const { data: alertsData, error: alertsError } = await supabase
+      .from('load_alerts')
+      .select('load_id,alert_type,message')
+      .in('load_id', loadIds)
+      .eq('active', true);
+    if (alertsError) return NextResponse.json({ error: alertsError.message }, { status: 500 });
+
+    const byLoadId = new Map<string, LoadAlertRow[]>();
+    for (const a of (alertsData ?? []) as LoadAlertRow[]) {
+      if (!byLoadId.has(a.load_id)) byLoadId.set(a.load_id, []);
+      byLoadId.get(a.load_id)!.push(a);
+    }
+
+    const enrichedLoads = loads.map((l) => ({
+      ...l,
+      alerts: byLoadId.get(String(l.id)) ?? [],
+    }));
+
+    return NextResponse.json({ ok: true, loads: enrichedLoads });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Erro inesperado';
     if (message.includes('UNAUTHORIZED')) return NextResponse.json({ error: 'UNAUTHORIZED' }, { status: 401 });
@@ -35,4 +67,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'INTERNAL_ERROR', detail: message }, { status: 500 });
   }
 }
-
