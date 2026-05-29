@@ -1,0 +1,116 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function getUserData() {
+      return get(/databases/$(database)/documents/users_profile/$(request.auth.uid)).data;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && getUserData().role == 'ADMIN';
+    }
+
+    function isStockManager() {
+      return isSignedIn() && getUserData().role == 'STOCK_MANAGER';
+    }
+
+    function isEcommerceManager() {
+      return isSignedIn() && getUserData().role == 'ECOMMERCE_MANAGER';
+    }
+
+    function isSalesperson() {
+      return isSignedIn() && getUserData().role == 'SALESPERSON';
+    }
+
+    function isOperator() {
+      return isSignedIn() && getUserData().role == 'OPERATOR';
+    }
+
+    function isFinance() {
+      return isSignedIn() && getUserData().role == 'FINANCE';
+    }
+
+    match /users_profile/{userId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+      allow create: if isSignedIn() && request.auth.uid == userId;
+    }
+
+    match /companies/{id} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    match /distribution_centers/{id} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    match /stores/{id} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    match /suppliers/{id} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin() || isStockManager() || isEcommerceManager();
+    }
+
+    match /channels/{id} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    match /full_destinations/{id} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin() || isStockManager() || isEcommerceManager();
+    }
+
+    match /transport_types/{id} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    match /products/{id} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin() || isStockManager() || isEcommerceManager();
+    }
+
+    match /load_requests/{id} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && (isAdmin() || isStockManager() || isEcommerceManager() || (isSalesperson() && resource.data.requesterId == request.auth.uid));
+      allow delete: if isAdmin();
+    }
+
+    match /loads/{id} {
+      allow read: if isSignedIn();
+      allow create: if isAdmin() || isStockManager() || isEcommerceManager();
+      allow update: if isAdmin() || isStockManager() || isEcommerceManager() || isOperator() || isFinance();
+      allow delete: if isAdmin();
+
+      match /items/{itemId} {
+        allow read: if isSignedIn();
+        allow write: if isAdmin() || isStockManager() || isEcommerceManager();
+      }
+    }
+
+    match /comments/{id} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+    }
+
+    match /audit_logs/{id} {
+      allow read: if isAdmin() || isFinance();
+      allow create: if isSignedIn();
+    }
+  }
+}
