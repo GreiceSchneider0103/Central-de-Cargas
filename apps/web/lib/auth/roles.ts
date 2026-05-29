@@ -23,10 +23,10 @@ export type UserProfile = {
 };
 
 export const MENU_BY_ROLE: Record<UserProfileRole, string[]> = {
-  admin: ['/', '/agenda', '/solicitacoes', '/cargas', '/produtos', '/usuarios', '/cadastros'],
-  gerente_estoque: ['/', '/agenda', '/solicitacoes', '/cargas', '/produtos', '/cadastros'],
-  gerente_ecommerce: ['/', '/agenda', '/solicitacoes', '/cargas', '/produtos', '/cadastros'],
-  vendedor_loja: ['/', '/solicitacoes', '/cadastros'],
-  operador_carga: ['/', '/agenda', '/cargas', '/cadastros'],
-  financeiro: ['/', '/cargas', '/cadastros'],
+  admin: ['/', '/agenda', '/solicitacoes', '/cargas', '/produtos', '/relatorios', '/auditoria', '/usuarios', '/cadastros'],
+  gerente_estoque: ['/', '/agenda', '/solicitacoes', '/cargas', '/produtos', '/relatorios', '/auditoria', '/cadastros'],
+  gerente_ecommerce: ['/', '/agenda', '/solicitacoes', '/cargas', '/produtos', '/relatorios', '/cadastros'],
+  vendedor_loja: ['/', '/solicitacoes', '/relatorios', '/cadastros'],
+  operador_carga: ['/', '/agenda', '/cargas', '/relatorios', '/cadastros'],
+  financeiro: ['/', '/cargas', '/relatorios', '/auditoria', '/cadastros'],
 };

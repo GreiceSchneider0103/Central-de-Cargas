@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { Sidebar } from '@/components/layout/Sidebar';
+import { PrivateLayoutClient } from '@/components/layout/PrivateLayoutClient';
 import { createClient } from '@/lib/supabase/server';
 import type { UserProfile } from '@/lib/auth/roles';
 
@@ -22,9 +22,6 @@ export default async function PrivateLayout({ children }: { children: React.Reac
   }
 
   return (
-    <div className="flex min-h-screen bg-zinc-50">
-      <Sidebar profile={profile} />
-      <main className="flex-1 p-8">{children}</main>
-    </div>
+    <PrivateLayoutClient profile={profile}>{children}</PrivateLayoutClient>
   );
 }

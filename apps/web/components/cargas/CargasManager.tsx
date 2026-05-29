@@ -62,7 +62,7 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
   const [newItem, setNewItem] = useState<Record<string, string | number>>({ sku: '', nome_produto: '', quantidade: 1, cmv_unitario: 0 });
   const [editingItem, setEditingItem] = useState<LoadItemRow | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [options, setOptions] = useState<{ companies: Option[]; channels: Option[]; stores: Option[]; destinations: Option[]; cds: Option[]; suppliers: Option[]; transports: Option[] }>({ companies: [], channels: [], stores: [], destinations: [], cds: [], suppliers: [], transports: [] });
+  const [options, setOptions] = useState<{ companies: Option[]; channels: Option[]; stores: Option[]; destinations: Option[]; cds: Option[]; suppliers: Option[]; transports: Option[]; profiles: Option[] }>({ companies: [], channels: [], stores: [], destinations: [], cds: [], suppliers: [], transports: [], profiles: [] });
   const [page, setPage] = useState(0);
   const [totalLoads, setTotalLoads] = useState(0);
 
@@ -83,7 +83,7 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
 
   useEffect(() => {
     async function loadOptions() {
-      const [companies, channels, stores, destinations, cds, suppliers, transports] = await Promise.all([
+      const [companies, channels, stores, destinations, cds, suppliers, transports, profiles] = await Promise.all([
         supabase.from('companies').select('id,nome').eq('ativo', true).order('nome'),
         supabase.from('channels').select('id,nome,tipo').eq('ativo', true).order('nome'),
         supabase.from('stores').select('id,nome').eq('ativo', true).order('nome'),
@@ -91,8 +91,9 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
         supabase.from('distribution_centers').select('id,nome').eq('ativo', true).order('nome'),
         supabase.from('suppliers').select('id,nome').eq('ativo', true).order('nome'),
         supabase.from('transport_types').select('id,nome,tipo').eq('ativo', true).order('nome'),
+        supabase.from('users_profile').select('id,nome').eq('ativo', true).order('nome').limit(200),
       ]);
-      setOptions({ companies: companies.data ?? [], channels: channels.data ?? [], stores: stores.data ?? [], destinations: destinations.data ?? [], cds: cds.data ?? [], suppliers: suppliers.data ?? [], transports: transports.data ?? [] });
+      setOptions({ companies: companies.data ?? [], channels: channels.data ?? [], stores: stores.data ?? [], destinations: destinations.data ?? [], cds: cds.data ?? [], suppliers: suppliers.data ?? [], transports: transports.data ?? [], profiles: profiles.data ?? [] });
     }
     loadOptions();
   }, [supabase]);
@@ -337,7 +338,10 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
         <input className="h-10 border rounded px-2" placeholder="Número marketplace" onChange={e=>setForm({...form,numero_carga_marketplace:e.target.value})}/>
         <input className="h-10 border rounded px-2" placeholder="Código agendamento" onChange={e=>setForm({...form,codigo_agendamento:e.target.value})}/>
         <select className="h-10 border rounded px-2" onChange={e=>setForm({...form,cd_origem_id:e.target.value})}><option value="">CD origem</option>{options.cds.map(o=><option key={o.id} value={o.id}>{o.nome}</option>)}</select>
-        <input className="h-10 border rounded px-2" placeholder="Responsável (profile_id)" onChange={e=>setForm({...form,responsavel_operacional_id:e.target.value})}/>
+        <select className="h-10 border rounded px-2" onChange={e=>setForm({...form,responsavel_operacional_id:e.target.value})}>
+          <option value="">Responsável</option>
+          {options.profiles.map(o => <option key={o.id} value={o.id}>{o.nome}</option>)}
+        </select>
         <input className="h-10 border rounded px-2" placeholder="Data agendada (ISO)" onChange={e=>setForm({...form,data_agendada:e.target.value})}/>
         <input className="h-10 border rounded px-2" placeholder="Prev. recebimento (ISO)" onChange={e=>setForm({...form,data_prevista_recebimento:e.target.value})}/>
         <input className="h-10 border rounded px-2" placeholder="Real recebimento (ISO)" onChange={e=>setForm({...form,data_real_recebimento:e.target.value})}/>
@@ -407,7 +411,10 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
       </div>}
 
       {canWrite && <div className="grid grid-cols-1 md:grid-cols-4 gap-2 text-sm">
-        <input className="h-10 border rounded px-2" placeholder="Responsável (profile_id)" value={String(selected.responsavel_operacional_id ?? '')} onChange={e=>setSelected({...selected,responsavel_operacional_id:e.target.value || null})}/>
+        <select className="h-10 border rounded px-2" value={String(selected.responsavel_operacional_id ?? '')} onChange={e=>setSelected({...selected,responsavel_operacional_id:e.target.value || null})}>
+          <option value="">Responsável</option>
+          {options.profiles.map(o => <option key={o.id} value={o.id}>{o.nome}</option>)}
+        </select>
         <select className="h-10 border rounded px-2" value={String(selected.cd_origem_id ?? '')} onChange={e=>setSelected({...selected,cd_origem_id:e.target.value || null})}><option value="">CD origem</option>{options.cds.map(o=><option key={o.id} value={o.id}>{o.nome}</option>)}</select>
         <select className="h-10 border rounded px-2" value={String(selected.tipo_coleta_id ?? '')} onChange={e=>setSelected({...selected,tipo_coleta_id:e.target.value || null})}><option value="">Tipo de coleta</option>{options.transports.map(o=><option key={o.id} value={o.id}>{o.nome}</option>)}</select>
         <select className="h-10 border rounded px-2" value={String(selected.transportador_id ?? '')} onChange={e=>setSelected({...selected,transportador_id:e.target.value || null})}><option value="">Transportador</option>{options.transports.map(o=><option key={o.id} value={o.id}>{o.nome}</option>)}</select>
