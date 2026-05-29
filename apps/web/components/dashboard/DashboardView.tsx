@@ -9,11 +9,27 @@ type Props = {
   profile: UserProfile;
   loads: Load[];
   pendingRequests: number;
+  metrics?: null | {
+    loads_day?: number | null;
+    loads_week?: number | null;
+    loads_month?: number | null;
+    loads_pending?: number | null;
+    loads_overdue?: number | null;
+    loads_wait_supplier?: number | null;
+    loads_wait_receipt?: number | null;
+    loads_wait_label?: number | null;
+    loads_wait_nf?: number | null;
+    loads_ready_pickup?: number | null;
+    fin_revenue_month?: number | null;
+    fin_cmv_month?: number | null;
+    fin_freight_month?: number | null;
+    fin_margin_month?: number | null;
+  };
 };
 
 function countBy(loads: Load[], pred: (l: Load) => boolean) { return loads.filter(pred).length; }
 
-export function DashboardView({ profile, loads, pendingRequests }: Props) {
+export function DashboardView({ profile, loads, pendingRequests, metrics = null }: Props) {
   const [statusFilter, setStatusFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
   const [empresaFilter, setEmpresaFilter] = useState('');
@@ -38,6 +54,25 @@ export function DashboardView({ profile, loads, pendingRequests }: Props) {
   }), [loads, statusFilter, typeFilter, empresaFilter, canalFilter, marketplaceFilter, lojaFilter, fornecedorFilter, responsavelFilter]);
 
   const cards = useMemo(() => {
+    if (metrics) {
+      return {
+        d: Number(metrics.loads_day ?? 0),
+        w: Number(metrics.loads_week ?? 0),
+        m: Number(metrics.loads_month ?? 0),
+        pend: Number(metrics.loads_pending ?? 0),
+        atras: Number(metrics.loads_overdue ?? 0),
+        aguForn: Number(metrics.loads_wait_supplier ?? 0),
+        aguRec: Number(metrics.loads_wait_receipt ?? 0),
+        aguEtiq: Number(metrics.loads_wait_label ?? 0),
+        aguNF: Number(metrics.loads_wait_nf ?? 0),
+        prontaCol: Number(metrics.loads_ready_pickup ?? 0),
+        fat: Number(metrics.fin_revenue_month ?? 0),
+        cmv: Number(metrics.fin_cmv_month ?? 0),
+        frete: Number(metrics.fin_freight_month ?? 0),
+        margem: Number(metrics.fin_margin_month ?? 0),
+      };
+    }
+
     const now = new Date();
     const startDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const startWeek = new Date(startDay); startWeek.setDate(startDay.getDate() - startDay.getDay());
@@ -53,13 +88,13 @@ export function DashboardView({ profile, loads, pendingRequests }: Props) {
     const aguNF = countBy(filtered, l => l.status === 'Aguardando NF');
     const prontaCol = countBy(filtered, l => l.status === 'Pronta para coleta');
 
-    const fat = filtered.reduce((s, l) => s + Number(l.faturamento_estimado || 0), 0);
-    const cmv = filtered.reduce((s, l) => s + Number(l.cmv_total || 0), 0);
-    const frete = filtered.reduce((s, l) => s + Number(l.custo_frete || 0), 0);
-    const margem = filtered.reduce((s, l) => s + Number(l.margem_estimativa_valor || 0), 0);
+    const fat = filtered.reduce((s, l) => s + Number(l.faturamento_estimado ?? 0), 0);
+    const cmv = filtered.reduce((s, l) => s + Number(l.cmv_total ?? 0), 0);
+    const frete = filtered.reduce((s, l) => s + Number(l.custo_frete ?? 0), 0);
+    const margem = filtered.reduce((s, l) => s + Number(l.margem_estimativa_valor ?? 0), 0);
 
     return { d,w,m,pend,atras,aguForn,aguRec,aguEtiq,aguNF,prontaCol,fat,cmv,frete,margem };
-  }, [filtered]);
+  }, [filtered, metrics]);
 
   const alerts = useMemo(() => {
     const now = new Date();
@@ -67,7 +102,7 @@ export function DashboardView({ profile, loads, pendingRequests }: Props) {
     return {
       hoje: countBy(filtered, l => Boolean(l.data_agendada) && new Date(String(l.data_agendada)).toDateString() === now.toDateString()),
       atrasadas: countBy(filtered, l => Boolean(l.data_agendada) && new Date(String(l.data_agendada)) < now && !['Finalizada','Entregue','Cancelada'].includes(String(l.status))),
-      semCmv: countBy(filtered, l => Number(l.cmv_total || 0) <= 0),
+      semCmv: countBy(filtered, l => l.cmv_total != null && Number(l.cmv_total) <= 0),
       semReceb: countBy(filtered, l => !l.data_prevista_recebimento),
       aguardFornecedor: countBy(filtered, l => l.status === 'Aguardando fornecedor'),
       aguardNF: countBy(filtered, l => l.status === 'Aguardando NF'),

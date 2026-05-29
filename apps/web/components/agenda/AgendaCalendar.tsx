@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { UserProfile } from '@/lib/auth/roles';
 
 type LoadRow = {
@@ -54,8 +54,28 @@ export function AgendaCalendar({ loads, profile }: { loads: LoadRow[]; profile: 
   const canEditDate = profile.perfil === 'admin' || profile.perfil === 'gerente_estoque' || profile.perfil === 'gerente_ecommerce';
 
   const days = useMemo(() => monthMatrix(year, month), [year, month]);
+  const [monthLoads, setMonthLoads] = useState<LoadRow[]>(loads ?? []);
 
-  const filtered = useMemo(() => loads.filter((l) => {
+  useEffect(() => {
+    async function fetchMonthLoads() {
+      const from = days[0];
+      const to = new Date(days[days.length - 1]);
+      to.setDate(to.getDate() + 1);
+
+      const res = await fetch('/api/loads/calendar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ from: from.toISOString(), to: to.toISOString() }),
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (Array.isArray(data?.loads)) setMonthLoads(data.loads as LoadRow[]);
+    }
+
+    fetchMonthLoads();
+  }, [days]);
+
+  const filtered = useMemo(() => monthLoads.filter((l) => {
     if (fType && l.tipo !== fType) return false;
     if (fStatus && l.status !== fStatus) return false;
     if (fEmpresa && l.empresa_id !== fEmpresa) return false;
@@ -64,7 +84,7 @@ export function AgendaCalendar({ loads, profile }: { loads: LoadRow[]; profile: 
     if (fFornecedor && !(l.fornecedores || '').toLowerCase().includes(fFornecedor.toLowerCase())) return false;
     if (fResponsavel && l.responsavel_operacional_id !== fResponsavel) return false;
     return true;
-  }), [loads, fType, fStatus, fEmpresa, fMarketplace, fLoja, fFornecedor, fResponsavel]);
+  }), [monthLoads, fType, fStatus, fEmpresa, fMarketplace, fLoja, fFornecedor, fResponsavel]);
 
   const byDay = useMemo(() => {
     const m = new Map<string, LoadRow[]>();
@@ -117,7 +137,7 @@ export function AgendaCalendar({ loads, profile }: { loads: LoadRow[]; profile: 
                 {events.map((e) => {
                   const ag = e.data_agendada ? new Date(e.data_agendada) : null;
                   const atraso = ag && ag < new Date() && !['Finalizada', 'Cancelada', 'Entregue'].includes(e.status);
-                  const semCMV = Number(e.cmv_total || 0) <= 0;
+                  const semCMV = e.cmv_total != null && Number(e.cmv_total) <= 0;
                   const semPrev = !e.data_prevista_recebimento;
                   const agAntesRec = !!(e.data_agendada && e.data_prevista_recebimento && new Date(e.data_agendada) < new Date(e.data_prevista_recebimento));
                   const aguardNF = e.status === 'Aguardando NF';

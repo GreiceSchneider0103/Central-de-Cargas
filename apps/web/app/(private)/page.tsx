@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { DashboardView } from '@/components/dashboard/DashboardView';
 import type { UserProfile } from '@/lib/auth/roles';
 
-type DashboardLoadBase = {
+type DashboardLoad = {
   id: string;
   codigo_interno: string | null;
   tipo: string | null;
@@ -16,7 +16,9 @@ type DashboardLoadBase = {
   marketplace_id: string | null;
   loja_destino_id: string | null;
   responsavel_operacional_id: string | null;
-  [key: string]: unknown;
+  fornecedores?: string | null;
+  comentario?: string | null;
+  [key: string]: string | number | null | undefined;
 };
 
 export default async function DashboardPage() {
@@ -27,24 +29,23 @@ export default async function DashboardPage() {
   const { data: profile } = await supabase.from('users_profile').select('*').eq('auth_user_id', userData.user.id).single<UserProfile>();
   if (!profile) redirect('/');
 
-  const { data: loadsBase } = await supabase.rpc('get_visible_loads');
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+  const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString();
 
-  const dashboardLoadsBase = ((loadsBase ?? []) as DashboardLoadBase[]).slice(0, 500);
-  const loads = await Promise.all(dashboardLoadsBase.map(async (l) => {
-    const { data: items } = await supabase.from('load_items').select('suppliers(nome)').eq('load_id', l.id);
-    const fornecedores = Array.from(new Set((items ?? []).map((i) => {
-      const supplier = i.suppliers as { nome?: string }[] | { nome?: string } | null;
-      return Array.isArray(supplier) ? supplier[0]?.nome : supplier?.nome;
-    }).filter(Boolean))).join(', ');
-    return { ...l, fornecedores };
-  }));
+  const [{ data: metricsRows }, { data: loads }] = await Promise.all([
+    supabase.rpc('get_dashboard_metrics', { p_now: now.toISOString() }),
+    supabase.rpc('get_visible_loads_enriched_range', { p_from: monthStart, p_to: monthEnd, p_limit: 1200 }),
+  ]);
+
+  const metrics = Array.isArray(metricsRows) ? metricsRows[0] : metricsRows;
 
   const { count: pendingRequests } = await supabase.from('load_requests').select('*', { count: 'exact', head: true }).eq('status', 'Pendente');
 
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-bold">Dashboard Operacional</h1>
-      <DashboardView profile={profile} loads={loads} pendingRequests={pendingRequests ?? 0} />
+      <DashboardView profile={profile} loads={(loads ?? []) as DashboardLoad[]} pendingRequests={pendingRequests ?? 0} metrics={metrics ?? null} />
     </div>
   );
 }
