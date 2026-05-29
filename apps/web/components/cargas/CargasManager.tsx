@@ -35,8 +35,6 @@ type Option = { id: string; nome: string; tipo?: string | null };
 
 const PAGE_SIZE = 50;
 
-const PAGE_SIZE = 50;
-
 export function CargasManager({ profile }: { profile: UserProfile }) {
   const supabase = createClient();
   const [loads, setLoads] = useState<LoadRow[]>([]);
