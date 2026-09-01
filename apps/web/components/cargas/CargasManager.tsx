@@ -68,9 +68,12 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
 
   const canWrite = ['admin', 'gerente_estoque', 'gerente_ecommerce'].includes(profile.perfil);
   const canChecklist = ['admin', 'gerente_estoque', 'operador_carga'].includes(profile.perfil);
-  const canSeeFinancial = ['admin', 'gerente_estoque', 'gerente_ecommerce', 'financeiro'].includes(profile.perfil);
+  // Mascaramento financeiro por campo (ver migration p1_financial_masking_by_field):
+  // vendedor não vê margem/faturamento; operador não vê CMV/custos. Os demais veem tudo.
+  const canViewCosts = ['admin', 'gerente_estoque', 'gerente_ecommerce', 'financeiro', 'vendedor_loja'].includes(profile.perfil);
+  const canViewMargin = ['admin', 'gerente_estoque', 'gerente_ecommerce', 'financeiro', 'operador_carga'].includes(profile.perfil);
   const canEditFinancialOnly = profile.perfil === 'financeiro';
-  const canEditFinancial = canSeeFinancial && (canWrite || canEditFinancialOnly);
+  const canEditFinancial = canWrite || canEditFinancialOnly;
 
   const loadData = useCallback(async () => {
     const { data } = await supabase.rpc('get_visible_loads_page', { p_page: page + 1, p_page_size: PAGE_SIZE });
@@ -207,7 +210,7 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
     if (!selected || !canWrite) return;
     const quantidade = prompt('Quantidade', String(item.quantidade ?? 1));
     if (!quantidade) return;
-    const cmv = canSeeFinancial ? prompt('CMV unitário', String(item.cmv_unitario ?? 0)) : String(item.cmv_unitario ?? 0);
+    const cmv = canViewCosts ? prompt('CMV unitário', String(item.cmv_unitario ?? 0)) : String(item.cmv_unitario ?? 0);
     const res = await fetch(`/api/loads/${selected.id}/items`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -227,7 +230,7 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
         ...editingItem,
         id: editingItem.id,
         quantidade: Number(editingItem.quantidade ?? 0),
-        cmv_unitario: canSeeFinancial ? Number(editingItem.cmv_unitario ?? 0) : Number(editingItem.cmv_unitario ?? 0),
+        cmv_unitario: canViewCosts ? Number(editingItem.cmv_unitario ?? 0) : Number(editingItem.cmv_unitario ?? 0),
       }),
     });
     if (!res.ok) { const j = await res.json(); setError(j.error || 'Erro ao editar item.'); return; }
@@ -371,15 +374,14 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
 
   const totalLoadPages = Math.max(1, Math.ceil(totalLoads / PAGE_SIZE));
 
+  // CMV é somado a partir dos itens (sempre consistente com a mascaragem de custos).
+  // Margem usa o valor já calculado e mascarado pelo servidor (get_visible_loads_page),
+  // em vez de recalcular no cliente com faturamento/custo_frete/outros_custos que podem
+  // vir nulos por mascaramento (ex.: operador vê margem mas não custo/CMV).
   const totals = useMemo(() => {
     const cmv = items.reduce((sum, i) => sum + Number(i.cmv_total || 0), 0);
-    const fat = Number(selected?.faturamento_estimado || 0);
-    const frete = Number(selected?.custo_frete || 0);
-    const outros = Number(selected?.outros_custos || 0);
-    const margemValor = fat - cmv - frete - outros;
-    const margemPct = fat > 0 ? margemValor / fat : null;
-    return { cmv, margemValor, margemPct };
-  }, [items, selected]);
+    return { cmv };
+  }, [items]);
 
   return <div className="space-y-6">
     <div className="bg-white border rounded-xl p-4 space-y-3">
@@ -422,7 +424,7 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
         <input className="h-10 border rounded px-2" placeholder="Real receb. item (ISO)" value={newItem.data_real_recebimento||''} onChange={e=>setNewItem({...newItem,data_real_recebimento:e.target.value})}/>
         <input className="h-10 border rounded px-2" placeholder="Status item" value={newItem.status_item||''} onChange={e=>setNewItem({...newItem,status_item:e.target.value})}/>
         <input className="h-10 border rounded px-2" placeholder="Observação item" value={newItem.observacao||''} onChange={e=>setNewItem({...newItem,observacao:e.target.value})}/>
-        {canSeeFinancial && <input className="h-10 border rounded px-2" placeholder="CMV unitário" type="number" value={newItem.cmv_unitario||0} onChange={e=>setNewItem({...newItem,cmv_unitario:e.target.value})}/>}
+        {canViewCosts && <input className="h-10 border rounded px-2" placeholder="CMV unitário" type="number" value={newItem.cmv_unitario||0} onChange={e=>setNewItem({...newItem,cmv_unitario:e.target.value})}/>}
       </div>
       {canWrite && <button className="px-3 py-2 bg-indigo-600 text-white rounded" onClick={createLoad}>Criar carga</button>}
       {error && <p className="text-sm text-rose-600">{error}</p>}
@@ -430,8 +432,8 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
 
     <div className="bg-white border rounded-xl p-4">
       <h2 className="font-semibold mb-2">Lista de cargas</h2>
-      <table className="w-full text-sm"><thead><tr className="border-b"><th>Código</th><th>Tipo</th><th>Status</th>{canSeeFinancial && <th>CMV total</th>}<th>Ações</th></tr></thead><tbody>
-        {loads.map(l => <tr key={l.id} className="border-b"><td>{l.codigo_interno}</td><td>{l.tipo}</td><td>{l.status}</td>{canSeeFinancial && <td>{Number(l.cmv_total||0).toFixed(2)}</td>}<td><button className="text-indigo-600" onClick={()=>openLoad(l)}>Detalhe</button></td></tr>)}
+      <table className="w-full text-sm"><thead><tr className="border-b"><th>Código</th><th>Tipo</th><th>Status</th>{canViewCosts && <th>CMV total</th>}<th>Ações</th></tr></thead><tbody>
+        {loads.map(l => <tr key={l.id} className="border-b"><td>{l.codigo_interno}</td><td>{l.tipo}</td><td>{l.status}</td>{canViewCosts && <td>{Number(l.cmv_total||0).toFixed(2)}</td>}<td><button className="text-indigo-600" onClick={()=>openLoad(l)}>Detalhe</button></td></tr>)}
       </tbody></table>
       <div className="flex gap-2 mt-3 text-sm">
         <button className="px-2 py-1 border rounded disabled:opacity-50" disabled={page === 0} onClick={() => setPage((p) => Math.max(0, p - 1))}>Anterior</button>
@@ -477,10 +479,10 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
         <input className="h-10 border rounded px-2" placeholder="Nome produto" value={newItem.nome_produto||''} onChange={e=>setNewItem({...newItem,nome_produto:e.target.value})}/>
         <input className="h-10 border rounded px-2" placeholder="Quantidade" type="number" value={newItem.quantidade||1} onChange={e=>setNewItem({...newItem,quantidade:e.target.value})}/>
         <select className="h-10 border rounded px-2" value={newItem.fornecedor_origem_id||''} onChange={e=>setNewItem({...newItem,fornecedor_origem_id:e.target.value})}><option value="">Fornecedor</option>{options.suppliers.map(o=><option key={o.id} value={o.id}>{o.nome}</option>)}</select>
-        {canSeeFinancial && <input className="h-10 border rounded px-2" placeholder="CMV unitário" type="number" value={newItem.cmv_unitario||0} onChange={e=>setNewItem({...newItem,cmv_unitario:e.target.value})}/>}
+        {canViewCosts && <input className="h-10 border rounded px-2" placeholder="CMV unitário" type="number" value={newItem.cmv_unitario||0} onChange={e=>setNewItem({...newItem,cmv_unitario:e.target.value})}/>}
         <input className="h-10 border rounded px-2" placeholder="Altura" type="number" onChange={e=>setNewItem({...newItem,altura:e.target.value})}/>
       </div>
-      {canSeeFinancial && Number(newItem.cmv_unitario||0)<=0 && <p className='text-xs text-amber-600'>Produto sem CMV, preencher manualmente.</p>}
+      {canViewCosts && Number(newItem.cmv_unitario||0)<=0 && <p className='text-xs text-amber-600'>Produto sem CMV, preencher manualmente.</p>}
       {canWrite && <button className="px-3 py-2 border rounded" onClick={addItem}>Adicionar item</button>}
 
       {editingItem && canWrite && (
@@ -491,7 +493,7 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
             <input className="h-10 border rounded px-2" placeholder="Nome" value={String(editingItem.nome_produto ?? '')} onChange={e=>setEditingItem({ ...editingItem, nome_produto: e.target.value })} />
             <input className="h-10 border rounded px-2" placeholder="Quantidade" type="number" value={Number(editingItem.quantidade ?? 0)} onChange={e=>setEditingItem({ ...editingItem, quantidade: Number(e.target.value) })} />
             <select className="h-10 border rounded px-2" value={String(editingItem.fornecedor_origem_id ?? '')} onChange={e=>setEditingItem({ ...editingItem, fornecedor_origem_id: e.target.value || null })}><option value="">Fornecedor</option>{options.suppliers.map(o=><option key={o.id} value={o.id}>{o.nome}</option>)}</select>
-            {canSeeFinancial && <input className="h-10 border rounded px-2" placeholder="CMV unitário" type="number" value={Number(editingItem.cmv_unitario ?? 0)} onChange={e=>setEditingItem({ ...editingItem, cmv_unitario: Number(e.target.value) })} />}
+            {canViewCosts && <input className="h-10 border rounded px-2" placeholder="CMV unitário" type="number" value={Number(editingItem.cmv_unitario ?? 0)} onChange={e=>setEditingItem({ ...editingItem, cmv_unitario: Number(e.target.value) })} />}
             <input className="h-10 border rounded px-2" placeholder="Peso" type="number" value={Number(editingItem.peso ?? 0)} onChange={e=>setEditingItem({ ...editingItem, peso: Number(e.target.value) })} />
             <input className="h-10 border rounded px-2" placeholder="Altura" type="number" value={Number(editingItem.altura ?? 0)} onChange={e=>setEditingItem({ ...editingItem, altura: Number(e.target.value) })} />
             <input className="h-10 border rounded px-2" placeholder="Largura" type="number" value={Number(editingItem.largura ?? 0)} onChange={e=>setEditingItem({ ...editingItem, largura: Number(e.target.value) })} />
@@ -508,14 +510,17 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
         </div>
       )}
 
-      <table className="w-full text-sm"><thead><tr className="border-b"><th>SKU</th><th>Nome</th><th>Qtd</th>{canSeeFinancial && <th>CMV unit</th>}{canSeeFinancial && <th>CMV total</th>}<th>Cubagem</th>{canWrite && <th>Ações</th>}</tr></thead><tbody>
-        {items.map(i=><tr key={i.id} className="border-b"><td>{i.sku}</td><td>{i.nome_produto}</td><td>{i.quantidade}</td>{canSeeFinancial && <td>{i.cmv_unitario}</td>}{canSeeFinancial && <td>{i.cmv_total}</td>}<td>{i.cubagem ?? '-'}</td>{canWrite && <td className="space-x-2"><button className="text-indigo-600" onClick={()=>editItem(i)}>Editar</button><button className="text-rose-700" onClick={()=>removeItem(i)}>Remover</button></td>}</tr>)}
+      <table className="w-full text-sm"><thead><tr className="border-b"><th>SKU</th><th>Nome</th><th>Qtd</th>{canViewCosts && <th>CMV unit</th>}{canViewCosts && <th>CMV total</th>}<th>Cubagem</th>{canWrite && <th>Ações</th>}</tr></thead><tbody>
+        {items.map(i=><tr key={i.id} className="border-b"><td>{i.sku}</td><td>{i.nome_produto}</td><td>{i.quantidade}</td>{canViewCosts && <td>{i.cmv_unitario}</td>}{canViewCosts && <td>{i.cmv_total}</td>}<td>{i.cubagem ?? '-'}</td>{canWrite && <td className="space-x-2"><button className="text-indigo-600" onClick={()=>editItem(i)}>Editar</button><button className="text-rose-700" onClick={()=>removeItem(i)}>Remover</button></td>}</tr>)}
       </tbody></table>
 
-      {canSeeFinancial && <div className="bg-zinc-50 p-3 rounded text-sm">
+      {canViewCosts && <div className="bg-zinc-50 p-3 rounded text-sm">
         <p>CMV total: {totals.cmv.toFixed(2)}</p>
-        <p>Margem estimativa (valor): {totals.margemValor.toFixed(2)}</p>
-        <p>Margem estimativa (%): {totals.margemPct === null ? '-' : (totals.margemPct*100).toFixed(2) + '%'}</p>
+      </div>}
+
+      {canViewMargin && <div className="bg-zinc-50 p-3 rounded text-sm">
+        <p>Margem estimativa (valor): {selected?.margem_estimativa_valor != null ? Number(selected.margem_estimativa_valor).toFixed(2) : '-'}</p>
+        <p>Margem estimativa (%): {selected?.margem_estimativa_percentual != null ? (Number(selected.margem_estimativa_percentual) * 100).toFixed(2) + '%' : '-'}</p>
       </div>}
 
       {checklist && <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">

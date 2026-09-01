@@ -29,7 +29,8 @@ export default async function SolicitacaoDetailPage({ params }: { params: Promis
     .eq('id', id)
     .single();
 
-  const canSeeFinancial = ['admin', 'gerente_estoque', 'gerente_ecommerce', 'financeiro'].includes(profile.perfil);
+  // Vendedor vê CMV (não vê margem/faturamento, que nem aparecem nesta tela); operador não vê CMV.
+  const canViewCosts = ['admin', 'gerente_estoque', 'gerente_ecommerce', 'financeiro', 'vendedor_loja'].includes(profile.perfil);
 
   const { data: items } = await supabase.rpc('get_visible_load_request_items', { p_request_id: id });
   const { data: history } = await supabase.from('load_request_history').select('*').eq('request_id', id).order('created_at', { ascending: false });
@@ -56,8 +57,8 @@ export default async function SolicitacaoDetailPage({ params }: { params: Promis
 
       <div className="bg-white border rounded-xl p-4">
         <h2 className="font-semibold mb-2">Itens</h2>
-        <table className="w-full text-sm"><thead><tr className="border-b"><th>SKU</th><th>Produto</th><th>Qtd</th>{canSeeFinancial && <th>CMV Unit.</th>}{canSeeFinancial && <th>CMV Total</th>}</tr></thead><tbody>
-          {((items ?? []) as VisibleRequestItem[]).map((i) => <tr key={i.id} className="border-b"><td>{i.sku}</td><td>{i.nome_produto}</td><td>{i.quantidade}</td>{canSeeFinancial && <td>{i.cmv_unitario}</td>}{canSeeFinancial && <td>{i.cmv_total}</td>}</tr>)}
+        <table className="w-full text-sm"><thead><tr className="border-b"><th>SKU</th><th>Produto</th><th>Qtd</th>{canViewCosts && <th>CMV Unit.</th>}{canViewCosts && <th>CMV Total</th>}</tr></thead><tbody>
+          {((items ?? []) as VisibleRequestItem[]).map((i) => <tr key={i.id} className="border-b"><td>{i.sku}</td><td>{i.nome_produto}</td><td>{i.quantidade}</td>{canViewCosts && <td>{i.cmv_unitario}</td>}{canViewCosts && <td>{i.cmv_total}</td>}</tr>)}
         </tbody></table>
       </div>
 

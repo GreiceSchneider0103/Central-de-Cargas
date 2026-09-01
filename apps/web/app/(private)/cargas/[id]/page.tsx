@@ -74,7 +74,9 @@ export default async function CargaDetailPage({ params }: { params: Promise<{ id
     .single<UserProfile>();
   if (!profile) redirect('/login');
 
-  const canSeeFinancial = ['admin', 'gerente_estoque', 'gerente_ecommerce', 'financeiro'].includes(profile.perfil);
+  // Vendedor não vê margem/faturamento; operador não vê custo/CMV (ver migration p1_financial_masking_by_field).
+  const canViewCosts = ['admin', 'gerente_estoque', 'gerente_ecommerce', 'financeiro', 'vendedor_loja'].includes(profile.perfil);
+  const canViewMargin = ['admin', 'gerente_estoque', 'gerente_ecommerce', 'financeiro', 'operador_carga'].includes(profile.perfil);
 
   const { data: loads } = await supabase.rpc('get_visible_loads');
   const load = ((loads ?? []) as VisibleLoad[]).find((row) => row.id === id);
@@ -129,8 +131,8 @@ export default async function CargaDetailPage({ params }: { params: Promise<{ id
                 <th className="py-2">SKU</th>
                 <th>Nome</th>
                 <th>Qtd</th>
-                {canSeeFinancial && <th>CMV unit.</th>}
-                {canSeeFinancial && <th>CMV total</th>}
+                {canViewCosts && <th>CMV unit.</th>}
+                {canViewCosts && <th>CMV total</th>}
                 <th>Peso</th>
                 <th>Dimensões (A×L×P)</th>
                 <th>Cubagem</th>
@@ -143,8 +145,8 @@ export default async function CargaDetailPage({ params }: { params: Promise<{ id
                   <td className="py-2">{i.sku}</td>
                   <td>{i.nome_produto}</td>
                   <td>{i.quantidade}</td>
-                  {canSeeFinancial && <td>{i.cmv_unitario ?? '-'}</td>}
-                  {canSeeFinancial && <td>{i.cmv_total ?? '-'}</td>}
+                  {canViewCosts && <td>{i.cmv_unitario ?? '-'}</td>}
+                  {canViewCosts && <td>{i.cmv_total ?? '-'}</td>}
                   <td>{i.peso ?? '-'}</td>
                   <td>{i.altura ?? '-'} × {i.largura ?? '-'} × {i.profundidade ?? '-'}</td>
                   <td>{i.cubagem ?? '-'}</td>
@@ -153,7 +155,7 @@ export default async function CargaDetailPage({ params }: { params: Promise<{ id
               ))}
               {typedItems.length === 0 && (
                 <tr>
-                  <td colSpan={canSeeFinancial ? 9 : 7} className="py-3 text-zinc-500">Sem itens.</td>
+                  <td colSpan={canViewCosts ? 9 : 7} className="py-3 text-zinc-500">Sem itens.</td>
                 </tr>
               )}
             </tbody>
@@ -161,33 +163,43 @@ export default async function CargaDetailPage({ params }: { params: Promise<{ id
         </div>
       </div>
 
-      {canSeeFinancial && (
+      {(canViewCosts || canViewMargin) && (
         <div className="bg-white border rounded-xl p-4 grid grid-cols-2 md:grid-cols-5 gap-3 text-sm">
-          <div>
-            <div className="text-zinc-500">Faturamento estimado</div>
-            <div className="font-semibold">{money(load.faturamento_estimado)}</div>
-          </div>
-          <div>
-            <div className="text-zinc-500">CMV total</div>
-            <div className="font-semibold">{money(load.cmv_total)}</div>
-          </div>
-          <div>
-            <div className="text-zinc-500">Custo de frete</div>
-            <div className="font-semibold">{money(load.custo_frete)}</div>
-          </div>
-          <div>
-            <div className="text-zinc-500">Outros custos</div>
-            <div className="font-semibold">{money(load.outros_custos)}</div>
-          </div>
-          <div>
-            <div className="text-zinc-500">Margem estimada</div>
-            <div className="font-semibold">
-              {money(load.margem_estimativa_valor)}
-              {load.margem_estimativa_percentual !== null && load.margem_estimativa_percentual !== undefined
-                ? ` (${(load.margem_estimativa_percentual * 100).toFixed(2)}%)`
-                : ' (pendente)'}
+          {canViewMargin && (
+            <div>
+              <div className="text-zinc-500">Faturamento estimado</div>
+              <div className="font-semibold">{money(load.faturamento_estimado)}</div>
             </div>
-          </div>
+          )}
+          {canViewCosts && (
+            <div>
+              <div className="text-zinc-500">CMV total</div>
+              <div className="font-semibold">{money(load.cmv_total)}</div>
+            </div>
+          )}
+          {canViewCosts && (
+            <div>
+              <div className="text-zinc-500">Custo de frete</div>
+              <div className="font-semibold">{money(load.custo_frete)}</div>
+            </div>
+          )}
+          {canViewCosts && (
+            <div>
+              <div className="text-zinc-500">Outros custos</div>
+              <div className="font-semibold">{money(load.outros_custos)}</div>
+            </div>
+          )}
+          {canViewMargin && (
+            <div>
+              <div className="text-zinc-500">Margem estimada</div>
+              <div className="font-semibold">
+                {money(load.margem_estimativa_valor)}
+                {load.margem_estimativa_percentual !== null && load.margem_estimativa_percentual !== undefined
+                  ? ` (${(load.margem_estimativa_percentual * 100).toFixed(2)}%)`
+                  : ' (pendente)'}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

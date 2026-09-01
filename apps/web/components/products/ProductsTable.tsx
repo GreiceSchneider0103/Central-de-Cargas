@@ -22,7 +22,8 @@ export function ProductsTable({ products, role }: { products: ProductRow[]; role
   const [loading, setLoading] = useState(false);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const isAdmin = role === 'admin';
-  const canSeeFinancial = ['admin', 'gerente_estoque', 'gerente_ecommerce', 'financeiro'].includes(role);
+  // Vendedor vê CMV (não vê margem/faturamento, irrelevantes nesta tela); operador não vê CMV.
+  const canViewCosts = ['admin', 'gerente_estoque', 'gerente_ecommerce', 'financeiro', 'vendedor_loja'].includes(role);
   const canManageProducts = ['admin', 'gerente_estoque'].includes(role);
 
   useEffect(() => { setRows(products); }, [products]);
@@ -82,7 +83,7 @@ export function ProductsTable({ products, role }: { products: ProductRow[]; role
           <tr className="text-left border-b bg-zinc-50">
             <th className="p-3">SKU</th>
             <th className="p-3">Nome</th>
-            {canSeeFinancial && <th className="p-3">CMV</th>}
+            {canViewCosts && <th className="p-3">CMV</th>}
             <th className="p-3">Fornecedor</th>
             <th className="p-3">Última sincronização</th>
             <th className="p-3">Status</th>
@@ -94,7 +95,7 @@ export function ProductsTable({ products, role }: { products: ProductRow[]; role
             <tr key={p.id} className="border-b">
               <td className="p-3 font-mono">{p.sku}</td>
               <td className="p-3">{p.nome}</td>
-              {canSeeFinancial && (
+              {canViewCosts && (
                 <td className="p-3">
                   {Number(p.cmv) <= 0 ? <span className="text-rose-600 font-semibold">CMV pendente</span> : `R$ ${Number(p.cmv).toFixed(2)}`}
                 </td>

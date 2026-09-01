@@ -39,7 +39,9 @@ export function DashboardView({ profile, loads, pendingRequests, metrics = null 
   const [fornecedorFilter, setFornecedorFilter] = useState('');
   const [responsavelFilter, setResponsavelFilter] = useState('');
 
-  const canSeeFinancial = ['admin', 'gerente_estoque', 'financeiro', 'gerente_ecommerce'].includes(profile.perfil);
+  // Vendedor não vê margem/faturamento; operador não vê custo/CMV (ver migration p1_financial_masking_by_field).
+  const canViewCosts = ['admin', 'gerente_estoque', 'gerente_ecommerce', 'financeiro', 'vendedor_loja'].includes(profile.perfil);
+  const canViewMargin = ['admin', 'gerente_estoque', 'gerente_ecommerce', 'financeiro', 'operador_carga'].includes(profile.perfil);
 
   const filtered = useMemo(() => loads.filter((l) => {
     if (statusFilter && l.status !== statusFilter) return false;
@@ -133,12 +135,10 @@ export function DashboardView({ profile, loads, pendingRequests, metrics = null 
         ['Solicitações pendentes', pendingRequests],['Cargas atrasadas', cards.atras],['Aguardando fornecedor', cards.aguForn],['Aguardando recebimento', cards.aguRec],
         ['Aguardando etiqueta', cards.aguEtiq],['Aguardando NF', cards.aguNF],['Prontas coleta', cards.prontaCol],
       ].map(([k,v])=> <div key={String(k)} className="bg-white border rounded p-3"><div className="text-zinc-500">{k}</div><div className="text-xl font-bold">{String(v)}</div></div>)}
-      {canSeeFinancial && <>
-        <div className="bg-white border rounded p-3"><div className="text-zinc-500">Faturamento estimado</div><div className="text-xl font-bold">R$ {cards.fat.toFixed(2)}</div></div>
-        <div className="bg-white border rounded p-3"><div className="text-zinc-500">CMV total</div><div className="text-xl font-bold">R$ {cards.cmv.toFixed(2)}</div></div>
-        <div className="bg-white border rounded p-3"><div className="text-zinc-500">Frete total</div><div className="text-xl font-bold">R$ {cards.frete.toFixed(2)}</div></div>
-        <div className="bg-white border rounded p-3"><div className="text-zinc-500">Margem estimada</div><div className="text-xl font-bold">R$ {cards.margem.toFixed(2)}</div></div>
-      </>}
+      {canViewMargin && <div className="bg-white border rounded p-3"><div className="text-zinc-500">Faturamento estimado</div><div className="text-xl font-bold">R$ {cards.fat.toFixed(2)}</div></div>}
+      {canViewCosts && <div className="bg-white border rounded p-3"><div className="text-zinc-500">CMV total</div><div className="text-xl font-bold">R$ {cards.cmv.toFixed(2)}</div></div>}
+      {canViewCosts && <div className="bg-white border rounded p-3"><div className="text-zinc-500">Frete total</div><div className="text-xl font-bold">R$ {cards.frete.toFixed(2)}</div></div>}
+      {canViewMargin && <div className="bg-white border rounded p-3"><div className="text-zinc-500">Margem estimada</div><div className="text-xl font-bold">R$ {cards.margem.toFixed(2)}</div></div>}
     </div>
 
     <div className="bg-white border rounded p-4 text-sm">

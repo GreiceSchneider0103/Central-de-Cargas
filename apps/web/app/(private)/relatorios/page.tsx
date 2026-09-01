@@ -19,8 +19,13 @@ type LoadRow = {
   margem_estimativa_valor?: number | null;
 };
 
-function canViewFinancial(role: string) {
-  return ['admin', 'gerente_estoque', 'financeiro', 'gerente_ecommerce'].includes(role);
+// Vendedor não vê margem/faturamento; operador não vê custo/CMV (ver migration p1_financial_masking_by_field).
+function canViewCosts(role: string) {
+  return ['admin', 'gerente_estoque', 'gerente_ecommerce', 'financeiro', 'vendedor_loja'].includes(role);
+}
+
+function canViewMargin(role: string) {
+  return ['admin', 'gerente_estoque', 'gerente_ecommerce', 'financeiro', 'operador_carga'].includes(role);
 }
 
 function parseMonth(value: string | undefined) {
@@ -66,7 +71,8 @@ export default async function ReportsPage({
   const fromIso = from.toISOString();
   const toIso = to.toISOString();
 
-  const financialAllowed = canViewFinancial(profile.perfil);
+  const costsAllowed = canViewCosts(profile.perfil);
+  const marginAllowed = canViewMargin(profile.perfil);
 
   const [loadsRes, companiesRes, channelsRes, storesRes] = await Promise.all([
     supabase.rpc('get_visible_loads_enriched_range', {
@@ -118,9 +124,11 @@ export default async function ReportsPage({
       .filter(Boolean);
     for (const s of suppliers) bySupplier.set(s, (bySupplier.get(s) ?? 0) + 1);
 
-    if (financialAllowed) {
+    if (costsAllowed) {
       if (typeof l.custo_frete === 'number') sumFreight += l.custo_frete;
       if (typeof l.cmv_total === 'number') sumCmv += l.cmv_total;
+    }
+    if (marginAllowed) {
       if (typeof l.faturamento_estimado === 'number') sumRevenue += l.faturamento_estimado;
       if (typeof l.margem_estimativa_valor === 'number') sumMargin += l.margem_estimativa_valor;
     }
@@ -197,12 +205,12 @@ export default async function ReportsPage({
         </div>
         <div className="bg-white border rounded p-4">
           <div className="text-sm text-zinc-500">Financeiro (mês)</div>
-          {financialAllowed ? (
+          {costsAllowed || marginAllowed ? (
             <div className="text-xs text-zinc-700 space-y-1 mt-1">
-              <div>Faturamento: {sumRevenue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</div>
-              <div>CMV: {sumCmv.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</div>
-              <div>Frete: {sumFreight.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</div>
-              <div>Margem: {sumMargin.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</div>
+              {marginAllowed && <div>Faturamento: {sumRevenue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</div>}
+              {costsAllowed && <div>CMV: {sumCmv.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</div>}
+              {costsAllowed && <div>Frete: {sumFreight.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</div>}
+              {marginAllowed && <div>Margem: {sumMargin.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</div>}
             </div>
           ) : (
             <div className="text-sm text-zinc-400 mt-1">Restrito por perfil</div>

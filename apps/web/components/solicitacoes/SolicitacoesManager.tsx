@@ -45,7 +45,8 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
   const [totalRequests, setTotalRequests] = useState(0);
 
   const canApprove = profile.perfil === 'admin' || profile.perfil === 'gerente_estoque';
-  const canSeeFinancial = ['admin', 'gerente_estoque', 'gerente_ecommerce', 'financeiro'].includes(profile.perfil);
+  // Vendedor vê CMV (não vê margem/faturamento, que nem aparecem nesta tela); operador não vê CMV.
+  const canViewCosts = ['admin', 'gerente_estoque', 'gerente_ecommerce', 'financeiro', 'vendedor_loja'].includes(profile.perfil);
 
   const load = useCallback(async () => {
     const [reqs, c, s, ch, d, sup] = await Promise.all([
@@ -154,9 +155,9 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
             <input placeholder="Nome" className="h-10 border rounded px-2" value={item.nome_produto} onChange={(e) => updateItem(idx, 'nome_produto', e.target.value)} />
             <input placeholder="Quantidade" type="number" className="h-10 border rounded px-2" value={item.quantidade} onChange={(e) => updateItem(idx, 'quantidade', Number(e.target.value))} />
             <select className="h-10 border rounded px-2" value={item.fornecedor_origem_id || ''} onChange={(e) => updateItem(idx, 'fornecedor_origem_id', e.target.value)}><option value="">Fornecedor</option>{suppliers.map(s=><option key={s.id} value={s.id}>{s.nome}</option>)}</select>
-            {canSeeFinancial && <input placeholder="CMV unitário" type="number" className="h-10 border rounded px-2" value={item.cmv_unitario} onChange={(e) => updateItem(idx, 'cmv_unitario', Number(e.target.value))} />}
-            {canSeeFinancial && <div className="h-10 border rounded px-2 flex items-center">CMV total: {item.cmv_total.toFixed(2)}</div>}
-            {canSeeFinancial && Number(item.cmv_unitario) <= 0 && <p className="text-xs text-amber-600 col-span-6">Produto sem CMV cadastrado. Informe manualmente.</p>}
+            {canViewCosts && <input placeholder="CMV unitário" type="number" className="h-10 border rounded px-2" value={item.cmv_unitario} onChange={(e) => updateItem(idx, 'cmv_unitario', Number(e.target.value))} />}
+            {canViewCosts && <div className="h-10 border rounded px-2 flex items-center">CMV total: {item.cmv_total.toFixed(2)}</div>}
+            {canViewCosts && Number(item.cmv_unitario) <= 0 && <p className="text-xs text-amber-600 col-span-6">Produto sem CMV cadastrado. Informe manualmente.</p>}
           </div>
         ))}
         <div className="flex gap-2">

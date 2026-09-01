@@ -7,8 +7,13 @@ function parseIso(value: string | null) {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-function canViewFinancial(role: string) {
-  return ['admin', 'gerente_estoque', 'financeiro', 'gerente_ecommerce'].includes(role);
+// Vendedor não vê margem/faturamento; operador não vê custo/CMV (ver migration p1_financial_masking_by_field).
+function canViewCosts(role: string) {
+  return ['admin', 'gerente_estoque', 'gerente_ecommerce', 'financeiro', 'vendedor_loja'].includes(role);
+}
+
+function canViewMargin(role: string) {
+  return ['admin', 'gerente_estoque', 'gerente_ecommerce', 'financeiro', 'operador_carga'].includes(role);
 }
 
 function csvEscape(value: unknown) {
@@ -39,7 +44,8 @@ export async function GET(req: NextRequest) {
     });
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-    const financialAllowed = canViewFinancial(profile.perfil);
+    const costsAllowed = canViewCosts(profile.perfil);
+    const marginAllowed = canViewMargin(profile.perfil);
     const rows = Array.isArray(data) ? (data as Record<string, unknown>[]) : [];
 
     const headers = [
@@ -57,15 +63,14 @@ export async function GET(req: NextRequest) {
       'comentario',
     ];
 
-    const financialHeaders = [
-      'faturamento_estimado',
-      'cmv_total',
-      'custo_frete',
-      'outros_custos',
-      'margem_estimativa_valor',
-    ];
+    const costHeaders = ['cmv_total', 'custo_frete', 'outros_custos'];
+    const marginHeaders = ['faturamento_estimado', 'margem_estimativa_valor'];
 
-    const finalHeaders = financialAllowed ? [...headers, ...financialHeaders] : headers;
+    const finalHeaders = [
+      ...headers,
+      ...(costsAllowed ? costHeaders : []),
+      ...(marginAllowed ? marginHeaders : []),
+    ];
 
     const lines: string[] = [];
     lines.push(finalHeaders.join(','));
