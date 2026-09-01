@@ -12,6 +12,8 @@ export function LoginForm() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [mode, setMode] = useState<'login' | 'recover'>('login');
+  const [recoverMessage, setRecoverMessage] = useState<string | null>(null);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -30,6 +32,62 @@ export function LoginForm() {
     router.replace(nextPath);
     router.refresh();
   };
+
+  const handleRecover = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setLoading(true);
+    setError(null);
+    setRecoverMessage(null);
+
+    const supabase = createClient();
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/auth/callback?next=/auth/atualizar-senha`,
+    });
+    setLoading(false);
+
+    if (error) {
+      setError('Não foi possível enviar o link de recuperação.');
+      return;
+    }
+
+    setRecoverMessage('Se o e-mail existir, enviamos um link para redefinir a senha.');
+  };
+
+  if (mode === 'recover') {
+    return (
+      <form onSubmit={handleRecover} className="space-y-4">
+        <div className="space-y-2">
+          <label htmlFor="recover-email" className="text-sm font-medium">E-mail</label>
+          <input
+            id="recover-email"
+            type="email"
+            required
+            className="w-full h-11 rounded-md border border-zinc-300 px-3"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+        </div>
+
+        {error && <p className="text-sm text-rose-600">{error}</p>}
+        {recoverMessage && <p className="text-sm text-emerald-600">{recoverMessage}</p>}
+
+        <button
+          type="submit"
+          disabled={loading}
+          className="w-full h-11 rounded-md bg-indigo-600 text-white font-medium hover:bg-indigo-700 disabled:opacity-50"
+        >
+          {loading ? 'Enviando...' : 'Enviar link de recuperação'}
+        </button>
+        <button
+          type="button"
+          className="w-full text-sm text-zinc-600 hover:underline"
+          onClick={() => { setMode('login'); setError(null); setRecoverMessage(null); }}
+        >
+          Voltar para o login
+        </button>
+      </form>
+    );
+  }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
@@ -64,6 +122,13 @@ export function LoginForm() {
         className="w-full h-11 rounded-md bg-indigo-600 text-white font-medium hover:bg-indigo-700 disabled:opacity-50"
       >
         {loading ? 'Entrando...' : 'Entrar'}
+      </button>
+      <button
+        type="button"
+        className="w-full text-sm text-zinc-600 hover:underline"
+        onClick={() => { setMode('recover'); setError(null); }}
+      >
+        Esqueci minha senha
       </button>
     </form>
   );

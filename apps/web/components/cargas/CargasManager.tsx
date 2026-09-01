@@ -358,30 +358,14 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
         <input className="h-10 border rounded px-2" placeholder="Nome item inicial" value={newItem.nome_produto||''} onChange={e=>setNewItem({...newItem,nome_produto:e.target.value})}/>
         <input className="h-10 border rounded px-2" placeholder="Quantidade" type="number" value={newItem.quantidade||1} onChange={e=>setNewItem({...newItem,quantidade:e.target.value})}/>
         <select className="h-10 border rounded px-2" value={newItem.fornecedor_origem_id||''} onChange={e=>setNewItem({...newItem,fornecedor_origem_id:e.target.value})}><option value="">Fornecedor</option>{options.suppliers.map(o=><option key={o.id} value={o.id}>{o.nome}</option>)}</select>
-        <input className="h-10 border rounded px-2" placeholder="Peso" type="number" onChange={e=>setNewItem({...newItem,peso:e.target.value})}/>
-        <input className="h-10 border rounded px-2" placeholder="-" value="" readOnly />
-        <input className="h-10 border rounded px-2" placeholder="Largura" type="number" onChange={e=>setNewItem({...newItem,largura:e.target.value})}/>
-        <input className="h-10 border rounded px-2" placeholder="Profundidade" type="number" onChange={e=>setNewItem({...newItem,profundidade:e.target.value})}/>
-        <input className="h-10 border rounded px-2" placeholder="Prev. receb. item (ISO)" onChange={e=>setNewItem({...newItem,data_prevista_recebimento:e.target.value})}/>
-        <input className="h-10 border rounded px-2" placeholder="Real receb. item (ISO)" onChange={e=>setNewItem({...newItem,data_real_recebimento:e.target.value})}/>
-        <input className="h-10 border rounded px-2" placeholder="Status item" onChange={e=>setNewItem({...newItem,status_item:e.target.value})}/>
-        <input className="h-10 border rounded px-2" placeholder="Observação item" onChange={e=>setNewItem({...newItem,observacao:e.target.value})}/>
-        <input className="h-10 border rounded px-2" placeholder="Peso" type="number" onChange={e=>setNewItem({...newItem,peso:e.target.value})}/>
-        <input className="h-10 border rounded px-2" placeholder="Altura" type="number" onChange={e=>setNewItem({...newItem,altura:e.target.value})}/>
-        <input className="h-10 border rounded px-2" placeholder="Largura" type="number" onChange={e=>setNewItem({...newItem,largura:e.target.value})}/>
-        <input className="h-10 border rounded px-2" placeholder="Profundidade" type="number" onChange={e=>setNewItem({...newItem,profundidade:e.target.value})}/>
-        <input className="h-10 border rounded px-2" placeholder="Prev. receb. item (ISO)" onChange={e=>setNewItem({...newItem,data_prevista_recebimento:e.target.value})}/>
-        <input className="h-10 border rounded px-2" placeholder="Real receb. item (ISO)" onChange={e=>setNewItem({...newItem,data_real_recebimento:e.target.value})}/>
-        <input className="h-10 border rounded px-2" placeholder="Status item" onChange={e=>setNewItem({...newItem,status_item:e.target.value})}/>
-        <input className="h-10 border rounded px-2" placeholder="Observação item" onChange={e=>setNewItem({...newItem,observacao:e.target.value})}/>
-        <input className="h-10 border rounded px-2" placeholder="Peso" type="number" onChange={e=>setNewItem({...newItem,peso:e.target.value})}/>
-        <input className="h-10 border rounded px-2" placeholder="-" value="" readOnly />
-        <input className="h-10 border rounded px-2" placeholder="Largura" type="number" onChange={e=>setNewItem({...newItem,largura:e.target.value})}/>
-        <input className="h-10 border rounded px-2" placeholder="Profundidade" type="number" onChange={e=>setNewItem({...newItem,profundidade:e.target.value})}/>
-        <input className="h-10 border rounded px-2" placeholder="Prev. receb. item (ISO)" onChange={e=>setNewItem({...newItem,data_prevista_recebimento:e.target.value})}/>
-        <input className="h-10 border rounded px-2" placeholder="Real receb. item (ISO)" onChange={e=>setNewItem({...newItem,data_real_recebimento:e.target.value})}/>
-        <input className="h-10 border rounded px-2" placeholder="Status item" onChange={e=>setNewItem({...newItem,status_item:e.target.value})}/>
-        <input className="h-10 border rounded px-2" placeholder="Observação item" onChange={e=>setNewItem({...newItem,observacao:e.target.value})}/>
+        <input className="h-10 border rounded px-2" placeholder="Peso" type="number" value={newItem.peso||''} onChange={e=>setNewItem({...newItem,peso:e.target.value})}/>
+        <input className="h-10 border rounded px-2" placeholder="Altura" type="number" value={newItem.altura||''} onChange={e=>setNewItem({...newItem,altura:e.target.value})}/>
+        <input className="h-10 border rounded px-2" placeholder="Largura" type="number" value={newItem.largura||''} onChange={e=>setNewItem({...newItem,largura:e.target.value})}/>
+        <input className="h-10 border rounded px-2" placeholder="Profundidade" type="number" value={newItem.profundidade||''} onChange={e=>setNewItem({...newItem,profundidade:e.target.value})}/>
+        <input className="h-10 border rounded px-2" placeholder="Prev. receb. item (ISO)" value={newItem.data_prevista_recebimento||''} onChange={e=>setNewItem({...newItem,data_prevista_recebimento:e.target.value})}/>
+        <input className="h-10 border rounded px-2" placeholder="Real receb. item (ISO)" value={newItem.data_real_recebimento||''} onChange={e=>setNewItem({...newItem,data_real_recebimento:e.target.value})}/>
+        <input className="h-10 border rounded px-2" placeholder="Status item" value={newItem.status_item||''} onChange={e=>setNewItem({...newItem,status_item:e.target.value})}/>
+        <input className="h-10 border rounded px-2" placeholder="Observação item" value={newItem.observacao||''} onChange={e=>setNewItem({...newItem,observacao:e.target.value})}/>
         {canSeeFinancial && <input className="h-10 border rounded px-2" placeholder="CMV unitário" type="number" value={newItem.cmv_unitario||0} onChange={e=>setNewItem({...newItem,cmv_unitario:e.target.value})}/>}
       </div>
       {canWrite && <button className="px-3 py-2 bg-indigo-600 text-white rounded" onClick={createLoad}>Criar carga</button>}

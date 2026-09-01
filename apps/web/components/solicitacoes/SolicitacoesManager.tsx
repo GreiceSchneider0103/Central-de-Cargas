@@ -36,8 +36,9 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
   const [destinoFullId, setDestinoFullId] = useState('');
   const [empresaId, setEmpresaId] = useState('');
   const [canalId, setCanalId] = useState('');
-  const [prioridade] = useState('Média');
-  const [observacoes] = useState('');
+  const [prioridade, setPrioridade] = useState('Média');
+  const [dataDesejada, setDataDesejada] = useState('');
+  const [observacoes, setObservacoes] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState('');
   const [page, setPage] = useState(0);
@@ -98,7 +99,7 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
     const { data: me } = await supabase.from('users_profile').select('id').eq('auth_user_id', authUser?.id ?? '').single();
     if (!me) return setError('Perfil do usuário não encontrado.');
     const code = `REQ-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
-    const { data: req, error } = await supabase.from('load_requests').insert({ codigo: code, tipo, empresa_id: empresaId || null, canal_id: canalId || null, marketplace_id: marketplaceId || null, destino_full_id: destinoFullId || null, loja_destino_id: lojaDestinoId || null, prioridade, status: 'Pendente', solicitante_id: me.id, observacoes }).select('id').single();
+    const { data: req, error } = await supabase.from('load_requests').insert({ codigo: code, tipo, empresa_id: empresaId || null, canal_id: canalId || null, marketplace_id: marketplaceId || null, destino_full_id: destinoFullId || null, loja_destino_id: lojaDestinoId || null, prioridade, data_desejada: dataDesejada || null, status: 'Pendente', solicitante_id: me.id, observacoes: observacoes || null }).select('id').single();
     if (error) return setError(error.message);
 
     const { error: itemErr } = await supabase.from('load_request_items').insert(items.map((i) => ({ ...i, request_id: req.id })));
@@ -106,6 +107,9 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
 
     await supabase.from('load_request_history').insert({ request_id: req.id, acao: 'CRIADA', status_novo: 'Pendente', autor_profile_id: me.id });
     setItems([{ sku: '', nome_produto: '', quantidade: 1, cmv_unitario: 0, cmv_total: 0 }]);
+    setPrioridade('Média');
+    setDataDesejada('');
+    setObservacoes('');
     await load();
   }
 
@@ -140,6 +144,9 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
           <select value={marketplaceId} onChange={(e) => setMarketplaceId(e.target.value)} className="h-10 border rounded px-2"><option value="">Marketplace</option>{channels.filter(c=>c.tipo==='Marketplace Full').map(c=><option key={c.id} value={c.id}>{c.nome}</option>)}</select>
           <select value={destinoFullId} onChange={(e) => setDestinoFullId(e.target.value)} className="h-10 border rounded px-2"><option value="">Destino Full</option>{destinations.map(d=><option key={d.id} value={d.id}>{d.nome}</option>)}</select>
           <select value={lojaDestinoId} onChange={(e) => setLojaDestinoId(e.target.value)} className="h-10 border rounded px-2"><option value="">Loja destino</option>{stores.map(s=><option key={s.id} value={s.id}>{s.nome}</option>)}</select>
+          <select value={prioridade} onChange={(e) => setPrioridade(e.target.value)} className="h-10 border rounded px-2"><option value="Baixa">Prioridade: Baixa</option><option value="Média">Prioridade: Média</option><option value="Alta">Prioridade: Alta</option><option value="Urgente">Prioridade: Urgente</option></select>
+          <input type="datetime-local" placeholder="Data desejada" className="h-10 border rounded px-2" value={dataDesejada} onChange={(e) => setDataDesejada(e.target.value)} />
+          <input placeholder="Observações" className="h-10 border rounded px-2 md:col-span-1" value={observacoes} onChange={(e) => setObservacoes(e.target.value)} />
         </div>
         {items.map((item, idx) => (
           <div key={idx} className="grid grid-cols-1 md:grid-cols-6 gap-2">

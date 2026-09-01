@@ -44,7 +44,11 @@ Toda a implementação React/Vite/Firebase foi movida para `legacy-vite/` sem ex
 
 
 ## Sincronização de produtos (Google Sheets)
-- Endpoint interno: `POST /api/products/sync`
+- Endpoint interno: `GET|POST /api/products/sync`
 - Manual: usuário `admin` autenticado pode acionar na tela de Produtos.
-- Cron futuro: enviar header `Authorization: Bearer <CRON_SECRET>`.
+- Automático (cron gratuito): `apps/web/vercel.json` declara um Vercel Cron Job (`0 11 * * 1` = toda segunda-feira, 08:00 no horário de Brasília) que chama esse endpoint. Cron Jobs fazem parte do plano gratuito (Hobby) da Vercel, com o limite de rodar no máximo 1x/dia por job — semanal está dentro do limite.
+- Para o cron funcionar em produção:
+  1. Defina a env var `CRON_SECRET` (qualquer string aleatória) nas configurações do projeto na Vercel.
+  2. A Vercel injeta automaticamente o header `Authorization: Bearer <CRON_SECRET>` nas chamadas do cron — o endpoint já valida esse header antes de rodar a sincronização.
+  3. Sem `CRON_SECRET` configurado, o endpoint continua funcionando apenas no modo manual (admin autenticado).
 - Em caso de variáveis do Google não configuradas, a API retorna erro amigável.
