@@ -1,6 +1,7 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { createClient } from '@/lib/supabase/client';
 import type { UserProfileRole } from '@/lib/auth/roles';
 
 type ProductRow = {
@@ -14,16 +15,34 @@ type ProductRow = {
 };
 
 export function ProductsTable({ products, role }: { products: ProductRow[]; role: UserProfileRole }) {
+  const supabase = createClient();
+  const [rows, setRows] = useState(products);
   const [search, setSearch] = useState('');
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
   const isAdmin = role === 'admin';
   const canSeeFinancial = ['admin', 'gerente_estoque', 'gerente_ecommerce', 'financeiro'].includes(role);
+  const canManageProducts = ['admin', 'gerente_estoque'].includes(role);
+
+  useEffect(() => { setRows(products); }, [products]);
 
   const filtered = useMemo(() => {
     const term = search.toLowerCase();
-    return products.filter((p) => p.sku.toLowerCase().includes(term) || p.nome.toLowerCase().includes(term));
-  }, [products, search]);
+    return rows.filter((p) => p.sku.toLowerCase().includes(term) || p.nome.toLowerCase().includes(term));
+  }, [rows, search]);
+
+  async function handleToggleAtivo(product: ProductRow) {
+    setTogglingId(product.id);
+    setMessage(null);
+    const { error } = await supabase.from('products').update({ ativo: !product.ativo }).eq('id', product.id);
+    setTogglingId(null);
+    if (error) {
+      setMessage('Erro ao atualizar status do produto.');
+      return;
+    }
+    setRows((prev) => prev.map((p) => (p.id === product.id ? { ...p, ativo: !p.ativo } : p)));
+  }
 
   async function handleSyncNow() {
     setLoading(true);
@@ -67,6 +86,7 @@ export function ProductsTable({ products, role }: { products: ProductRow[]; role
             <th className="p-3">Fornecedor</th>
             <th className="p-3">Última sincronização</th>
             <th className="p-3">Status</th>
+            {canManageProducts && <th className="p-3">Ações</th>}
           </tr>
         </thead>
         <tbody>
@@ -82,6 +102,17 @@ export function ProductsTable({ products, role }: { products: ProductRow[]; role
               <td className="p-3">{p.supplier_name || '-'}</td>
               <td className="p-3">{p.last_synced_at ? new Date(p.last_synced_at).toLocaleString('pt-BR') : '-'}</td>
               <td className="p-3">{p.ativo ? 'Ativo' : 'Inativo'}</td>
+              {canManageProducts && (
+                <td className="p-3">
+                  <button
+                    onClick={() => handleToggleAtivo(p)}
+                    disabled={togglingId === p.id}
+                    className="text-indigo-600 disabled:opacity-50"
+                  >
+                    {p.ativo ? 'Desativar' : 'Ativar'}
+                  </button>
+                </td>
+              )}
             </tr>
           ))}
         </tbody>

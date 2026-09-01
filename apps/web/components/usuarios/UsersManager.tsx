@@ -13,7 +13,6 @@ type Props = {
 
 type FormState = {
   id?: string;
-  auth_user_id: string;
   nome: string;
   email: string;
   perfil: string;
@@ -23,7 +22,6 @@ type FormState = {
 };
 
 const emptyForm: FormState = {
-  auth_user_id: '',
   nome: '',
   email: '',
   perfil: 'operador_carga',
@@ -41,7 +39,6 @@ export function UsersManager({ profiles, stores, companies }: Props) {
   function edit(profile: UserProfile) {
     setForm({
       id: profile.id,
-      auth_user_id: profile.auth_user_id,
       nome: profile.nome ?? '',
       email: profile.email ?? '',
       perfil: profile.perfil,
@@ -63,10 +60,12 @@ export function UsersManager({ profiles, stores, companies }: Props) {
     const data = await response.json();
     setSaving(false);
     if (!response.ok) {
-      setMessage(data.error || 'Erro ao salvar perfil.');
+      if (response.status === 409) setMessage('Já existe uma conta com esse e-mail.');
+      else if (data.error === 'INVITE_FAILED') setMessage(data.detail || 'Erro ao enviar convite por e-mail.');
+      else setMessage(data.error || 'Erro ao salvar perfil.');
       return;
     }
-    setMessage('Perfil salvo. Recarregue a página para atualizar a lista.');
+    setMessage(form.id ? 'Perfil salvo. Recarregue a página para atualizar a lista.' : 'Usuário criado! Um e-mail de convite foi enviado para definir a senha.');
     if (form.id) {
       setRows((current) => current.map((row) => row.id === form.id ? { ...row, ...form, perfil: form.perfil as UserProfile['perfil'], loja_id: form.loja_id || null, empresa_id: form.empresa_id || null } : row));
     }
@@ -88,9 +87,9 @@ export function UsersManager({ profiles, stores, companies }: Props) {
   return (
     <div className="space-y-4">
       <form onSubmit={save} className="bg-white border rounded-xl p-4 grid grid-cols-1 md:grid-cols-3 gap-2 text-sm">
-        <input className="h-10 border rounded px-2" placeholder="Auth user UUID" value={form.auth_user_id} disabled={Boolean(form.id)} onChange={(e) => setForm({ ...form, auth_user_id: e.target.value })} required />
+        {!form.id && <p className="md:col-span-3 text-zinc-600">Ao criar, um e-mail de convite é enviado automaticamente pelo Supabase Auth para o usuário definir a senha.</p>}
         <input className="h-10 border rounded px-2" placeholder="Nome" value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} />
-        <input className="h-10 border rounded px-2" placeholder="E-mail" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+        <input className="h-10 border rounded px-2" placeholder="E-mail" type="email" value={form.email} disabled={Boolean(form.id)} onChange={(e) => setForm({ ...form, email: e.target.value })} required={!form.id} />
         <select className="h-10 border rounded px-2" value={form.perfil} onChange={(e) => setForm({ ...form, perfil: e.target.value })}>
           {USER_PROFILES.map((role) => <option key={role} value={role}>{role}</option>)}
         </select>

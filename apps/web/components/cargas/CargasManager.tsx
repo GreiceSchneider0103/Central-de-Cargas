@@ -302,6 +302,62 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
     await loadData();
   }
 
+  async function duplicateLoad() {
+    if (!selected || !canWrite) return;
+    if (!confirm('Duplicar esta carga? Uma nova carga em Rascunho será criada com os mesmos itens.')) return;
+    setError(null);
+
+    const response = await fetch('/api/loads', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        load: {
+          tipo: selected.tipo,
+          status: 'Rascunho',
+          prioridade: selected.prioridade,
+          empresa_id: selected.empresa_id || null,
+          canal_id: selected.canal_id || null,
+          marketplace_id: selected.marketplace_id || null,
+          destino_full_id: selected.destino_full_id || null,
+          loja_destino_id: selected.loja_destino_id || null,
+          cd_origem_id: selected.cd_origem_id || null,
+          responsavel_operacional_id: selected.responsavel_operacional_id || null,
+          data_agendada: null,
+          data_prevista_recebimento: null,
+          data_real_recebimento: null,
+          custo_frete: 0,
+          outros_custos: 0,
+          faturamento_estimado: null,
+          numero_carga_marketplace: null,
+          codigo_agendamento: null,
+          tipo_coleta_id: selected.tipo_coleta_id || null,
+          transportador_id: selected.transportador_id || null,
+          observacoes: selected.observacoes || null,
+        },
+        items: items.map((item) => ({
+          sku: item.sku,
+          nome_produto: item.nome_produto,
+          quantidade: Number(item.quantidade || 0),
+          fornecedor_origem_id: item.fornecedor_origem_id || null,
+          cmv_unitario: Number(item.cmv_unitario || 0),
+          peso: item.peso ?? null,
+          altura: item.altura ?? null,
+          largura: item.largura ?? null,
+          profundidade: item.profundidade ?? null,
+          data_prevista_recebimento: null,
+          data_real_recebimento: null,
+          status_item: null,
+          observacao: item.observacao ?? null,
+        })),
+      }),
+    });
+
+    const result = await response.json();
+    if (!response.ok) return setError(result.error || 'Erro ao duplicar carga.');
+    await loadData();
+    alert(`Carga duplicada com sucesso: ${result.codigoInterno}`);
+  }
+
   async function finalizeLoad() {
     if (!selected || !canWrite) return;
     if (checklist && !checklist.nf_emitida && !confirm('NF não emitida. Deseja finalizar mesmo assim?')) return;
@@ -467,6 +523,7 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
       </div>}
 
       <div className="flex gap-2">
+        {canWrite && <button className="px-3 py-2 border rounded" onClick={duplicateLoad}>Duplicar carga</button>}
         {canWrite && <button className="px-3 py-2 bg-rose-600 text-white rounded" onClick={cancelLoad}>Cancelar carga</button>}
         {canWrite && <button className="px-3 py-2 bg-emerald-600 text-white rounded" onClick={finalizeLoad}>Finalizar carga</button>}
       </div>

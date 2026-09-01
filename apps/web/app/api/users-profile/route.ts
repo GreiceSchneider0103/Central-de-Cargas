@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireProfile } from '@/lib/server/authz';
 import { USER_PROFILES } from '@/lib/auth/roles';
+import { getSupabaseAdminClient } from '@/lib/supabase/admin';
 
 function isAdmin(profile: { perfil: string }) {
   return profile.perfil === 'admin';
@@ -34,10 +35,31 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const payload = buildPayload(body);
-    if (!payload.auth_user_id) return NextResponse.json({ error: 'AUTH_USER_REQUIRED' }, { status: 422 });
+    if (!payload.email) return NextResponse.json({ error: 'EMAIL_REQUIRED' }, { status: 422 });
 
-    const { error } = await supabase.from('users_profile').insert(payload);
-    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    // Cria a conta no Supabase Auth via convite por e-mail (Admin API) em vez de
+    // exigir que o admin cole manualmente um UUID já existente.
+    const admin = getSupabaseAdminClient();
+    const origin = new URL(request.url).origin;
+    const { data: invited, error: inviteError } = await admin.auth.admin.inviteUserByEmail(payload.email, {
+      redirectTo: `${origin}/auth/callback?next=/auth/atualizar-senha`,
+    });
+
+    if (inviteError || !invited?.user) {
+      const status = inviteError?.message?.toLowerCase().includes('already') ? 409 : 400;
+      return NextResponse.json({ error: 'INVITE_FAILED', detail: inviteError?.message }, { status });
+    }
+
+    const { error } = await supabase
+      .from('users_profile')
+      .insert({ ...payload, auth_user_id: invited.user.id });
+
+    if (error) {
+      // Evita deixar um usuário Auth "órfão" sem perfil se o insert falhar.
+      await admin.auth.admin.deleteUser(invited.user.id).catch(() => {});
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+
     return NextResponse.json({ ok: true });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Erro inesperado';
