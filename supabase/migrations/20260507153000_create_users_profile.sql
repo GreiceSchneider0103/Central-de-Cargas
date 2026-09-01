@@ -31,11 +31,13 @@ execute function public.set_updated_at();
 
 alter table public.users_profile enable row level security;
 
+drop policy if exists "users can read own profile" on public.users_profile;
 create policy "users can read own profile"
 on public.users_profile
 for select
 using (auth.uid() = auth_user_id);
 
+drop policy if exists "users can update own profile" on public.users_profile;
 create policy "users can update own profile"
 on public.users_profile
 for update

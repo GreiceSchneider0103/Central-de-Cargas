@@ -9,6 +9,8 @@ drop policy if exists "users_profile_select" on public.users_profile;
 drop policy if exists "users_profile_insert" on public.users_profile;
 drop policy if exists "users_profile_update" on public.users_profile;
 drop policy if exists "users_profile_delete" on public.users_profile;
+drop policy if exists "users_profile_admin_insert" on public.users_profile;
+drop policy if exists "users_profile_admin_update" on public.users_profile;
 
 create policy "users_profile_select"
 on public.users_profile

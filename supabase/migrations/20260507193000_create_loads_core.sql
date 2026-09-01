@@ -132,7 +132,9 @@ begin
   return null;
 end; $$;
 
+drop trigger if exists trg_before_load_item_save on public.load_items;
 create trigger trg_before_load_item_save before insert or update on public.load_items for each row execute function public.before_load_item_save();
+drop trigger if exists trg_after_load_item_change on public.load_items;
 create trigger trg_after_load_item_change after insert or update or delete on public.load_items for each row execute function public.after_load_item_change();
 
 create or replace function public.before_load_insert()
@@ -145,6 +147,7 @@ begin
   return new;
 end; $$;
 
+drop trigger if exists trg_before_load_insert on public.loads;
 create trigger trg_before_load_insert before insert on public.loads for each row execute function public.before_load_insert();
 
 alter table public.loads enable row level security;

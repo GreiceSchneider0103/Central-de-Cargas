@@ -68,5 +68,7 @@ create policy "load_request_items_select" on public.load_request_items for selec
 create policy "load_request_items_insert" on public.load_request_items for insert with check (auth.uid() is not null);
 create policy "load_request_items_update" on public.load_request_items for update using (auth.uid() is not null) with check (auth.uid() is not null);
 
+drop policy if exists "load_request_history_select" on public.load_request_history;
 create policy "load_request_history_select" on public.load_request_history for select using (auth.uid() is not null);
+drop policy if exists "load_request_history_insert" on public.load_request_history;
 create policy "load_request_history_insert" on public.load_request_history for insert with check (auth.uid() is not null);

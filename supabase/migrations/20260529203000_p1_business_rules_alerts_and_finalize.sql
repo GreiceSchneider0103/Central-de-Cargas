@@ -13,6 +13,7 @@ create table if not exists public.load_alerts (
   unique (load_id, alert_type)
 );
 
+drop trigger if exists trg_load_alerts_updated_at on public.load_alerts;
 create trigger trg_load_alerts_updated_at
 before update on public.load_alerts
 for each row execute function public.set_updated_at();
