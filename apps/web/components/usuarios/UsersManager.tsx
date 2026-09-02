@@ -2,6 +2,10 @@
 
 import { useState } from 'react';
 import { USER_PROFILES, type UserProfile } from '@/lib/auth/roles';
+import { Card, CardBody } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
+import { Input, Select, FieldGroup } from '@/components/ui/Field';
+import { Badge } from '@/components/ui/Badge';
 
 type RegistryOption = { id: string; nome: string };
 
@@ -87,39 +91,79 @@ export function UsersManager({ profiles, stores, companies }: Props) {
 
   return (
     <div className="space-y-4">
-      <form onSubmit={save} className="bg-white border rounded-xl p-4 grid grid-cols-1 md:grid-cols-3 gap-2 text-sm">
-        <input className="h-10 border rounded px-2" placeholder="Auth user UUID" value={form.auth_user_id} disabled={Boolean(form.id)} onChange={(e) => setForm({ ...form, auth_user_id: e.target.value })} required />
-        <input className="h-10 border rounded px-2" placeholder="Nome" value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} />
-        <input className="h-10 border rounded px-2" placeholder="E-mail" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
-        <select className="h-10 border rounded px-2" value={form.perfil} onChange={(e) => setForm({ ...form, perfil: e.target.value })}>
-          {USER_PROFILES.map((role) => <option key={role} value={role}>{role}</option>)}
-        </select>
-        <select className="h-10 border rounded px-2" value={form.loja_id} onChange={(e) => setForm({ ...form, loja_id: e.target.value })}>
-          <option value="">Loja</option>
-          {stores.map((store) => <option key={store.id} value={store.id}>{store.nome}</option>)}
-        </select>
-        <select className="h-10 border rounded px-2" value={form.empresa_id} onChange={(e) => setForm({ ...form, empresa_id: e.target.value })}>
-          <option value="">Empresa</option>
-          {companies.map((company) => <option key={company.id} value={company.id}>{company.nome}</option>)}
-        </select>
-        <label className="flex items-center gap-2"><input type="checkbox" checked={form.ativo} onChange={(e) => setForm({ ...form, ativo: e.target.checked })} /> Ativo</label>
-        <button disabled={saving} className="h-10 rounded bg-indigo-600 text-white disabled:opacity-50">{saving ? 'Salvando...' : form.id ? 'Atualizar perfil' : 'Criar perfil'}</button>
-        <button type="button" className="h-10 rounded border" onClick={() => setForm(emptyForm)}>Limpar</button>
-      </form>
-      {message && <p className="text-sm text-zinc-600">{message}</p>}
-      <div className="bg-white border rounded-xl p-4">
-        <table className="w-full text-sm">
-          <thead><tr className="border-b"><th>Nome</th><th>E-mail</th><th>Perfil</th><th>Status</th><th>Ações</th></tr></thead>
-          <tbody>
-            {rows.map((profile) => (
-              <tr key={profile.id} className="border-b">
-                <td>{profile.nome ?? '-'}</td><td>{profile.email ?? '-'}</td><td>{profile.perfil}</td><td>{profile.ativo ? 'Ativo' : 'Inativo'}</td>
-                <td className="space-x-2"><button className="text-indigo-600" onClick={() => edit(profile)}>Editar</button><button className="text-amber-700" onClick={() => toggle(profile)}>{profile.ativo ? 'Inativar' : 'Ativar'}</button></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <Card>
+        <CardBody>
+          <h2 className="mb-3 font-semibold text-zinc-900">{form.id ? 'Editar perfil' : 'Novo perfil'}</h2>
+          <form onSubmit={save} className="grid grid-cols-1 gap-3 md:grid-cols-3">
+            <FieldGroup label="Auth user UUID">
+              <Input placeholder="uuid do usuário no Supabase Auth" value={form.auth_user_id} disabled={Boolean(form.id)} onChange={(e) => setForm({ ...form, auth_user_id: e.target.value })} required />
+            </FieldGroup>
+            <FieldGroup label="Nome">
+              <Input value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} />
+            </FieldGroup>
+            <FieldGroup label="E-mail">
+              <Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+            </FieldGroup>
+            <FieldGroup label="Perfil">
+              <Select value={form.perfil} onChange={(e) => setForm({ ...form, perfil: e.target.value })}>
+                {USER_PROFILES.map((role) => <option key={role} value={role}>{role}</option>)}
+              </Select>
+            </FieldGroup>
+            <FieldGroup label="Loja vinculada">
+              <Select value={form.loja_id} onChange={(e) => setForm({ ...form, loja_id: e.target.value })}>
+                <option value="">Nenhuma</option>
+                {stores.map((store) => <option key={store.id} value={store.id}>{store.nome}</option>)}
+              </Select>
+            </FieldGroup>
+            <FieldGroup label="Empresa vinculada">
+              <Select value={form.empresa_id} onChange={(e) => setForm({ ...form, empresa_id: e.target.value })}>
+                <option value="">Nenhuma</option>
+                {companies.map((company) => <option key={company.id} value={company.id}>{company.nome}</option>)}
+              </Select>
+            </FieldGroup>
+            <label className="flex items-center gap-2 text-sm text-zinc-600">
+              <input type="checkbox" checked={form.ativo} onChange={(e) => setForm({ ...form, ativo: e.target.checked })} /> Ativo
+            </label>
+            <div className="flex gap-2 md:col-span-2">
+              <Button type="submit" variant="primary" disabled={saving}>{saving ? 'Salvando...' : form.id ? 'Atualizar perfil' : 'Criar perfil'}</Button>
+              <Button type="button" variant="secondary" onClick={() => setForm(emptyForm)}>Limpar</Button>
+            </div>
+          </form>
+          {message && <p className="mt-3 text-sm text-zinc-600">{message}</p>}
+        </CardBody>
+      </Card>
+
+      <Card>
+        <CardBody className="p-0">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-zinc-100 text-left text-xs font-medium text-zinc-500">
+                  <th className="px-4 py-2.5">Nome</th>
+                  <th className="px-4 py-2.5">E-mail</th>
+                  <th className="px-4 py-2.5">Perfil</th>
+                  <th className="px-4 py-2.5">Status</th>
+                  <th className="px-4 py-2.5" />
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((profile) => (
+                  <tr key={profile.id} className="border-b border-zinc-50 last:border-0">
+                    <td className="px-4 py-2.5 font-medium text-zinc-800">{profile.nome ?? '-'}</td>
+                    <td className="px-4 py-2.5 text-zinc-600">{profile.email ?? '-'}</td>
+                    <td className="px-4 py-2.5 text-zinc-600">{profile.perfil}</td>
+                    <td className="px-4 py-2.5"><Badge tone={profile.ativo ? 'success' : 'neutral'} dot>{profile.ativo ? 'Ativo' : 'Inativo'}</Badge></td>
+                    <td className="space-x-3 px-4 py-2.5 text-right">
+                      <button className="font-medium text-brand-600 hover:text-brand-700" onClick={() => edit(profile)}>Editar</button>
+                      <button className="font-medium text-amber-700 hover:text-amber-800" onClick={() => toggle(profile)}>{profile.ativo ? 'Inativar' : 'Ativar'}</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </CardBody>
+      </Card>
     </div>
   );
 }

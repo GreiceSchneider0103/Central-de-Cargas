@@ -18,8 +18,10 @@ export default async function CadastrosPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-bold">Cadastros Operacionais</h1>
-      <p className="text-zinc-600">CRUD básico com ativação/inativação, controlado por perfil.</p>
+      <div>
+        <h1 className="text-2xl font-bold text-zinc-900">Cadastros operacionais</h1>
+        <p className="text-sm text-zinc-500">CRUD básico com ativação/inativação, controlado por perfil.</p>
+      </div>
       <CadastrosManager role={profile.perfil} />
     </div>
   );

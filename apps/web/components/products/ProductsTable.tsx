@@ -1,7 +1,13 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { RefreshCw, Search } from 'lucide-react';
 import type { UserProfileRole } from '@/lib/auth/roles';
+import { Card, CardBody } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Field';
+import { Badge } from '@/components/ui/Badge';
+import { EmptyState } from '@/components/ui/EmptyState';
 
 type ProductRow = {
   id: string;
@@ -42,50 +48,59 @@ export function ProductsTable({ products, role }: { products: ProductRow[]; role
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-2">
-        <input
-          className="h-10 rounded border px-3 w-full max-w-md"
-          placeholder="Buscar por SKU ou nome"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="relative w-full max-w-md">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+          <Input className="pl-9" placeholder="Buscar por SKU ou nome (nesta página)" value={search} onChange={(e) => setSearch(e.target.value)} />
+        </div>
         {isAdmin && (
-          <button onClick={handleSyncNow} disabled={loading} className="h-10 px-4 rounded bg-indigo-600 text-white disabled:opacity-50">
+          <Button variant="primary" onClick={handleSyncNow} disabled={loading}>
+            <RefreshCw className={loading ? 'h-4 w-4 animate-spin' : 'h-4 w-4'} />
             {loading ? 'Sincronizando...' : 'Sincronizar agora'}
-          </button>
+          </Button>
         )}
       </div>
 
       {message && <p className="text-sm text-zinc-600">{message}</p>}
 
-      <table className="w-full text-sm bg-white rounded-xl border overflow-hidden">
-        <thead>
-          <tr className="text-left border-b bg-zinc-50">
-            <th className="p-3">SKU</th>
-            <th className="p-3">Nome</th>
-            {canSeeFinancial && <th className="p-3">CMV</th>}
-            <th className="p-3">Fornecedor</th>
-            <th className="p-3">Última sincronização</th>
-            <th className="p-3">Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          {filtered.map((p) => (
-            <tr key={p.id} className="border-b">
-              <td className="p-3 font-mono">{p.sku}</td>
-              <td className="p-3">{p.nome}</td>
-              {canSeeFinancial && (
-                <td className="p-3">
-                  {Number(p.cmv) <= 0 ? <span className="text-rose-600 font-semibold">CMV pendente</span> : `R$ ${Number(p.cmv).toFixed(2)}`}
-                </td>
-              )}
-              <td className="p-3">{p.supplier_name || '-'}</td>
-              <td className="p-3">{p.last_synced_at ? new Date(p.last_synced_at).toLocaleString('pt-BR') : '-'}</td>
-              <td className="p-3">{p.ativo ? 'Ativo' : 'Inativo'}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <Card>
+        <CardBody className="p-0">
+          {filtered.length === 0 ? (
+            <EmptyState title="Nenhum produto encontrado" description="Ajuste a busca ou sincronize os produtos com o Google Sheets." />
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-zinc-100 bg-zinc-50 text-left text-xs font-medium text-zinc-500">
+                    <th className="px-4 py-2.5">SKU</th>
+                    <th className="px-4 py-2.5">Nome</th>
+                    {canSeeFinancial && <th className="px-4 py-2.5">CMV</th>}
+                    <th className="px-4 py-2.5">Fornecedor</th>
+                    <th className="px-4 py-2.5">Última sincronização</th>
+                    <th className="px-4 py-2.5">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map((p) => (
+                    <tr key={p.id} className="border-b border-zinc-50 last:border-0 hover:bg-zinc-50">
+                      <td className="px-4 py-2.5 font-mono text-xs text-zinc-600">{p.sku}</td>
+                      <td className="px-4 py-2.5 font-medium text-zinc-800">{p.nome}</td>
+                      {canSeeFinancial && (
+                        <td className="px-4 py-2.5">
+                          {Number(p.cmv) <= 0 ? <Badge tone="danger">CMV pendente</Badge> : `R$ ${Number(p.cmv).toFixed(2)}`}
+                        </td>
+                      )}
+                      <td className="px-4 py-2.5 text-zinc-600">{p.supplier_name || '-'}</td>
+                      <td className="px-4 py-2.5 text-zinc-500">{p.last_synced_at ? new Date(p.last_synced_at).toLocaleString('pt-BR') : '-'}</td>
+                      <td className="px-4 py-2.5"><Badge tone={p.ativo ? 'success' : 'neutral'} dot>{p.ativo ? 'Ativo' : 'Inativo'}</Badge></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardBody>
+      </Card>
     </div>
   );
 }

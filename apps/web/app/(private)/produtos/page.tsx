@@ -56,13 +56,25 @@ export default async function ProdutosPage({ searchParams }: { searchParams?: Pr
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-bold">Produtos</h1>
-      <p className="text-zinc-600">Sincronização inicial de SKU, nome e CMV via Google Sheets.</p>
+      <div>
+        <h1 className="text-2xl font-bold text-zinc-900">Produtos</h1>
+        <p className="text-sm text-zinc-500">Sincronização de SKU, nome e CMV via Google Sheets, toda segunda-feira às 8h.</p>
+      </div>
       <ProductsTable products={normalized} role={profile.perfil} />
-      <div className="flex gap-2 text-sm">
-        <Link className={`px-2 py-1 border rounded ${currentPage === 1 ? 'pointer-events-none opacity-50' : ''}`} href={`/produtos?page=${Math.max(1, currentPage - 1)}`}>Anterior</Link>
-        <span className="py-1">Página {currentPage} de {totalPages} ({totalProducts} produtos)</span>
-        <Link className={`px-2 py-1 border rounded ${currentPage >= totalPages ? 'pointer-events-none opacity-50' : ''}`} href={`/produtos?page=${currentPage + 1}`}>Próxima</Link>
+      <div className="flex items-center justify-between text-sm">
+        <Link
+          className={`rounded-lg border border-zinc-300 bg-white px-3 py-1.5 font-medium text-zinc-700 hover:bg-zinc-50 ${currentPage === 1 ? 'pointer-events-none opacity-50' : ''}`}
+          href={`/produtos?page=${Math.max(1, currentPage - 1)}`}
+        >
+          Anterior
+        </Link>
+        <span className="text-zinc-500">Página {currentPage} de {totalPages} ({totalProducts} produtos)</span>
+        <Link
+          className={`rounded-lg border border-zinc-300 bg-white px-3 py-1.5 font-medium text-zinc-700 hover:bg-zinc-50 ${currentPage >= totalPages ? 'pointer-events-none opacity-50' : ''}`}
+          href={`/produtos?page=${currentPage + 1}`}
+        >
+          Próxima
+        </Link>
       </div>
     </div>
   );

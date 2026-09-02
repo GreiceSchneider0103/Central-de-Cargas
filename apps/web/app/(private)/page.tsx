@@ -43,9 +43,6 @@ export default async function DashboardPage() {
   const { count: pendingRequests } = await supabase.from('load_requests').select('*', { count: 'exact', head: true }).eq('status', 'Pendente');
 
   return (
-    <div className="space-y-4">
-      <h1 className="text-2xl font-bold">Dashboard Operacional</h1>
-      <DashboardView profile={profile} loads={(loads ?? []) as DashboardLoad[]} pendingRequests={pendingRequests ?? 0} metrics={metrics ?? null} />
-    </div>
+    <DashboardView profile={profile} loads={(loads ?? []) as DashboardLoad[]} pendingRequests={pendingRequests ?? 0} metrics={metrics ?? null} />
   );
 }

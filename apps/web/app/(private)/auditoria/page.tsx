@@ -1,6 +1,10 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import type { UserProfile } from '@/lib/auth/roles';
+import { Card, CardBody } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
+import { Input, FieldGroup } from '@/components/ui/Field';
+import { EmptyState } from '@/components/ui/EmptyState';
 
 function parseDate(value: string | undefined) {
   if (!value) return null;
@@ -62,84 +66,82 @@ export default async function AuditPage({
     users_profile?: { nome: string | null; email: string | null; perfil: string | null }[] | null;
   };
 
+  const typedRows = (rows ?? []) as unknown as AuditRow[];
+
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-bold">Auditoria</h1>
-        <p className="text-zinc-600">Últimos 200 eventos (restrito por perfil).</p>
+        <h1 className="text-2xl font-bold text-zinc-900">Auditoria</h1>
+        <p className="text-sm text-zinc-500">Últimos 200 eventos, restrito por perfil.</p>
       </div>
 
-      <form className="bg-white border rounded p-4 flex flex-col gap-3 md:flex-row md:flex-wrap md:items-end" action="/auditoria" method="get">
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-zinc-500">Tabela</label>
-          <input name="tabela" defaultValue={sp?.tabela ?? ''} className="h-9 border rounded px-2" placeholder="loads / load_requests ..." />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-zinc-500">Registro ID</label>
-          <input name="registro_id" defaultValue={sp?.registro_id ?? ''} className="h-9 border rounded px-2" placeholder="uuid" />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-zinc-500">Usuário (profile_id)</label>
-          <input name="profile_id" defaultValue={sp?.profile_id ?? ''} className="h-9 border rounded px-2" placeholder="uuid" />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-zinc-500">De</label>
-          <input name="from" type="date" defaultValue={sp?.from ?? ''} className="h-9 border rounded px-2" />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-zinc-500">Até</label>
-          <input name="to" type="date" defaultValue={sp?.to ?? ''} className="h-9 border rounded px-2" />
-        </div>
-        <button className="h-9 px-3 border rounded">Filtrar</button>
-      </form>
+      <Card>
+        <CardBody>
+          <form className="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-end" action="/auditoria" method="get">
+            <FieldGroup label="Tabela">
+              <Input name="tabela" defaultValue={sp?.tabela ?? ''} placeholder="loads / load_requests ..." className="w-44" />
+            </FieldGroup>
+            <FieldGroup label="Registro ID">
+              <Input name="registro_id" defaultValue={sp?.registro_id ?? ''} placeholder="uuid" className="w-48" />
+            </FieldGroup>
+            <FieldGroup label="Usuário (profile_id)">
+              <Input name="profile_id" defaultValue={sp?.profile_id ?? ''} placeholder="uuid" className="w-48" />
+            </FieldGroup>
+            <FieldGroup label="De">
+              <Input name="from" type="date" defaultValue={sp?.from ?? ''} className="w-40" />
+            </FieldGroup>
+            <FieldGroup label="Até">
+              <Input name="to" type="date" defaultValue={sp?.to ?? ''} className="w-40" />
+            </FieldGroup>
+            <Button type="submit" variant="primary">Filtrar</Button>
+          </form>
+        </CardBody>
+      </Card>
 
       {error && <p className="text-sm text-rose-600">{error.message}</p>}
 
-      <div className="bg-white border rounded p-4">
-        <div className="overflow-x-auto">
-          <table className="min-w-[900px] w-full text-sm">
-            <thead>
-              <tr className="text-left border-b">
-                <th className="py-2">Data/Hora</th>
-                <th className="py-2">Tabela</th>
-                <th className="py-2">Registro</th>
-                <th className="py-2">Ação</th>
-                <th className="py-2">Usuário</th>
-                <th className="py-2">Payload</th>
-              </tr>
-            </thead>
-            <tbody>
-              {((rows ?? []) as unknown as AuditRow[]).map((r) => {
-                const up = Array.isArray(r.users_profile) ? r.users_profile[0] : null;
-                return (
-                <tr key={r.id} className="border-b align-top">
-                  <td className="py-2 whitespace-nowrap">{new Date(r.created_at).toLocaleString('pt-BR')}</td>
-                  <td className="py-2">{r.tabela}</td>
-                  <td className="py-2 font-mono text-xs">{r.registro_id ?? '-'}</td>
-                  <td className="py-2">{r.acao}</td>
-                  <td className="py-2">
-                    <div className="text-xs text-zinc-700">
-                      {(up?.nome || up?.email || r.profile_id) ?? '-'}
-                    </div>
-                    {up?.perfil && <div className="text-[10px] text-zinc-500">{up.perfil}</div>}
-                  </td>
-                  <td className="py-2">
-                    <pre className="text-[10px] whitespace-pre-wrap max-w-[520px]">{JSON.stringify((r.payload ?? {}) as unknown, null, 2)}</pre>
-                  </td>
-                </tr>
-                );
-              })}
-              {(rows ?? []).length === 0 && (
-                <tr>
-                  <td className="py-3 text-zinc-500" colSpan={6}>
-                    Sem resultados.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <Card>
+        <CardBody className="p-0">
+          {typedRows.length === 0 ? (
+            <EmptyState title="Sem resultados" description="Ajuste os filtros acima para encontrar eventos de auditoria." />
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[900px] text-sm">
+                <thead>
+                  <tr className="border-b border-zinc-100 text-left text-xs font-medium text-zinc-500">
+                    <th className="px-4 py-2.5">Data/Hora</th>
+                    <th className="px-4 py-2.5">Tabela</th>
+                    <th className="px-4 py-2.5">Registro</th>
+                    <th className="px-4 py-2.5">Ação</th>
+                    <th className="px-4 py-2.5">Usuário</th>
+                    <th className="px-4 py-2.5">Payload</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {typedRows.map((r) => {
+                    const up = Array.isArray(r.users_profile) ? r.users_profile[0] : null;
+                    return (
+                      <tr key={r.id} className="border-b border-zinc-50 align-top last:border-0">
+                        <td className="whitespace-nowrap px-4 py-2.5 text-zinc-600">{new Date(r.created_at).toLocaleString('pt-BR')}</td>
+                        <td className="px-4 py-2.5 text-zinc-600">{r.tabela}</td>
+                        <td className="px-4 py-2.5 font-mono text-xs text-zinc-500">{r.registro_id ?? '-'}</td>
+                        <td className="px-4 py-2.5 font-medium text-zinc-800">{r.acao}</td>
+                        <td className="px-4 py-2.5">
+                          <div className="text-xs text-zinc-700">{(up?.nome || up?.email || r.profile_id) ?? '-'}</div>
+                          {up?.perfil && <div className="text-[10px] text-zinc-500">{up.perfil}</div>}
+                        </td>
+                        <td className="px-4 py-2.5">
+                          <pre className="max-w-[420px] whitespace-pre-wrap text-[10px] text-zinc-500">{JSON.stringify((r.payload ?? {}) as unknown, null, 2)}</pre>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardBody>
+      </Card>
     </div>
   );
 }

@@ -2,9 +2,19 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { Plus, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import type { UserProfile } from '@/lib/auth/roles';
 import { LOAD_STATUSES } from '@/lib/loads/statuses';
+import { Button } from '@/components/ui/Button';
+import { Card, CardBody } from '@/components/ui/Card';
+import { Dialog } from '@/components/ui/Dialog';
+import { Input, Select, Textarea, FieldGroup } from '@/components/ui/Field';
+import { Badge } from '@/components/ui/Badge';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { SkeletonRows } from '@/components/ui/Skeleton';
+import { loadStatusTone } from '@/lib/ui/status-styles';
+import { LoadItemFields } from './LoadItemFields';
 
 type LoadRow = {
   id: string;
@@ -50,27 +60,65 @@ type LoadItemRow = {
 
 type ChecklistRow = Record<string, boolean | null | undefined> & { id: string; nf_emitida?: boolean | null };
 type Option = { id: string; nome: string; tipo?: string | null };
+type ItemDraft = {
+  sku: string;
+  nome_produto: string;
+  quantidade: string;
+  fornecedor_origem_id?: string;
+  cmv_unitario?: string;
+  peso?: string;
+  altura?: string;
+  largura?: string;
+  profundidade?: string;
+  data_prevista_recebimento?: string;
+  data_real_recebimento?: string;
+  status_item?: string;
+  observacao?: string;
+};
+type Notice = { type: 'success' | 'warning'; message: string };
 
 const PAGE_SIZE = 50;
+const EMPTY_ITEM: ItemDraft = { sku: '', nome_produto: '', quantidade: '1', cmv_unitario: '0' };
+
+const CHECKLIST_FIELDS: { key: string; label: string }[] = [
+  { key: 'pedido_realizado', label: 'Pedido realizado' },
+  { key: 'pedido_confirmado_fornecedor', label: 'Pedido confirmado' },
+  { key: 'produto_recebido', label: 'Produto recebido' },
+  { key: 'montada', label: 'Montada' },
+  { key: 'agendada', label: 'Agendada' },
+  { key: 'etiqueta_impressa', label: 'Etiqueta impressa' },
+  { key: 'carga_separada', label: 'Carga separada' },
+  { key: 'carga_etiquetada', label: 'Carga etiquetada' },
+  { key: 'nf_emitida', label: 'NF emitida' },
+  { key: 'carga_carregada', label: 'Carga carregada' },
+  { key: 'finalizada', label: 'Finalizada' },
+];
 
 export function CargasManager({ profile }: { profile: UserProfile }) {
   const supabase = createClient();
   const searchParams = useSearchParams();
   const [loads, setLoads] = useState<LoadRow[]>([]);
+  const [loadingList, setLoadingList] = useState(true);
   const [selected, setSelected] = useState<LoadRow | null>(null);
   const [items, setItems] = useState<LoadItemRow[]>([]);
   const [checklist, setChecklist] = useState<ChecklistRow | null>(null);
-  const [form, setForm] = useState<Record<string, string | number>>(() => ({
+  const [showCreate, setShowCreate] = useState(false);
+  const [form, setForm] = useState<Record<string, string>>(() => ({
     tipo: 'LOJA_FISICA',
     status: 'Rascunho',
     prioridade: 'Média',
-    custo_frete: 0,
-    outros_custos: 0,
-    ...(searchParams.get('data_agendada') ? { data_agendada: searchParams.get('data_agendada') as string } : {}),
+    custo_frete: '0',
+    outros_custos: '0',
+    data_agendada: searchParams.get('data_agendada') ?? '',
   }));
-  const [newItem, setNewItem] = useState<Record<string, string | number>>({ sku: '', nome_produto: '', quantidade: 1, cmv_unitario: 0 });
-  const [editingItem, setEditingItem] = useState<LoadItemRow | null>(null);
+  const [newItem, setNewItem] = useState<ItemDraft>(EMPTY_ITEM);
+  const [detailNewItem, setDetailNewItem] = useState<ItemDraft>(EMPTY_ITEM);
+  const [editingItem, setEditingItem] = useState<ItemDraft & { id: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<Notice | null>(null);
+  const [showCancelForm, setShowCancelForm] = useState(false);
+  const [cancelMotivo, setCancelMotivo] = useState('');
+  const [confirmFinalize, setConfirmFinalize] = useState(false);
   const [options, setOptions] = useState<{ companies: Option[]; channels: Option[]; stores: Option[]; destinations: Option[]; cds: Option[]; suppliers: Option[]; transports: Option[]; profiles: Option[] }>({ companies: [], channels: [], stores: [], destinations: [], cds: [], suppliers: [], transports: [], profiles: [] });
   const [page, setPage] = useState(0);
   const [totalLoads, setTotalLoads] = useState(0);
@@ -82,10 +130,12 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
   const canEditFinancial = canSeeFinancial && (canWrite || canEditFinancialOnly);
 
   const loadData = useCallback(async () => {
+    setLoadingList(true);
     const { data } = await supabase.rpc('get_visible_loads_page', { p_page: page + 1, p_page_size: PAGE_SIZE });
     const rows = (data ?? []) as (LoadRow & { total_count?: number })[];
     setLoads(rows);
     setTotalLoads(Number(rows[0]?.total_count ?? 0));
+    setLoadingList(false);
   }, [supabase, page]);
 
   useEffect(() => { loadData(); }, [loadData]);
@@ -123,54 +173,47 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-	        load: {
-	          tipo: form.tipo,
-	          status: form.status,
-	          prioridade: form.prioridade,
-	          empresa_id: form.empresa_id || null,
-	          canal_id: form.canal_id || null,
-	          marketplace_id: form.marketplace_id || null,
-	          destino_full_id: form.destino_full_id || null,
-	          loja_destino_id: form.loja_destino_id || null,
-	          cd_origem_id: form.cd_origem_id || null,
-	          responsavel_operacional_id: form.responsavel_operacional_id || null,
-	          data_agendada: form.data_agendada || null,
-	          data_prevista_recebimento: form.data_prevista_recebimento || null,
-	          data_real_recebimento: form.data_real_recebimento || null,
-	          custo_frete: Number(form.custo_frete || 0),
-	          outros_custos: Number(form.outros_custos || 0),
-	          faturamento_estimado: form.faturamento_estimado ? Number(form.faturamento_estimado) : null,
-	          numero_carga_marketplace: form.numero_carga_marketplace || null,
-	          codigo_agendamento: form.codigo_agendamento || null,
-	          tipo_coleta_id: form.tipo_coleta_id || null,
-	          transportador_id: form.transportador_id || null,
-	          observacoes: form.observacoes || null,
-	        },
-	        items: [{
-	          ...newItem,
-	          quantidade: Number(newItem.quantidade || 0),
-	          cmv_unitario: Number(newItem.cmv_unitario || 0),
-	          peso: newItem.peso ?? null,
-	          altura: newItem.altura ?? null,
-	          largura: newItem.largura ?? null,
-	          profundidade: newItem.profundidade ?? null,
-	          data_prevista_recebimento: newItem.data_prevista_recebimento ?? null,
-	          data_real_recebimento: newItem.data_real_recebimento ?? null,
-	          status_item: newItem.status_item ?? null,
-	          observacao: newItem.observacao ?? null,
-	        }],
-	      }),
-	    });
+        load: {
+          tipo: form.tipo,
+          status: form.status,
+          prioridade: form.prioridade,
+          empresa_id: form.empresa_id || null,
+          canal_id: form.canal_id || null,
+          marketplace_id: form.marketplace_id || null,
+          destino_full_id: form.destino_full_id || null,
+          loja_destino_id: form.loja_destino_id || null,
+          cd_origem_id: form.cd_origem_id || null,
+          responsavel_operacional_id: form.responsavel_operacional_id || null,
+          data_agendada: form.data_agendada || null,
+          data_prevista_recebimento: form.data_prevista_recebimento || null,
+          data_real_recebimento: form.data_real_recebimento || null,
+          custo_frete: form.custo_frete || 0,
+          outros_custos: form.outros_custos || 0,
+          faturamento_estimado: form.faturamento_estimado || null,
+          numero_carga_marketplace: form.numero_carga_marketplace || null,
+          codigo_agendamento: form.codigo_agendamento || null,
+          tipo_coleta_id: form.tipo_coleta_id || null,
+          transportador_id: form.transportador_id || null,
+          observacoes: form.observacoes || null,
+        },
+        items: [newItem],
+      }),
+    });
 
     const result = await response.json();
     if (!response.ok) return setError(result.error || 'Erro ao criar carga.');
 
-    setNewItem({ sku: '', nome_produto: '', quantidade: 1, cmv_unitario: 0 });
+    setNewItem(EMPTY_ITEM);
+    setShowCreate(false);
+    setNotice({ type: 'success', message: 'Carga criada com sucesso.' });
     await loadData();
   }
 
   async function openLoad(load: LoadRow) {
     setSelected(load);
+    setShowCancelForm(false);
+    setConfirmFinalize(false);
+    setEditingItem(null);
     const [it, chk] = await Promise.all([
       supabase.rpc('get_visible_load_items', { p_load_id: load.id }),
       supabase.from('load_checklists').select('*').eq('load_id', load.id).single(),
@@ -181,50 +224,49 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
 
   async function addItem() {
     if (!selected || !canWrite) return;
-    const { data: productRows } = await supabase.rpc('get_visible_product_by_sku', { p_sku: String(newItem.sku) });
+    const { data: productRows } = await supabase.rpc('get_visible_product_by_sku', { p_sku: detailNewItem.sku });
     const product = Array.isArray(productRows) ? productRows[0] : null;
     const payload = {
       load_id: selected.id,
       product_id: product?.id ?? null,
-      sku: newItem.sku,
-      nome_produto: newItem.nome_produto || product?.nome,
-      quantidade: Number(newItem.quantidade),
-      fornecedor_origem_id: newItem.fornecedor_origem_id || null,
-      cmv_unitario: Number(newItem.cmv_unitario || product?.cmv || 0),
-      altura: newItem.altura ? Number(newItem.altura) : null,
-	      largura: newItem.largura ? Number(newItem.largura) : null,
-	      profundidade: newItem.profundidade ? Number(newItem.profundidade) : null,
-	      peso: newItem.peso ? Number(newItem.peso) : null,
-	      data_prevista_recebimento: newItem.data_prevista_recebimento || null,
-	      data_real_recebimento: newItem.data_real_recebimento || null,
-	      status_item: newItem.status_item || null,
-	      observacao: newItem.observacao || null,
-	    };
+      sku: detailNewItem.sku,
+      nome_produto: detailNewItem.nome_produto || product?.nome,
+      quantidade: detailNewItem.quantidade,
+      fornecedor_origem_id: detailNewItem.fornecedor_origem_id || null,
+      cmv_unitario: detailNewItem.cmv_unitario || product?.cmv || 0,
+      altura: detailNewItem.altura || null,
+      largura: detailNewItem.largura || null,
+      profundidade: detailNewItem.profundidade || null,
+      peso: detailNewItem.peso || null,
+      data_prevista_recebimento: detailNewItem.data_prevista_recebimento || null,
+      data_real_recebimento: detailNewItem.data_real_recebimento || null,
+      status_item: detailNewItem.status_item || null,
+      observacao: detailNewItem.observacao || null,
+    };
     const res = await fetch(`/api/loads/${selected.id}/items`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     if (!res.ok) { const j = await res.json(); return setError(j.error || 'Erro ao adicionar item.'); }
-    setNewItem({ sku: '', nome_produto: '', quantidade: 1, cmv_unitario: 0 });
+    setDetailNewItem(EMPTY_ITEM);
     await openLoad(selected);
     await loadData();
   }
 
   function editItem(item: LoadItemRow) {
-    setEditingItem(item);
-  }
-
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async function legacyQuickEditItem(item: LoadItemRow) {
-    if (!selected || !canWrite) return;
-    const quantidade = prompt('Quantidade', String(item.quantidade ?? 1));
-    if (!quantidade) return;
-    const cmv = canSeeFinancial ? prompt('CMV unitário', String(item.cmv_unitario ?? 0)) : String(item.cmv_unitario ?? 0);
-    const res = await fetch(`/api/loads/${selected.id}/items`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...item, quantidade: Number(quantidade), cmv_unitario: Number(cmv || 0) }),
+    setEditingItem({
+      id: item.id,
+      sku: item.sku ?? '',
+      nome_produto: item.nome_produto ?? '',
+      quantidade: String(item.quantidade ?? 0),
+      fornecedor_origem_id: item.fornecedor_origem_id ?? '',
+      cmv_unitario: String(item.cmv_unitario ?? 0),
+      peso: item.peso != null ? String(item.peso) : '',
+      altura: item.altura != null ? String(item.altura) : '',
+      largura: item.largura != null ? String(item.largura) : '',
+      profundidade: item.profundidade != null ? String(item.profundidade) : '',
+      data_prevista_recebimento: item.data_prevista_recebimento ?? '',
+      data_real_recebimento: item.data_real_recebimento ?? '',
+      status_item: item.status_item ?? '',
+      observacao: item.observacao ?? '',
     });
-    if (!res.ok) { const j = await res.json(); setError(j.error || 'Erro ao editar item.'); return; }
-    await openLoad(selected);
-    await loadData();
   }
 
   async function saveEditingItem() {
@@ -232,12 +274,7 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
     const res = await fetch(`/api/loads/${selected.id}/items`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        ...editingItem,
-        id: editingItem.id,
-        quantidade: Number(editingItem.quantidade ?? 0),
-        cmv_unitario: canSeeFinancial ? Number(editingItem.cmv_unitario ?? 0) : Number(editingItem.cmv_unitario ?? 0),
-      }),
+      body: JSON.stringify(editingItem),
     });
     if (!res.ok) { const j = await res.json(); setError(j.error || 'Erro ao editar item.'); return; }
     setEditingItem(null);
@@ -246,7 +283,7 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
   }
 
   async function removeItem(item: LoadItemRow) {
-    if (!selected || !canWrite || !confirm('Remover item da carga?')) return;
+    if (!selected || !canWrite) return;
     const res = await fetch(`/api/loads/${selected.id}/items?itemId=${item.id}`, { method: 'DELETE' });
     if (!res.ok) { const j = await res.json(); setError(j.error || 'Erro ao remover item.'); return; }
     await openLoad(selected);
@@ -274,6 +311,7 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
       }),
     });
     if (!res.ok) { const j = await res.json(); setError(j.error || 'Erro ao atualizar carga.'); return; }
+    setNotice({ type: 'success', message: 'Dados da carga atualizados.' });
     await loadData();
   }
 
@@ -290,6 +328,7 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
       }),
     });
     if (!res.ok) { const j = await res.json(); setError(j.error || 'Erro ao atualizar financeiro.'); return; }
+    setNotice({ type: 'success', message: 'Financeiro atualizado.' });
     await openLoad(selected);
     await loadData();
   }
@@ -301,23 +340,28 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
     await openLoad(selected);
   }
 
-  async function cancelLoad() {
-    if (!selected || !canWrite) return;
-    const motivo = prompt('Motivo do cancelamento');
-    if (!motivo) return;
-    const res = await fetch(`/api/loads/${selected.id}/cancel`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ motivo }) });
-    if (!res.ok) { const j = await res.json(); setError(j.error || 'Erro cancelamento'); return; }
+  async function confirmCancel() {
+    if (!selected || !canWrite || !cancelMotivo.trim()) return;
+    const res = await fetch(`/api/loads/${selected.id}/cancel`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ motivo: cancelMotivo }) });
+    if (!res.ok) { const j = await res.json(); setError(j.error || 'Erro ao cancelar.'); return; }
+    setShowCancelForm(false);
+    setCancelMotivo('');
+    setNotice({ type: 'success', message: 'Carga cancelada.' });
     await openLoad({ ...selected, status: 'Cancelada' });
     await loadData();
   }
 
   async function finalizeLoad() {
     if (!selected || !canWrite) return;
-    if (checklist && !checklist.nf_emitida && !confirm('NF não emitida. Deseja finalizar mesmo assim?')) return;
+    if (checklist && !checklist.nf_emitida && !confirmFinalize) {
+      setConfirmFinalize(true);
+      return;
+    }
     const res = await fetch(`/api/loads/${selected.id}/finalize`, { method: 'POST' });
     const j = await res.json();
     if (!res.ok) { setError(j.error || 'Erro finalização'); return; }
-    if (j.warning) alert('Alerta: finalizada sem NF emitida');
+    setConfirmFinalize(false);
+    setNotice(j.warning ? { type: 'warning', message: 'Carga finalizada sem NF emitida.' } : { type: 'success', message: 'Carga finalizada com sucesso.' });
     await openLoad({ ...selected, status: 'Finalizada' });
     await loadData();
   }
@@ -334,151 +378,391 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
     return { cmv, margemValor, margemPct };
   }, [items, selected]);
 
-  return <div className="space-y-6">
-    <div className="bg-white border rounded-xl p-4 space-y-3">
-      <h2 className="font-semibold">Nova carga</h2>
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
-        <select className="h-10 border rounded px-2" value={form.tipo} onChange={e=>setForm({...form,tipo:e.target.value})} disabled={profile.perfil === 'gerente_ecommerce'}><option value="LOJA_FISICA">Loja</option><option value="FULL_MARKETPLACE">Full</option></select>
-        <select className="h-10 border rounded px-2" onChange={e=>setForm({...form,empresa_id:e.target.value})}><option value="">Empresa</option>{options.companies.map(o=><option key={o.id} value={o.id}>{o.nome}</option>)}</select>
-        <select className="h-10 border rounded px-2" onChange={e=>setForm({...form,canal_id:e.target.value})}><option value="">Canal</option>{options.channels.map(o=><option key={o.id} value={o.id}>{o.nome}</option>)}</select>
-        <select className="h-10 border rounded px-2" onChange={e=>setForm({...form,loja_destino_id:e.target.value})}><option value="">Loja destino</option>{options.stores.map(o=><option key={o.id} value={o.id}>{o.nome}</option>)}</select>
-        <select className="h-10 border rounded px-2" onChange={e=>setForm({...form,marketplace_id:e.target.value})}><option value="">Marketplace</option>{options.channels.filter(o=>o.tipo==='Marketplace Full').map(o=><option key={o.id} value={o.id}>{o.nome}</option>)}</select>
-        <select className="h-10 border rounded px-2" onChange={e=>setForm({...form,destino_full_id:e.target.value})}><option value="">Destino Full</option>{options.destinations.map(o=><option key={o.id} value={o.id}>{o.nome}</option>)}</select>
-        <input className="h-10 border rounded px-2" placeholder="Número marketplace" onChange={e=>setForm({...form,numero_carga_marketplace:e.target.value})}/>
-        <input className="h-10 border rounded px-2" placeholder="Código agendamento" onChange={e=>setForm({...form,codigo_agendamento:e.target.value})}/>
-        <select className="h-10 border rounded px-2" onChange={e=>setForm({...form,cd_origem_id:e.target.value})}><option value="">CD origem</option>{options.cds.map(o=><option key={o.id} value={o.id}>{o.nome}</option>)}</select>
-        <select className="h-10 border rounded px-2" onChange={e=>setForm({...form,responsavel_operacional_id:e.target.value})}>
-          <option value="">Responsável</option>
-          {options.profiles.map(o => <option key={o.id} value={o.id}>{o.nome}</option>)}
-        </select>
-        <input className="h-10 border rounded px-2" placeholder="Data agendada (ISO)" value={String(form.data_agendada ?? '')} onChange={e=>setForm({...form,data_agendada:e.target.value})}/>
-        <input className="h-10 border rounded px-2" placeholder="Prev. recebimento (ISO)" onChange={e=>setForm({...form,data_prevista_recebimento:e.target.value})}/>
-        <input className="h-10 border rounded px-2" placeholder="Real recebimento (ISO)" onChange={e=>setForm({...form,data_real_recebimento:e.target.value})}/>
-        <select className="h-10 border rounded px-2" onChange={e=>setForm({...form,tipo_coleta_id:e.target.value})}><option value="">Tipo de coleta</option>{options.transports.map(o=><option key={o.id} value={o.id}>{o.nome}</option>)}</select>
-        <select className="h-10 border rounded px-2" onChange={e=>setForm({...form,transportador_id:e.target.value})}><option value="">Transportador</option>{options.transports.map(o=><option key={o.id} value={o.id}>{o.nome}</option>)}</select>
-        {canEditFinancial && <input className="h-10 border rounded px-2" placeholder="Faturamento estimado" type="number" onChange={e=>setForm({...form,faturamento_estimado:e.target.value})}/>}
-        {canEditFinancial && <input className="h-10 border rounded px-2" placeholder="Custo frete" type="number" onChange={e=>setForm({...form,custo_frete:e.target.value})}/>}
-        {canEditFinancial && <input className="h-10 border rounded px-2" placeholder="Outros custos" type="number" onChange={e=>setForm({...form,outros_custos:e.target.value})}/>}
-        <input className="h-10 border rounded px-2" placeholder="Observações" onChange={e=>setForm({...form,observacoes:e.target.value})}/>
-        <select className="h-10 border rounded px-2" value={form.status} onChange={e=>setForm({...form,status:e.target.value})}>{LOAD_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}</select>
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-end">
+        {canWrite && (
+          <Button variant="primary" onClick={() => setShowCreate(true)}>
+            <Plus className="h-4 w-4" />
+            Nova carga
+          </Button>
+        )}
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
-        <input className="h-10 border rounded px-2" placeholder="SKU item inicial" value={newItem.sku||''} onChange={e=>setNewItem({...newItem,sku:e.target.value})}/>
-        <input className="h-10 border rounded px-2" placeholder="Nome item inicial" value={newItem.nome_produto||''} onChange={e=>setNewItem({...newItem,nome_produto:e.target.value})}/>
-        <input className="h-10 border rounded px-2" placeholder="Quantidade" type="number" value={newItem.quantidade||1} onChange={e=>setNewItem({...newItem,quantidade:e.target.value})}/>
-        <select className="h-10 border rounded px-2" value={newItem.fornecedor_origem_id||''} onChange={e=>setNewItem({...newItem,fornecedor_origem_id:e.target.value})}><option value="">Fornecedor</option>{options.suppliers.map(o=><option key={o.id} value={o.id}>{o.nome}</option>)}</select>
-        <input className="h-10 border rounded px-2" placeholder="Peso" type="number" value={newItem.peso||''} onChange={e=>setNewItem({...newItem,peso:e.target.value})}/>
-        <input className="h-10 border rounded px-2" placeholder="Altura" type="number" value={newItem.altura||''} onChange={e=>setNewItem({...newItem,altura:e.target.value})}/>
-        <input className="h-10 border rounded px-2" placeholder="Largura" type="number" value={newItem.largura||''} onChange={e=>setNewItem({...newItem,largura:e.target.value})}/>
-        <input className="h-10 border rounded px-2" placeholder="Profundidade" type="number" value={newItem.profundidade||''} onChange={e=>setNewItem({...newItem,profundidade:e.target.value})}/>
-        <input className="h-10 border rounded px-2" placeholder="Prev. receb. item (ISO)" value={newItem.data_prevista_recebimento||''} onChange={e=>setNewItem({...newItem,data_prevista_recebimento:e.target.value})}/>
-        <input className="h-10 border rounded px-2" placeholder="Real receb. item (ISO)" value={newItem.data_real_recebimento||''} onChange={e=>setNewItem({...newItem,data_real_recebimento:e.target.value})}/>
-        <input className="h-10 border rounded px-2" placeholder="Status item" value={newItem.status_item||''} onChange={e=>setNewItem({...newItem,status_item:e.target.value})}/>
-        <input className="h-10 border rounded px-2" placeholder="Observação item" value={newItem.observacao||''} onChange={e=>setNewItem({...newItem,observacao:e.target.value})}/>
-        {canSeeFinancial && <input className="h-10 border rounded px-2" placeholder="CMV unitário" type="number" value={newItem.cmv_unitario||0} onChange={e=>setNewItem({...newItem,cmv_unitario:e.target.value})}/>}
-      </div>
-      {canWrite && <button className="px-3 py-2 bg-indigo-600 text-white rounded" onClick={createLoad}>Criar carga</button>}
-      {error && <p className="text-sm text-rose-600">{error}</p>}
-    </div>
 
-    <div className="bg-white border rounded-xl p-4">
-      <h2 className="font-semibold mb-2">Lista de cargas</h2>
-      <table className="w-full text-sm"><thead><tr className="border-b"><th>Código</th><th>Tipo</th><th>Status</th>{canSeeFinancial && <th>CMV total</th>}<th>Ações</th></tr></thead><tbody>
-        {loads.map(l => <tr key={l.id} className="border-b"><td>{l.codigo_interno}</td><td>{l.tipo}</td><td>{l.status}</td>{canSeeFinancial && <td>{Number(l.cmv_total||0).toFixed(2)}</td>}<td><button className="text-indigo-600" onClick={()=>openLoad(l)}>Detalhe</button></td></tr>)}
-      </tbody></table>
-      <div className="flex gap-2 mt-3 text-sm">
-        <button className="px-2 py-1 border rounded disabled:opacity-50" disabled={page === 0} onClick={() => setPage((p) => Math.max(0, p - 1))}>Anterior</button>
-        <span className="py-1">Página {page + 1} de {totalLoadPages} ({totalLoads} cargas)</span>
-        <button className="px-2 py-1 border rounded disabled:opacity-50" disabled={page + 1 >= totalLoadPages} onClick={() => setPage((p) => p + 1)}>Próxima</button>
-      </div>
-    </div>
-
-    {selected && <div className="bg-white border rounded-xl p-4 space-y-4">
-      <h3 className="font-semibold">{selected.codigo_interno} • {selected.status}</h3>
-      <p className="text-sm text-zinc-600">Aviso: cargas agendadas antes do recebimento e finalização sem NF são permitidas com alerta.</p>
-      {canWrite && <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
-        <select className="h-10 border rounded px-2" value={selected.status || ''} onChange={e=>setSelected({...selected,status:e.target.value})}>{LOAD_STATUSES.map(s=><option key={s} value={s}>{s}</option>)}</select>
-        <input className="h-10 border rounded px-2" placeholder="Prioridade" value={selected.prioridade || ''} onChange={e=>setSelected({...selected,prioridade:e.target.value})}/>
-        <input className="h-10 border rounded px-2" placeholder="Data agendada ISO" value={selected.data_agendada || ''} onChange={e=>setSelected({...selected,data_agendada:e.target.value})}/>
-        <button className="px-3 py-2 border rounded" onClick={patchSelectedLoad}>Salvar dados da carga</button>
-      </div>}
-
-      {canWrite && <div className="grid grid-cols-1 md:grid-cols-4 gap-2 text-sm">
-        <select className="h-10 border rounded px-2" value={String(selected.responsavel_operacional_id ?? '')} onChange={e=>setSelected({...selected,responsavel_operacional_id:e.target.value || null})}>
-          <option value="">Responsável</option>
-          {options.profiles.map(o => <option key={o.id} value={o.id}>{o.nome}</option>)}
-        </select>
-        <select className="h-10 border rounded px-2" value={String(selected.cd_origem_id ?? '')} onChange={e=>setSelected({...selected,cd_origem_id:e.target.value || null})}><option value="">CD origem</option>{options.cds.map(o=><option key={o.id} value={o.id}>{o.nome}</option>)}</select>
-        <select className="h-10 border rounded px-2" value={String(selected.tipo_coleta_id ?? '')} onChange={e=>setSelected({...selected,tipo_coleta_id:e.target.value || null})}><option value="">Tipo de coleta</option>{options.transports.map(o=><option key={o.id} value={o.id}>{o.nome}</option>)}</select>
-        <select className="h-10 border rounded px-2" value={String(selected.transportador_id ?? '')} onChange={e=>setSelected({...selected,transportador_id:e.target.value || null})}><option value="">Transportador</option>{options.transports.map(o=><option key={o.id} value={o.id}>{o.nome}</option>)}</select>
-        <input className="h-10 border rounded px-2" placeholder="Prev. recebimento (ISO)" value={String(selected.data_prevista_recebimento ?? '')} onChange={e=>setSelected({...selected,data_prevista_recebimento:e.target.value || null})}/>
-        <input className="h-10 border rounded px-2" placeholder="Real recebimento (ISO)" value={String(selected.data_real_recebimento ?? '')} onChange={e=>setSelected({...selected,data_real_recebimento:e.target.value || null})}/>
-        <input className="h-10 border rounded px-2" placeholder="Número marketplace" value={String(selected.numero_carga_marketplace ?? '')} onChange={e=>setSelected({...selected,numero_carga_marketplace:e.target.value || null})}/>
-        <input className="h-10 border rounded px-2" placeholder="Código agendamento" value={String(selected.codigo_agendamento ?? '')} onChange={e=>setSelected({...selected,codigo_agendamento:e.target.value || null})}/>
-      </div>}
-
-      {canEditFinancial && <div className="bg-zinc-50 p-3 rounded space-y-2">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-          <input className="h-10 border rounded px-2" placeholder="Faturamento estimado" type="number" value={Number(selected.faturamento_estimado ?? 0)} onChange={e=>setSelected({...selected,faturamento_estimado:Number(e.target.value)})}/>
-          <input className="h-10 border rounded px-2" placeholder="Custo frete" type="number" value={Number(selected.custo_frete ?? 0)} onChange={e=>setSelected({...selected,custo_frete:Number(e.target.value)})}/>
-          <input className="h-10 border rounded px-2" placeholder="Outros custos" type="number" value={Number(selected.outros_custos ?? 0)} onChange={e=>setSelected({...selected,outros_custos:Number(e.target.value)})}/>
-        </div>
-        <button className="px-3 py-2 border rounded" onClick={patchSelectedFinancial}>Salvar financeiro</button>
-      </div>}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-        <input className="h-10 border rounded px-2" placeholder="SKU" value={newItem.sku||''} onChange={e=>setNewItem({...newItem,sku:e.target.value})}/>
-        <input className="h-10 border rounded px-2" placeholder="Nome produto" value={newItem.nome_produto||''} onChange={e=>setNewItem({...newItem,nome_produto:e.target.value})}/>
-        <input className="h-10 border rounded px-2" placeholder="Quantidade" type="number" value={newItem.quantidade||1} onChange={e=>setNewItem({...newItem,quantidade:e.target.value})}/>
-        <select className="h-10 border rounded px-2" value={newItem.fornecedor_origem_id||''} onChange={e=>setNewItem({...newItem,fornecedor_origem_id:e.target.value})}><option value="">Fornecedor</option>{options.suppliers.map(o=><option key={o.id} value={o.id}>{o.nome}</option>)}</select>
-        {canSeeFinancial && <input className="h-10 border rounded px-2" placeholder="CMV unitário" type="number" value={newItem.cmv_unitario||0} onChange={e=>setNewItem({...newItem,cmv_unitario:e.target.value})}/>}
-        <input className="h-10 border rounded px-2" placeholder="Altura" type="number" onChange={e=>setNewItem({...newItem,altura:e.target.value})}/>
-      </div>
-      {canSeeFinancial && Number(newItem.cmv_unitario||0)<=0 && <p className='text-xs text-amber-600'>Produto sem CMV, preencher manualmente.</p>}
-      {canWrite && <button className="px-3 py-2 border rounded" onClick={addItem}>Adicionar item</button>}
-
-      {editingItem && canWrite && (
-        <div className="bg-zinc-50 p-3 rounded space-y-2 text-sm">
-          <h4 className="font-semibold">Editar item</h4>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
-            <input className="h-10 border rounded px-2" placeholder="SKU" value={String(editingItem.sku ?? '')} onChange={e=>setEditingItem({ ...editingItem, sku: e.target.value })} />
-            <input className="h-10 border rounded px-2" placeholder="Nome" value={String(editingItem.nome_produto ?? '')} onChange={e=>setEditingItem({ ...editingItem, nome_produto: e.target.value })} />
-            <input className="h-10 border rounded px-2" placeholder="Quantidade" type="number" value={Number(editingItem.quantidade ?? 0)} onChange={e=>setEditingItem({ ...editingItem, quantidade: Number(e.target.value) })} />
-            <select className="h-10 border rounded px-2" value={String(editingItem.fornecedor_origem_id ?? '')} onChange={e=>setEditingItem({ ...editingItem, fornecedor_origem_id: e.target.value || null })}><option value="">Fornecedor</option>{options.suppliers.map(o=><option key={o.id} value={o.id}>{o.nome}</option>)}</select>
-            {canSeeFinancial && <input className="h-10 border rounded px-2" placeholder="CMV unitário" type="number" value={Number(editingItem.cmv_unitario ?? 0)} onChange={e=>setEditingItem({ ...editingItem, cmv_unitario: Number(e.target.value) })} />}
-            <input className="h-10 border rounded px-2" placeholder="Peso" type="number" value={Number(editingItem.peso ?? 0)} onChange={e=>setEditingItem({ ...editingItem, peso: Number(e.target.value) })} />
-            <input className="h-10 border rounded px-2" placeholder="Altura" type="number" value={Number(editingItem.altura ?? 0)} onChange={e=>setEditingItem({ ...editingItem, altura: Number(e.target.value) })} />
-            <input className="h-10 border rounded px-2" placeholder="Largura" type="number" value={Number(editingItem.largura ?? 0)} onChange={e=>setEditingItem({ ...editingItem, largura: Number(e.target.value) })} />
-            <input className="h-10 border rounded px-2" placeholder="Profundidade" type="number" value={Number(editingItem.profundidade ?? 0)} onChange={e=>setEditingItem({ ...editingItem, profundidade: Number(e.target.value) })} />
-            <input className="h-10 border rounded px-2" placeholder="Prev. receb. (ISO)" value={String(editingItem.data_prevista_recebimento ?? '')} onChange={e=>setEditingItem({ ...editingItem, data_prevista_recebimento: e.target.value })} />
-            <input className="h-10 border rounded px-2" placeholder="Real receb. (ISO)" value={String(editingItem.data_real_recebimento ?? '')} onChange={e=>setEditingItem({ ...editingItem, data_real_recebimento: e.target.value })} />
-            <input className="h-10 border rounded px-2" placeholder="Status item" value={String(editingItem.status_item ?? '')} onChange={e=>setEditingItem({ ...editingItem, status_item: e.target.value })} />
-            <input className="h-10 border rounded px-2" placeholder="Observação" value={String(editingItem.observacao ?? '')} onChange={e=>setEditingItem({ ...editingItem, observacao: e.target.value })} />
+      <Card>
+        <CardBody className="p-0">
+          {loadingList ? (
+            <div className="p-4"><SkeletonRows rows={6} /></div>
+          ) : loads.length === 0 ? (
+            <EmptyState title="Nenhuma carga ainda" description="Crie a primeira carga pelo botão acima ou transforme uma solicitação aprovada." />
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-zinc-100 text-left text-xs font-medium text-zinc-500">
+                    <th className="px-4 py-2.5">Código</th>
+                    <th className="px-4 py-2.5">Tipo</th>
+                    <th className="px-4 py-2.5">Status</th>
+                    {canSeeFinancial && <th className="px-4 py-2.5">CMV total</th>}
+                    <th className="px-4 py-2.5" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {loads.map((l) => (
+                    <tr key={l.id} className="border-b border-zinc-50 last:border-0 hover:bg-zinc-50">
+                      <td className="px-4 py-2.5 font-medium text-zinc-800">{l.codigo_interno}</td>
+                      <td className="px-4 py-2.5 text-zinc-600">{l.tipo === 'FULL_MARKETPLACE' ? 'Full' : 'Loja'}</td>
+                      <td className="px-4 py-2.5"><Badge tone={loadStatusTone(l.status)} dot>{l.status}</Badge></td>
+                      {canSeeFinancial && <td className="px-4 py-2.5 text-zinc-600">{Number(l.cmv_total || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>}
+                      <td className="px-4 py-2.5 text-right">
+                        <button className="font-medium text-brand-600 hover:text-brand-700" onClick={() => openLoad(l)}>Detalhe</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          <div className="flex items-center justify-between border-t border-zinc-100 px-4 py-3 text-sm">
+            <Button variant="secondary" size="sm" disabled={page === 0} onClick={() => setPage((p) => Math.max(0, p - 1))}>Anterior</Button>
+            <span className="text-zinc-500">Página {page + 1} de {totalLoadPages} ({totalLoads} cargas)</span>
+            <Button variant="secondary" size="sm" disabled={page + 1 >= totalLoadPages} onClick={() => setPage((p) => p + 1)}>Próxima</Button>
           </div>
-          <div className="flex gap-2">
-            <button className="px-3 py-2 border rounded" onClick={saveEditingItem}>Salvar item</button>
-            <button className="px-3 py-2 border rounded" onClick={() => setEditingItem(null)}>Cancelar</button>
+        </CardBody>
+      </Card>
+
+      <Dialog
+        open={showCreate}
+        onClose={() => setShowCreate(false)}
+        title="Nova carga"
+        size="lg"
+        footer={canWrite && <Button variant="primary" onClick={createLoad}>Criar carga</Button>}
+      >
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+            <FieldGroup label="Tipo">
+              <Select value={form.tipo} onChange={(e) => setForm({ ...form, tipo: e.target.value })} disabled={profile.perfil === 'gerente_ecommerce'}>
+                <option value="LOJA_FISICA">Loja física</option>
+                <option value="FULL_MARKETPLACE">Full Marketplace</option>
+              </Select>
+            </FieldGroup>
+            <FieldGroup label="Empresa">
+              <Select value={form.empresa_id ?? ''} onChange={(e) => setForm({ ...form, empresa_id: e.target.value })}>
+                <option value="">Selecionar</option>
+                {options.companies.map((o) => <option key={o.id} value={o.id}>{o.nome}</option>)}
+              </Select>
+            </FieldGroup>
+            <FieldGroup label="Canal">
+              <Select value={form.canal_id ?? ''} onChange={(e) => setForm({ ...form, canal_id: e.target.value })}>
+                <option value="">Selecionar</option>
+                {options.channels.map((o) => <option key={o.id} value={o.id}>{o.nome}</option>)}
+              </Select>
+            </FieldGroup>
+            {form.tipo === 'LOJA_FISICA' ? (
+              <FieldGroup label="Loja destino">
+                <Select value={form.loja_destino_id ?? ''} onChange={(e) => setForm({ ...form, loja_destino_id: e.target.value })}>
+                  <option value="">Selecionar</option>
+                  {options.stores.map((o) => <option key={o.id} value={o.id}>{o.nome}</option>)}
+                </Select>
+              </FieldGroup>
+            ) : (
+              <>
+                <FieldGroup label="Marketplace">
+                  <Select value={form.marketplace_id ?? ''} onChange={(e) => setForm({ ...form, marketplace_id: e.target.value })}>
+                    <option value="">Selecionar</option>
+                    {options.channels.filter((o) => o.tipo === 'Marketplace Full').map((o) => <option key={o.id} value={o.id}>{o.nome}</option>)}
+                  </Select>
+                </FieldGroup>
+                <FieldGroup label="Destino Full">
+                  <Select value={form.destino_full_id ?? ''} onChange={(e) => setForm({ ...form, destino_full_id: e.target.value })}>
+                    <option value="">Selecionar</option>
+                    {options.destinations.map((o) => <option key={o.id} value={o.id}>{o.nome}</option>)}
+                  </Select>
+                </FieldGroup>
+                <FieldGroup label="Nº carga marketplace">
+                  <Input value={form.numero_carga_marketplace ?? ''} onChange={(e) => setForm({ ...form, numero_carga_marketplace: e.target.value })} />
+                </FieldGroup>
+                <FieldGroup label="Código de agendamento">
+                  <Input value={form.codigo_agendamento ?? ''} onChange={(e) => setForm({ ...form, codigo_agendamento: e.target.value })} />
+                </FieldGroup>
+              </>
+            )}
+            <FieldGroup label="CD de origem">
+              <Select value={form.cd_origem_id ?? ''} onChange={(e) => setForm({ ...form, cd_origem_id: e.target.value })}>
+                <option value="">Selecionar</option>
+                {options.cds.map((o) => <option key={o.id} value={o.id}>{o.nome}</option>)}
+              </Select>
+            </FieldGroup>
+            <FieldGroup label="Responsável operacional">
+              <Select value={form.responsavel_operacional_id ?? ''} onChange={(e) => setForm({ ...form, responsavel_operacional_id: e.target.value })}>
+                <option value="">Selecionar</option>
+                {options.profiles.map((o) => <option key={o.id} value={o.id}>{o.nome}</option>)}
+              </Select>
+            </FieldGroup>
+            <FieldGroup label="Prioridade">
+              <Select value={form.prioridade} onChange={(e) => setForm({ ...form, prioridade: e.target.value })}>
+                <option value="Baixa">Baixa</option>
+                <option value="Média">Média</option>
+                <option value="Alta">Alta</option>
+                <option value="Urgente">Urgente</option>
+              </Select>
+            </FieldGroup>
+            <FieldGroup label="Data agendada">
+              <Input type="datetime-local" value={form.data_agendada ?? ''} onChange={(e) => setForm({ ...form, data_agendada: e.target.value })} />
+            </FieldGroup>
+            <FieldGroup label="Previsão de recebimento">
+              <Input type="datetime-local" value={form.data_prevista_recebimento ?? ''} onChange={(e) => setForm({ ...form, data_prevista_recebimento: e.target.value })} />
+            </FieldGroup>
+            <FieldGroup label="Tipo de coleta">
+              <Select value={form.tipo_coleta_id ?? ''} onChange={(e) => setForm({ ...form, tipo_coleta_id: e.target.value })}>
+                <option value="">Selecionar</option>
+                {options.transports.map((o) => <option key={o.id} value={o.id}>{o.nome}</option>)}
+              </Select>
+            </FieldGroup>
+            <FieldGroup label="Transportador">
+              <Select value={form.transportador_id ?? ''} onChange={(e) => setForm({ ...form, transportador_id: e.target.value })}>
+                <option value="">Selecionar</option>
+                {options.transports.map((o) => <option key={o.id} value={o.id}>{o.nome}</option>)}
+              </Select>
+            </FieldGroup>
+            {canEditFinancial && (
+              <>
+                <FieldGroup label="Faturamento estimado">
+                  <Input type="number" value={form.faturamento_estimado ?? ''} onChange={(e) => setForm({ ...form, faturamento_estimado: e.target.value })} />
+                </FieldGroup>
+                <FieldGroup label="Custo de frete">
+                  <Input type="number" value={form.custo_frete} onChange={(e) => setForm({ ...form, custo_frete: e.target.value })} />
+                </FieldGroup>
+                <FieldGroup label="Outros custos">
+                  <Input type="number" value={form.outros_custos} onChange={(e) => setForm({ ...form, outros_custos: e.target.value })} />
+                </FieldGroup>
+              </>
+            )}
+            <FieldGroup label="Observações" className="md:col-span-3">
+              <Textarea value={form.observacoes ?? ''} onChange={(e) => setForm({ ...form, observacoes: e.target.value })} />
+            </FieldGroup>
           </div>
+
+          <div className="border-t border-zinc-100 pt-4">
+            <h3 className="mb-2 text-sm font-semibold text-zinc-700">Primeiro item da carga</h3>
+            <LoadItemFields value={newItem} onChange={(field, value) => setNewItem((prev) => ({ ...prev, [field]: value }))} suppliers={options.suppliers} showFinancial={canSeeFinancial} />
+            {canSeeFinancial && Number(newItem.cmv_unitario || 0) <= 0 && (
+              <p className="mt-2 flex items-center gap-1 text-xs text-amber-600"><AlertTriangle className="h-3.5 w-3.5" />Produto sem CMV cadastrado — a margem pode ficar incorreta.</p>
+            )}
+          </div>
+
+          {error && <p className="text-sm text-rose-600">{error}</p>}
         </div>
-      )}
+      </Dialog>
 
-      <table className="w-full text-sm"><thead><tr className="border-b"><th>SKU</th><th>Nome</th><th>Qtd</th>{canSeeFinancial && <th>CMV unit</th>}{canSeeFinancial && <th>CMV total</th>}<th>Cubagem</th>{canWrite && <th>Ações</th>}</tr></thead><tbody>
-        {items.map(i=><tr key={i.id} className="border-b"><td>{i.sku}</td><td>{i.nome_produto}</td><td>{i.quantidade}</td>{canSeeFinancial && <td>{i.cmv_unitario}</td>}{canSeeFinancial && <td>{i.cmv_total}</td>}<td>{i.cubagem ?? '-'}</td>{canWrite && <td className="space-x-2"><button className="text-indigo-600" onClick={()=>editItem(i)}>Editar</button><button className="text-rose-700" onClick={()=>removeItem(i)}>Remover</button></td>}</tr>)}
-      </tbody></table>
+      <Dialog
+        open={!!selected}
+        onClose={() => setSelected(null)}
+        title={selected?.codigo_interno ?? ''}
+        description={selected ? <Badge tone={loadStatusTone(selected.status)} dot>{selected.status}</Badge> : undefined}
+        size="lg"
+      >
+        {selected && (
+          <div className="space-y-5">
+            {notice && (
+              <div className={`flex items-center gap-2 rounded-lg p-3 text-sm ${notice.type === 'success' ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-800'}`}>
+                {notice.type === 'success' ? <CheckCircle2 className="h-4 w-4 shrink-0" /> : <AlertTriangle className="h-4 w-4 shrink-0" />}
+                {notice.message}
+              </div>
+            )}
+            {error && <p className="text-sm text-rose-600">{error}</p>}
+            <p className="text-xs text-zinc-500">Cargas agendadas antes do recebimento e finalizações sem NF são permitidas, mas geram alerta.</p>
 
-      {canSeeFinancial && <div className="bg-zinc-50 p-3 rounded text-sm">
-        <p>CMV total: {totals.cmv.toFixed(2)}</p>
-        <p>Margem estimativa (valor): {totals.margemValor.toFixed(2)}</p>
-        <p>Margem estimativa (%): {totals.margemPct === null ? '-' : (totals.margemPct*100).toFixed(2) + '%'}</p>
-      </div>}
+            {canWrite && (
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+                <FieldGroup label="Status">
+                  <Select value={selected.status ?? ''} onChange={(e) => setSelected({ ...selected, status: e.target.value })}>
+                    {LOAD_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+                  </Select>
+                </FieldGroup>
+                <FieldGroup label="Prioridade">
+                  <Select value={selected.prioridade ?? ''} onChange={(e) => setSelected({ ...selected, prioridade: e.target.value })}>
+                    <option value="Baixa">Baixa</option>
+                    <option value="Média">Média</option>
+                    <option value="Alta">Alta</option>
+                    <option value="Urgente">Urgente</option>
+                  </Select>
+                </FieldGroup>
+                <FieldGroup label="Responsável">
+                  <Select value={String(selected.responsavel_operacional_id ?? '')} onChange={(e) => setSelected({ ...selected, responsavel_operacional_id: e.target.value || null })}>
+                    <option value="">Selecionar</option>
+                    {options.profiles.map((o) => <option key={o.id} value={o.id}>{o.nome}</option>)}
+                  </Select>
+                </FieldGroup>
+                <FieldGroup label="CD de origem">
+                  <Select value={String(selected.cd_origem_id ?? '')} onChange={(e) => setSelected({ ...selected, cd_origem_id: e.target.value || null })}>
+                    <option value="">Selecionar</option>
+                    {options.cds.map((o) => <option key={o.id} value={o.id}>{o.nome}</option>)}
+                  </Select>
+                </FieldGroup>
+                <FieldGroup label="Tipo de coleta">
+                  <Select value={String(selected.tipo_coleta_id ?? '')} onChange={(e) => setSelected({ ...selected, tipo_coleta_id: e.target.value || null })}>
+                    <option value="">Selecionar</option>
+                    {options.transports.map((o) => <option key={o.id} value={o.id}>{o.nome}</option>)}
+                  </Select>
+                </FieldGroup>
+                <FieldGroup label="Transportador">
+                  <Select value={String(selected.transportador_id ?? '')} onChange={(e) => setSelected({ ...selected, transportador_id: e.target.value || null })}>
+                    <option value="">Selecionar</option>
+                    {options.transports.map((o) => <option key={o.id} value={o.id}>{o.nome}</option>)}
+                  </Select>
+                </FieldGroup>
+                <FieldGroup label="Data agendada">
+                  <Input type="datetime-local" value={String(selected.data_agendada ?? '')} onChange={(e) => setSelected({ ...selected, data_agendada: e.target.value || null })} />
+                </FieldGroup>
+                <FieldGroup label="Previsão de recebimento">
+                  <Input type="datetime-local" value={String(selected.data_prevista_recebimento ?? '')} onChange={(e) => setSelected({ ...selected, data_prevista_recebimento: e.target.value || null })} />
+                </FieldGroup>
+                <FieldGroup label="Recebimento real">
+                  <Input type="datetime-local" value={String(selected.data_real_recebimento ?? '')} onChange={(e) => setSelected({ ...selected, data_real_recebimento: e.target.value || null })} />
+                </FieldGroup>
+                <FieldGroup label="Nº carga marketplace">
+                  <Input value={String(selected.numero_carga_marketplace ?? '')} onChange={(e) => setSelected({ ...selected, numero_carga_marketplace: e.target.value || null })} />
+                </FieldGroup>
+                <FieldGroup label="Código de agendamento">
+                  <Input value={String(selected.codigo_agendamento ?? '')} onChange={(e) => setSelected({ ...selected, codigo_agendamento: e.target.value || null })} />
+                </FieldGroup>
+                <div className="flex items-end">
+                  <Button variant="secondary" onClick={patchSelectedLoad}>Salvar dados da carga</Button>
+                </div>
+              </div>
+            )}
 
-      {checklist && <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
-        {['pedido_realizado','pedido_confirmado_fornecedor','produto_recebido','montada','agendada','etiqueta_impressa','carga_separada','carga_etiquetada','nf_emitida','carga_carregada','finalizada'].map((k)=><label key={k} className="flex items-center gap-2"><input type="checkbox" checked={!!checklist[k]} onChange={e=>toggleChecklist(k,e.target.checked)} disabled={!canChecklist}/>{k}</label>)}
-      </div>}
+            {canEditFinancial && (
+              <div className="rounded-lg bg-zinc-50 p-3">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                  <FieldGroup label="Faturamento estimado">
+                    <Input type="number" value={Number(selected.faturamento_estimado ?? 0)} onChange={(e) => setSelected({ ...selected, faturamento_estimado: Number(e.target.value) })} />
+                  </FieldGroup>
+                  <FieldGroup label="Custo de frete">
+                    <Input type="number" value={Number(selected.custo_frete ?? 0)} onChange={(e) => setSelected({ ...selected, custo_frete: Number(e.target.value) })} />
+                  </FieldGroup>
+                  <FieldGroup label="Outros custos">
+                    <Input type="number" value={Number(selected.outros_custos ?? 0)} onChange={(e) => setSelected({ ...selected, outros_custos: Number(e.target.value) })} />
+                  </FieldGroup>
+                </div>
+                <Button variant="secondary" className="mt-3" onClick={patchSelectedFinancial}>Salvar financeiro</Button>
+              </div>
+            )}
 
-      <div className="flex gap-2">
-        {canWrite && <button className="px-3 py-2 bg-rose-600 text-white rounded" onClick={cancelLoad}>Cancelar carga</button>}
-        {canWrite && <button className="px-3 py-2 bg-emerald-600 text-white rounded" onClick={finalizeLoad}>Finalizar carga</button>}
-      </div>
-    </div>}
-  </div>;
+            <div>
+              <h3 className="mb-2 text-sm font-semibold text-zinc-700">Itens da carga</h3>
+              <div className="overflow-x-auto rounded-lg border border-zinc-100">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-zinc-100 text-left text-xs font-medium text-zinc-500">
+                      <th className="px-3 py-2">SKU</th>
+                      <th className="px-3 py-2">Nome</th>
+                      <th className="px-3 py-2">Qtd</th>
+                      {canSeeFinancial && <th className="px-3 py-2">CMV unit.</th>}
+                      {canSeeFinancial && <th className="px-3 py-2">CMV total</th>}
+                      <th className="px-3 py-2">Cubagem</th>
+                      {canWrite && <th className="px-3 py-2" />}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {items.map((i) => (
+                      <tr key={i.id} className="border-b border-zinc-50 last:border-0">
+                        <td className="px-3 py-2">{i.sku}</td>
+                        <td className="px-3 py-2">{i.nome_produto}</td>
+                        <td className="px-3 py-2">{i.quantidade}</td>
+                        {canSeeFinancial && <td className="px-3 py-2">{i.cmv_unitario}</td>}
+                        {canSeeFinancial && <td className="px-3 py-2">{i.cmv_total}</td>}
+                        <td className="px-3 py-2">{i.cubagem ?? '-'}</td>
+                        {canWrite && (
+                          <td className="space-x-2 px-3 py-2 text-right">
+                            <button className="font-medium text-brand-600 hover:text-brand-700" onClick={() => editItem(i)}>Editar</button>
+                            <button className="font-medium text-rose-600 hover:text-rose-700" onClick={() => removeItem(i)}>Remover</button>
+                          </td>
+                        )}
+                      </tr>
+                    ))}
+                    {items.length === 0 && (
+                      <tr><td colSpan={canSeeFinancial ? 7 : 5} className="px-3 py-4 text-center text-zinc-400">Nenhum item ainda.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {canWrite && (
+                <div className="mt-3 rounded-lg border border-dashed border-zinc-200 p-3">
+                  <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">Adicionar item</h4>
+                  <LoadItemFields value={detailNewItem} onChange={(field, value) => setDetailNewItem((prev) => ({ ...prev, [field]: value }))} suppliers={options.suppliers} showFinancial={canSeeFinancial} />
+                  <Button variant="secondary" className="mt-2" onClick={addItem}>Adicionar item</Button>
+                </div>
+              )}
+
+              {editingItem && canWrite && (
+                <div className="mt-3 rounded-lg bg-zinc-50 p-3">
+                  <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">Editar item</h4>
+                  <LoadItemFields value={editingItem} onChange={(field, value) => setEditingItem((prev) => (prev ? { ...prev, [field]: value } : prev))} suppliers={options.suppliers} showFinancial={canSeeFinancial} />
+                  <div className="mt-2 flex gap-2">
+                    <Button variant="primary" onClick={saveEditingItem}>Salvar item</Button>
+                    <Button variant="ghost" onClick={() => setEditingItem(null)}>Cancelar</Button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {canSeeFinancial && (
+              <div className="grid grid-cols-3 gap-3 rounded-lg bg-zinc-50 p-3 text-sm">
+                <div><div className="text-xs text-zinc-500">CMV total</div><div className="font-semibold">{totals.cmv.toFixed(2)}</div></div>
+                <div><div className="text-xs text-zinc-500">Margem (valor)</div><div className={`font-semibold ${totals.margemValor >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>{totals.margemValor.toFixed(2)}</div></div>
+                <div><div className="text-xs text-zinc-500">Margem (%)</div><div className="font-semibold">{totals.margemPct === null ? 'pendente' : `${(totals.margemPct * 100).toFixed(2)}%`}</div></div>
+              </div>
+            )}
+
+            {checklist && (
+              <div>
+                <h3 className="mb-2 text-sm font-semibold text-zinc-700">Checklist operacional</h3>
+                <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
+                  {CHECKLIST_FIELDS.map((f) => (
+                    <label key={f.key} className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm ${checklist[f.key] ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-zinc-200 text-zinc-600'}`}>
+                      <input type="checkbox" checked={!!checklist[f.key]} onChange={(e) => toggleChecklist(f.key, e.target.checked)} disabled={!canChecklist} />
+                      {f.label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {canWrite && (
+              <div className="flex flex-wrap items-start gap-3 border-t border-zinc-100 pt-4">
+                {!showCancelForm ? (
+                  <Button variant="danger" onClick={() => setShowCancelForm(true)}>Cancelar carga</Button>
+                ) : (
+                  <div className="w-full space-y-2 rounded-lg bg-rose-50 p-3">
+                    <FieldGroup label="Motivo do cancelamento">
+                      <Textarea value={cancelMotivo} onChange={(e) => setCancelMotivo(e.target.value)} />
+                    </FieldGroup>
+                    <div className="flex gap-2">
+                      <Button variant="danger" disabled={!cancelMotivo.trim()} onClick={confirmCancel}>Confirmar cancelamento</Button>
+                      <Button variant="ghost" onClick={() => setShowCancelForm(false)}>Voltar</Button>
+                    </div>
+                  </div>
+                )}
+
+                {!confirmFinalize ? (
+                  <Button variant="primary" onClick={finalizeLoad}>Finalizar carga</Button>
+                ) : (
+                  <div className="w-full space-y-2 rounded-lg bg-amber-50 p-3">
+                    <p className="flex items-center gap-1 text-sm text-amber-800"><AlertTriangle className="h-4 w-4" />NF não emitida. Finalizar mesmo assim?</p>
+                    <div className="flex gap-2">
+                      <Button variant="primary" onClick={finalizeLoad}>Confirmar finalização</Button>
+                      <Button variant="ghost" onClick={() => setConfirmFinalize(false)}>Voltar</Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </Dialog>
+    </div>
+  );
 }

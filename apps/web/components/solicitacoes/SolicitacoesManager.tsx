@@ -2,12 +2,24 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
+import { Plus, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import type { UserProfile } from '@/lib/auth/roles';
+import { Button } from '@/components/ui/Button';
+import { Card, CardBody } from '@/components/ui/Card';
+import { Dialog } from '@/components/ui/Dialog';
+import { Input, Select, Textarea, FieldGroup } from '@/components/ui/Field';
+import { Badge } from '@/components/ui/Badge';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { SkeletonRows } from '@/components/ui/Skeleton';
+import { cn } from '@/lib/utils';
+import { requestStatusTone } from '@/lib/ui/status-styles';
 
 type Item = { sku: string; nome_produto: string; quantidade: number; fornecedor_origem_id?: string; cmv_unitario: number; cmv_total: number };
 type NamedOption = { id: string; nome: string; tipo?: string | null };
 type RequestRow = { id: string; codigo: string; tipo: string; status: string; created_at: string; carga_id?: string | null };
+type Notice = { type: 'success' | 'warning'; message: string };
+type ReasonAction = { id: string; kind: 'Recusada' | 'Ajuste solicitado' };
 
 const PAGE_SIZE = 50;
 const STATUS_FILTERS = [
@@ -20,16 +32,19 @@ const STATUS_FILTERS = [
   { label: 'Transformadas em carga', value: 'Transformada em carga' },
   { label: 'Canceladas', value: 'Cancelada' },
 ];
+const EMPTY_ITEM: Item = { sku: '', nome_produto: '', quantidade: 1, cmv_unitario: 0, cmv_total: 0 };
 
 export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
   const supabase = createClient();
   const [rows, setRows] = useState<RequestRow[]>([]);
+  const [loadingList, setLoadingList] = useState(true);
   const [companies, setCompanies] = useState<NamedOption[]>([]);
   const [stores, setStores] = useState<NamedOption[]>([]);
   const [channels, setChannels] = useState<NamedOption[]>([]);
   const [destinations, setDestinations] = useState<NamedOption[]>([]);
   const [suppliers, setSuppliers] = useState<NamedOption[]>([]);
-  const [items, setItems] = useState<Item[]>([{ sku: '', nome_produto: '', quantidade: 1, cmv_unitario: 0, cmv_total: 0 }]);
+  const [showCreate, setShowCreate] = useState(false);
+  const [items, setItems] = useState<Item[]>([EMPTY_ITEM]);
   const [tipo, setTipo] = useState<'LOJA_FISICA' | 'FULL_MARKETPLACE'>('LOJA_FISICA');
   const [lojaDestinoId, setLojaDestinoId] = useState('');
   const [marketplaceId, setMarketplaceId] = useState('');
@@ -40,14 +55,19 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
   const [dataDesejada, setDataDesejada] = useState('');
   const [observacoes, setObservacoes] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<Notice | null>(null);
   const [statusFilter, setStatusFilter] = useState('');
   const [page, setPage] = useState(0);
   const [totalRequests, setTotalRequests] = useState(0);
+  const [reasonAction, setReasonAction] = useState<ReasonAction | null>(null);
+  const [reasonText, setReasonText] = useState('');
+  const [convertId, setConvertId] = useState<string | null>(null);
 
   const canApprove = profile.perfil === 'admin' || profile.perfil === 'gerente_estoque';
   const canSeeFinancial = ['admin', 'gerente_estoque', 'gerente_ecommerce', 'financeiro'].includes(profile.perfil);
 
   const load = useCallback(async () => {
+    setLoadingList(true);
     const [reqs, c, s, ch, d, sup] = await Promise.all([
       (() => {
         let query = supabase.from('load_requests').select('id,codigo,tipo,status,created_at,carga_id', { count: 'exact' }).order('created_at', { ascending: false }).range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1);
@@ -63,6 +83,7 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
     setRows((reqs.data ?? []) as RequestRow[]);
     setTotalRequests(reqs.count ?? 0);
     setCompanies((c.data ?? []) as NamedOption[]); setStores((s.data ?? []) as NamedOption[]); setChannels((ch.data ?? []) as NamedOption[]); setDestinations((d.data ?? []) as NamedOption[]); setSuppliers((sup.data ?? []) as NamedOption[]);
+    setLoadingList(false);
   }, [supabase, page, statusFilter]);
 
   useEffect(() => { load(); }, [load]);
@@ -106,10 +127,12 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
     if (itemErr) return setError(itemErr.message);
 
     await supabase.from('load_request_history').insert({ request_id: req.id, acao: 'CRIADA', status_novo: 'Pendente', autor_profile_id: me.id });
-    setItems([{ sku: '', nome_produto: '', quantidade: 1, cmv_unitario: 0, cmv_total: 0 }]);
+    setItems([EMPTY_ITEM]);
     setPrioridade('Média');
     setDataDesejada('');
     setObservacoes('');
+    setShowCreate(false);
+    setNotice({ type: 'success', message: 'Solicitação criada com sucesso.' });
     await load();
   }
 
@@ -118,84 +141,230 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
     const url = status === 'Aprovada' ? `/api/load-requests/${id}/approve` : status === 'Recusada' ? `/api/load-requests/${id}/reject` : `/api/load-requests/${id}/request-adjust`;
     const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ motivo }) });
     if (!res.ok) { const j = await res.json(); setError(j.error || 'Erro'); return; }
+    setNotice({ type: 'success', message: `Solicitação marcada como "${status}".` });
     await load();
   }
 
+  async function confirmReason() {
+    if (!reasonAction || !reasonText.trim()) return;
+    await changeStatus(reasonAction.id, reasonAction.kind, reasonText);
+    setReasonAction(null);
+    setReasonText('');
+  }
 
-  async function convertToLoad(id: string) {
-    if (!confirm('Deseja transformar esta solicitação em carga oficial?')) return;
-    const res = await fetch(`/api/load-requests/${id}/convert`, { method: 'POST' });
+  async function confirmConvert() {
+    if (!convertId) return;
+    const res = await fetch(`/api/load-requests/${convertId}/convert`, { method: 'POST' });
     const j = await res.json();
+    setConvertId(null);
     if (!res.ok) { setError(j.error || 'Erro na conversão'); return; }
-    alert(`Carga criada com sucesso: ${j.loadId}`);
+    setNotice({ type: 'success', message: `Carga criada com sucesso: ${j.loadId}` });
     await load();
   }
 
   const totalRequestPages = Math.max(1, Math.ceil(totalRequests / PAGE_SIZE));
 
   return (
-    <div className="space-y-6">
-      <div className="bg-white border rounded-xl p-4 space-y-3">
-        <h2 className="font-semibold">Nova solicitação</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-          <select value={tipo} onChange={(e) => setTipo(e.target.value as 'LOJA_FISICA' | 'FULL_MARKETPLACE')} className="h-10 border rounded px-2"><option value="LOJA_FISICA">Loja física</option><option value="FULL_MARKETPLACE">Full Marketplace</option></select>
-          <select value={empresaId} onChange={(e) => setEmpresaId(e.target.value)} className="h-10 border rounded px-2"><option value="">Empresa</option>{companies.map(c=><option key={c.id} value={c.id}>{c.nome}</option>)}</select>
-          <select value={canalId} onChange={(e) => setCanalId(e.target.value)} className="h-10 border rounded px-2"><option value="">Canal</option>{channels.map(c=><option key={c.id} value={c.id}>{c.nome}</option>)}</select>
-          <select value={marketplaceId} onChange={(e) => setMarketplaceId(e.target.value)} className="h-10 border rounded px-2"><option value="">Marketplace</option>{channels.filter(c=>c.tipo==='Marketplace Full').map(c=><option key={c.id} value={c.id}>{c.nome}</option>)}</select>
-          <select value={destinoFullId} onChange={(e) => setDestinoFullId(e.target.value)} className="h-10 border rounded px-2"><option value="">Destino Full</option>{destinations.map(d=><option key={d.id} value={d.id}>{d.nome}</option>)}</select>
-          <select value={lojaDestinoId} onChange={(e) => setLojaDestinoId(e.target.value)} className="h-10 border rounded px-2"><option value="">Loja destino</option>{stores.map(s=><option key={s.id} value={s.id}>{s.nome}</option>)}</select>
-          <select value={prioridade} onChange={(e) => setPrioridade(e.target.value)} className="h-10 border rounded px-2"><option value="Baixa">Prioridade: Baixa</option><option value="Média">Prioridade: Média</option><option value="Alta">Prioridade: Alta</option><option value="Urgente">Prioridade: Urgente</option></select>
-          <input type="datetime-local" placeholder="Data desejada" className="h-10 border rounded px-2" value={dataDesejada} onChange={(e) => setDataDesejada(e.target.value)} />
-          <input placeholder="Observações" className="h-10 border rounded px-2 md:col-span-1" value={observacoes} onChange={(e) => setObservacoes(e.target.value)} />
-        </div>
-        {items.map((item, idx) => (
-          <div key={idx} className="grid grid-cols-1 md:grid-cols-6 gap-2">
-            <input placeholder="SKU" className="h-10 border rounded px-2" value={item.sku} onChange={(e) => handleSkuChange(idx, e.target.value)} />
-            <input placeholder="Nome" className="h-10 border rounded px-2" value={item.nome_produto} onChange={(e) => updateItem(idx, 'nome_produto', e.target.value)} />
-            <input placeholder="Quantidade" type="number" className="h-10 border rounded px-2" value={item.quantidade} onChange={(e) => updateItem(idx, 'quantidade', Number(e.target.value))} />
-            <select className="h-10 border rounded px-2" value={item.fornecedor_origem_id || ''} onChange={(e) => updateItem(idx, 'fornecedor_origem_id', e.target.value)}><option value="">Fornecedor</option>{suppliers.map(s=><option key={s.id} value={s.id}>{s.nome}</option>)}</select>
-            {canSeeFinancial && <input placeholder="CMV unitário" type="number" className="h-10 border rounded px-2" value={item.cmv_unitario} onChange={(e) => updateItem(idx, 'cmv_unitario', Number(e.target.value))} />}
-            {canSeeFinancial && <div className="h-10 border rounded px-2 flex items-center">CMV total: {item.cmv_total.toFixed(2)}</div>}
-            {canSeeFinancial && Number(item.cmv_unitario) <= 0 && <p className="text-xs text-amber-600 col-span-6">Produto sem CMV cadastrado. Informe manualmente.</p>}
-          </div>
-        ))}
-        <div className="flex gap-2">
-          <button className="px-3 py-2 border rounded" onClick={() => setItems((prev) => [...prev, { sku: '', nome_produto: '', quantidade: 1, cmv_unitario: 0, cmv_total: 0 }])}>+ Item</button>
-          <button className="px-3 py-2 bg-indigo-600 text-white rounded" onClick={createRequest}>Criar solicitação</button>
-        </div>
-        {error && <p className="text-sm text-rose-600">{error}</p>}
+    <div className="space-y-4">
+      <div className="flex justify-end">
+        <Button variant="primary" onClick={() => setShowCreate(true)}>
+          <Plus className="h-4 w-4" />
+          Nova solicitação
+        </Button>
       </div>
 
-      <div className="bg-white border rounded-xl p-4">
-        <div className="flex flex-wrap items-center gap-2 mb-3">
-          <h2 className="font-semibold mr-2">Lista de solicitações</h2>
-          {STATUS_FILTERS.map((filter) => (
-            <button key={filter.label} className={`px-2 py-1 border rounded text-sm ${statusFilter === filter.value ? 'bg-zinc-900 text-white' : ''}`} onClick={() => { setStatusFilter(filter.value); setPage(0); }}>{filter.label}</button>
-          ))}
+      {notice && (
+        <div className={cn('flex items-center gap-2 rounded-lg p-3 text-sm', notice.type === 'success' ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-800')}>
+          {notice.type === 'success' ? <CheckCircle2 className="h-4 w-4 shrink-0" /> : <AlertTriangle className="h-4 w-4 shrink-0" />}
+          {notice.message}
         </div>
-        <table className="w-full text-sm">
-          <thead><tr className="border-b"><th>Código</th><th>Tipo</th><th>Status</th><th>Criada em</th><th>Ações</th></tr></thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.id} className="border-b">
-                <td><Link className="text-indigo-600" href={`/solicitacoes/${r.id}`}>{r.codigo}</Link></td><td>{r.tipo}</td><td>{r.status}</td><td>{new Date(r.created_at).toLocaleString('pt-BR')}</td>
-                <td className="space-x-2">
-                  {canApprove && <button className="text-emerald-700" onClick={() => changeStatus(r.id, 'Aprovada')}>Aprovar</button>}
-                  {canApprove && <button className="text-rose-700" onClick={() => { const m=prompt('Motivo da recusa'); if(m) changeStatus(r.id, 'Recusada', m); }}>Recusar</button>}
-                  {canApprove && <button className="text-amber-700" onClick={() => { const m=prompt('Solicitar ajuste:'); if(m) changeStatus(r.id, 'Ajuste solicitado', m); }}>Solicitar ajuste</button>}
-                  {canApprove && r.status === 'Aprovada' && !r.carga_id && <button className="text-indigo-700" onClick={() => convertToLoad(r.id)}>Transformar em carga</button>}
-                  {r.carga_id && <Link className="text-indigo-700" href={`/cargas/${r.carga_id}`}>Abrir carga</Link>}
-                </td>
-              </tr>
+      )}
+      {error && <p className="text-sm text-rose-600">{error}</p>}
+
+      <Card>
+        <CardBody className="space-y-3">
+          <div className="flex flex-wrap gap-1.5">
+            {STATUS_FILTERS.map((filter) => (
+              <button
+                key={filter.label}
+                className={cn('rounded-full px-3 py-1 text-xs font-medium', statusFilter === filter.value ? 'bg-zinc-900 text-white' : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200')}
+                onClick={() => { setStatusFilter(filter.value); setPage(0); }}
+              >
+                {filter.label}
+              </button>
             ))}
-          </tbody>
-        </table>
-        <div className="flex gap-2 mt-3 text-sm">
-          <button className="px-2 py-1 border rounded disabled:opacity-50" disabled={page === 0} onClick={() => setPage((p) => Math.max(0, p - 1))}>Anterior</button>
-          <span className="py-1">Página {page + 1} de {totalRequestPages} ({totalRequests} solicitações)</span>
-          <button className="px-2 py-1 border rounded disabled:opacity-50" disabled={page + 1 >= totalRequestPages} onClick={() => setPage((p) => p + 1)}>Próxima</button>
+          </div>
+
+          {loadingList ? (
+            <SkeletonRows rows={6} />
+          ) : rows.length === 0 ? (
+            <EmptyState title="Nenhuma solicitação encontrada" description="Ajuste os filtros ou crie uma nova solicitação." />
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-zinc-100 text-left text-xs font-medium text-zinc-500">
+                    <th className="py-2">Código</th>
+                    <th className="py-2">Tipo</th>
+                    <th className="py-2">Status</th>
+                    <th className="py-2">Criada em</th>
+                    <th className="py-2" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((r) => (
+                    <tr key={r.id} className="border-b border-zinc-50 last:border-0">
+                      <td className="py-2"><Link className="font-medium text-brand-600 hover:text-brand-700" href={`/solicitacoes/${r.id}`}>{r.codigo}</Link></td>
+                      <td className="py-2 text-zinc-600">{r.tipo === 'FULL_MARKETPLACE' ? 'Full' : 'Loja'}</td>
+                      <td className="py-2"><Badge tone={requestStatusTone(r.status)} dot>{r.status}</Badge></td>
+                      <td className="py-2 text-zinc-500">{new Date(r.created_at).toLocaleString('pt-BR')}</td>
+                      <td className="space-x-3 py-2 text-right whitespace-nowrap">
+                        {canApprove && r.status !== 'Aprovada' && r.status !== 'Recusada' && r.status !== 'Transformada em carga' && (
+                          <>
+                            <button className="font-medium text-emerald-700 hover:text-emerald-800" onClick={() => changeStatus(r.id, 'Aprovada')}>Aprovar</button>
+                            <button className="font-medium text-rose-700 hover:text-rose-800" onClick={() => setReasonAction({ id: r.id, kind: 'Recusada' })}>Recusar</button>
+                            <button className="font-medium text-amber-700 hover:text-amber-800" onClick={() => setReasonAction({ id: r.id, kind: 'Ajuste solicitado' })}>Ajuste</button>
+                          </>
+                        )}
+                        {canApprove && r.status === 'Aprovada' && !r.carga_id && <button className="font-medium text-brand-600 hover:text-brand-700" onClick={() => setConvertId(r.id)}>Transformar em carga</button>}
+                        {r.carga_id && <Link className="font-medium text-brand-600 hover:text-brand-700" href={`/cargas/${r.carga_id}`}>Abrir carga</Link>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <div className="flex items-center justify-between border-t border-zinc-100 pt-3 text-sm">
+            <Button variant="secondary" size="sm" disabled={page === 0} onClick={() => setPage((p) => Math.max(0, p - 1))}>Anterior</Button>
+            <span className="text-zinc-500">Página {page + 1} de {totalRequestPages} ({totalRequests} solicitações)</span>
+            <Button variant="secondary" size="sm" disabled={page + 1 >= totalRequestPages} onClick={() => setPage((p) => p + 1)}>Próxima</Button>
+          </div>
+        </CardBody>
+      </Card>
+
+      <Dialog
+        open={showCreate}
+        onClose={() => setShowCreate(false)}
+        title="Nova solicitação"
+        size="lg"
+        footer={<Button variant="primary" onClick={createRequest}>Criar solicitação</Button>}
+      >
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+            <FieldGroup label="Tipo">
+              <Select value={tipo} onChange={(e) => setTipo(e.target.value as 'LOJA_FISICA' | 'FULL_MARKETPLACE')}>
+                <option value="LOJA_FISICA">Loja física</option>
+                <option value="FULL_MARKETPLACE">Full Marketplace</option>
+              </Select>
+            </FieldGroup>
+            <FieldGroup label="Empresa">
+              <Select value={empresaId} onChange={(e) => setEmpresaId(e.target.value)}>
+                <option value="">Selecionar</option>
+                {companies.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+              </Select>
+            </FieldGroup>
+            <FieldGroup label="Canal">
+              <Select value={canalId} onChange={(e) => setCanalId(e.target.value)}>
+                <option value="">Selecionar</option>
+                {channels.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+              </Select>
+            </FieldGroup>
+            {tipo === 'LOJA_FISICA' ? (
+              <FieldGroup label="Loja destino">
+                <Select value={lojaDestinoId} onChange={(e) => setLojaDestinoId(e.target.value)}>
+                  <option value="">Selecionar</option>
+                  {stores.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}
+                </Select>
+              </FieldGroup>
+            ) : (
+              <>
+                <FieldGroup label="Marketplace">
+                  <Select value={marketplaceId} onChange={(e) => setMarketplaceId(e.target.value)}>
+                    <option value="">Selecionar</option>
+                    {channels.filter((c) => c.tipo === 'Marketplace Full').map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                  </Select>
+                </FieldGroup>
+                <FieldGroup label="Destino Full">
+                  <Select value={destinoFullId} onChange={(e) => setDestinoFullId(e.target.value)}>
+                    <option value="">Selecionar</option>
+                    {destinations.map((d) => <option key={d.id} value={d.id}>{d.nome}</option>)}
+                  </Select>
+                </FieldGroup>
+              </>
+            )}
+            <FieldGroup label="Prioridade">
+              <Select value={prioridade} onChange={(e) => setPrioridade(e.target.value)}>
+                <option value="Baixa">Baixa</option>
+                <option value="Média">Média</option>
+                <option value="Alta">Alta</option>
+                <option value="Urgente">Urgente</option>
+              </Select>
+            </FieldGroup>
+            <FieldGroup label="Data desejada">
+              <Input type="datetime-local" value={dataDesejada} onChange={(e) => setDataDesejada(e.target.value)} />
+            </FieldGroup>
+            <FieldGroup label="Observações" className="md:col-span-3">
+              <Textarea value={observacoes} onChange={(e) => setObservacoes(e.target.value)} />
+            </FieldGroup>
+          </div>
+
+          <div className="border-t border-zinc-100 pt-4">
+            <h3 className="mb-2 text-sm font-semibold text-zinc-700">Itens</h3>
+            <div className="space-y-3">
+              {items.map((item, idx) => (
+                <div key={idx} className="grid grid-cols-1 gap-2 md:grid-cols-6">
+                  <FieldGroup label="SKU"><Input value={item.sku} onChange={(e) => handleSkuChange(idx, e.target.value)} /></FieldGroup>
+                  <FieldGroup label="Nome" className="md:col-span-2"><Input value={item.nome_produto} onChange={(e) => updateItem(idx, 'nome_produto', e.target.value)} /></FieldGroup>
+                  <FieldGroup label="Quantidade"><Input type="number" value={item.quantidade} onChange={(e) => updateItem(idx, 'quantidade', Number(e.target.value))} /></FieldGroup>
+                  <FieldGroup label="Fornecedor">
+                    <Select value={item.fornecedor_origem_id || ''} onChange={(e) => updateItem(idx, 'fornecedor_origem_id', e.target.value)}>
+                      <option value="">Selecionar</option>
+                      {suppliers.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}
+                    </Select>
+                  </FieldGroup>
+                  {canSeeFinancial && <FieldGroup label="CMV unitário"><Input type="number" value={item.cmv_unitario} onChange={(e) => updateItem(idx, 'cmv_unitario', Number(e.target.value))} /></FieldGroup>}
+                  {canSeeFinancial && Number(item.cmv_unitario) <= 0 && <p className="col-span-6 flex items-center gap-1 text-xs text-amber-600"><AlertTriangle className="h-3.5 w-3.5" />Produto sem CMV cadastrado. Informe manualmente.</p>}
+                </div>
+              ))}
+            </div>
+            <Button variant="secondary" size="sm" className="mt-2" onClick={() => setItems((prev) => [...prev, EMPTY_ITEM])}>+ Item</Button>
+          </div>
+
+          {error && <p className="text-sm text-rose-600">{error}</p>}
         </div>
-      </div>
+      </Dialog>
+
+      <Dialog
+        open={!!reasonAction}
+        onClose={() => setReasonAction(null)}
+        title={reasonAction?.kind === 'Recusada' ? 'Recusar solicitação' : 'Solicitar ajuste'}
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setReasonAction(null)}>Cancelar</Button>
+            <Button variant={reasonAction?.kind === 'Recusada' ? 'danger' : 'primary'} disabled={!reasonText.trim()} onClick={confirmReason}>Confirmar</Button>
+          </>
+        }
+      >
+        <FieldGroup label="Motivo">
+          <Textarea value={reasonText} onChange={(e) => setReasonText(e.target.value)} placeholder="Explique o motivo para quem solicitou..." />
+        </FieldGroup>
+      </Dialog>
+
+      <Dialog
+        open={!!convertId}
+        onClose={() => setConvertId(null)}
+        title="Transformar em carga"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setConvertId(null)}>Cancelar</Button>
+            <Button variant="primary" onClick={confirmConvert}>Confirmar</Button>
+          </>
+        }
+      >
+        <p className="text-sm text-zinc-600">Essa solicitação vai virar uma carga oficial, com os mesmos itens. Deseja continuar?</p>
+      </Dialog>
     </div>
   );
 }

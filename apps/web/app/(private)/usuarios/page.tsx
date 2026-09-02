@@ -19,8 +19,10 @@ export default async function UsuariosPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-bold">Usuários</h1>
-      <p className="text-zinc-600">Administração mínima de perfis, acesso e vínculos operacionais.</p>
+      <div>
+        <h1 className="text-2xl font-bold text-zinc-900">Usuários</h1>
+        <p className="text-sm text-zinc-500">Administração de perfis, acesso e vínculos operacionais.</p>
+      </div>
       <UsersManager profiles={(profiles ?? []) as UserProfile[]} stores={stores ?? []} companies={companies ?? []} />
     </div>
   );

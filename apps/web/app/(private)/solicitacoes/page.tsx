@@ -18,8 +18,10 @@ export default async function SolicitacoesPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-bold">Solicitações de Carga</h1>
-      <p className="text-zinc-600">Criação e fluxo de aprovação inicial da operação.</p>
+      <div>
+        <h1 className="text-2xl font-bold text-zinc-900">Solicitações de carga</h1>
+        <p className="text-sm text-zinc-500">Criação e fluxo de aprovação inicial da operação.</p>
+      </div>
       <SolicitacoesManager profile={profile} />
     </div>
   );

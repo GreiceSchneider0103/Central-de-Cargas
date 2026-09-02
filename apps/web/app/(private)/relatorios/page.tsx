@@ -1,7 +1,12 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import { Download, Package2, AlertTriangle, CheckCircle2, DollarSign } from 'lucide-react';
 import { createClient } from '@/lib/supabase/server';
 import type { UserProfile } from '@/lib/auth/roles';
+import { Card, CardBody, CardHeader } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
+import { Select } from '@/components/ui/Field';
+import { StatCard } from '@/components/ui/StatCard';
 
 type LoadRow = {
   id: string;
@@ -37,6 +42,10 @@ function monthKey(d: Date) {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
   return `${y}-${m}`;
+}
+
+function money(value: number) {
+  return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
 export default async function ReportsPage({
@@ -153,64 +162,58 @@ export default async function ReportsPage({
     <div className="space-y-6">
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Relatórios</h1>
-          <p className="text-zinc-600">Agregações simples para homologação (escopo respeita permissões).</p>
+          <h1 className="text-2xl font-bold text-zinc-900">Relatórios</h1>
+          <p className="text-sm text-zinc-500">Agregações por período (o escopo respeita as permissões do seu perfil).</p>
         </div>
 
-        <div className="flex flex-wrap gap-2 items-center">
-          <form className="flex gap-2 items-center" action="/relatorios" method="get">
-            <label className="text-sm text-zinc-600">Mês</label>
-            <select name="month" defaultValue={monthKey(from)} className="h-9 border rounded px-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <form className="flex items-center gap-2" action="/relatorios" method="get">
+            <Select name="month" defaultValue={monthKey(from)} className="w-36">
               {monthOptions.map((m) => (
-                <option key={m} value={m}>
-                  {m}
-                </option>
+                <option key={m} value={m}>{m}</option>
               ))}
-            </select>
-            <button className="h-9 px-3 border rounded">Aplicar</button>
+            </Select>
+            <Button type="submit" variant="secondary">Aplicar</Button>
           </form>
 
-          <Link className="h-9 px-3 rounded bg-indigo-600 text-white flex items-center" href={exportHref}>
-            Exportar CSV
+          <Link href={exportHref}>
+            <Button variant="primary">
+              <Download className="h-4 w-4" />
+              Exportar CSV
+            </Button>
           </Link>
         </div>
       </div>
 
       {limited && (
-        <div className="border rounded bg-amber-50 text-amber-900 p-3 text-sm">
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
           Resultado limitado a 2000 cargas neste mês. Ajuste o período se necessário.
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-        <div className="bg-white border rounded p-4">
-          <div className="text-sm text-zinc-500">Cargas no mês</div>
-          <div className="text-2xl font-bold">{loads.length}</div>
-        </div>
-        <div className="bg-white border rounded p-4">
-          <div className="text-sm text-zinc-500">Cargas atrasadas</div>
-          <div className="text-2xl font-bold">{overdue}</div>
-        </div>
-        <div className="bg-white border rounded p-4">
-          <div className="text-sm text-zinc-500">Cargas finalizadas</div>
-          <div className="text-2xl font-bold">{finalized}</div>
-        </div>
-        <div className="bg-white border rounded p-4">
-          <div className="text-sm text-zinc-500">Financeiro (mês)</div>
-          {financialAllowed ? (
-            <div className="text-xs text-zinc-700 space-y-1 mt-1">
-              <div>Faturamento: {sumRevenue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</div>
-              <div>CMV: {sumCmv.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</div>
-              <div>Frete: {sumFreight.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</div>
-              <div>Margem: {sumMargin.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</div>
-            </div>
-          ) : (
-            <div className="text-sm text-zinc-400 mt-1">Restrito por perfil</div>
-          )}
-        </div>
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+        <StatCard label="Cargas no mês" value={loads.length} icon={Package2} tone="brand" />
+        <StatCard label="Cargas atrasadas" value={overdue} icon={AlertTriangle} tone="danger" />
+        <StatCard label="Cargas finalizadas" value={finalized} icon={CheckCircle2} tone="success" />
+        {financialAllowed ? (
+          <StatCard label="Margem do mês" value={money(sumMargin)} icon={DollarSign} tone={sumMargin >= 0 ? 'success' : 'danger'} hint={`Faturamento ${money(sumRevenue)}`} />
+        ) : (
+          <StatCard label="Financeiro" value="Restrito" icon={DollarSign} tone="neutral" />
+        )}
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+      {financialAllowed && (
+        <Card>
+          <CardBody className="grid grid-cols-2 gap-4 text-sm md:grid-cols-4">
+            <div><div className="text-xs text-zinc-500">Faturamento</div><div className="font-semibold">{money(sumRevenue)}</div></div>
+            <div><div className="text-xs text-zinc-500">CMV</div><div className="font-semibold">{money(sumCmv)}</div></div>
+            <div><div className="text-xs text-zinc-500">Frete</div><div className="font-semibold">{money(sumFreight)}</div></div>
+            <div><div className="text-xs text-zinc-500">Margem</div><div className={`font-semibold ${sumMargin >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>{money(sumMargin)}</div></div>
+          </CardBody>
+        </Card>
+      )}
+
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         <ReportTable title="Cargas por status" rows={rowsStatus} />
         <ReportTable title="Cargas por empresa" rows={rowsCompany} />
         <ReportTable title="Cargas por marketplace" rows={rowsMarketplace} />
@@ -229,34 +232,34 @@ function ReportTable({
   rows: { id: string; name: string; count: number }[];
 }) {
   return (
-    <div className="bg-white border rounded p-4">
-      <h2 className="font-semibold mb-3">{title}</h2>
-      <div className="overflow-x-auto">
-        <table className="min-w-[360px] w-full text-sm">
-          <thead>
-            <tr className="text-left border-b">
-              <th className="py-2">Nome</th>
-              <th className="py-2 text-right">Qtd.</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.slice(0, 50).map((r) => (
-              <tr key={r.id} className="border-b">
-                <td className="py-2">{r.name}</td>
-                <td className="py-2 text-right">{r.count}</td>
+    <Card>
+      <CardHeader title={title} />
+      <CardBody className="p-0">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[360px] text-sm">
+            <thead>
+              <tr className="border-b border-zinc-100 text-left text-xs font-medium text-zinc-500">
+                <th className="px-4 py-2">Nome</th>
+                <th className="px-4 py-2 text-right">Qtd.</th>
               </tr>
-            ))}
-            {rows.length === 0 && (
-              <tr>
-                <td className="py-3 text-zinc-500" colSpan={2}>
-                  Sem dados no período.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-      {rows.length > 50 && <p className="text-xs text-zinc-500 mt-2">Mostrando top 50.</p>}
-    </div>
+            </thead>
+            <tbody>
+              {rows.slice(0, 50).map((r) => (
+                <tr key={r.id} className="border-b border-zinc-50 last:border-0">
+                  <td className="px-4 py-2">{r.name}</td>
+                  <td className="px-4 py-2 text-right font-medium">{r.count}</td>
+                </tr>
+              ))}
+              {rows.length === 0 && (
+                <tr>
+                  <td className="px-4 py-4 text-center text-zinc-400" colSpan={2}>Sem dados no período.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        {rows.length > 50 && <p className="px-4 py-2 text-xs text-zinc-500">Mostrando top 50.</p>}
+      </CardBody>
+    </Card>
   );
 }
