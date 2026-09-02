@@ -6,6 +6,7 @@ import { Card, CardBody } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input, Select, FieldGroup } from '@/components/ui/Field';
 import { Badge } from '@/components/ui/Badge';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { useToast } from '@/components/ui/Toast';
 import { translateError } from '@/lib/ui/error-messages';
 
@@ -161,33 +162,37 @@ export function UsersManager({ profiles, stores, companies }: Props) {
 
       <Card>
         <CardBody className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-zinc-100 text-left text-xs font-medium text-zinc-500">
-                  <th className="px-4 py-2.5">Nome</th>
-                  <th className="px-4 py-2.5">E-mail</th>
-                  <th className="px-4 py-2.5">Perfil</th>
-                  <th className="px-4 py-2.5">Status</th>
-                  <th className="px-4 py-2.5" />
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((profile) => (
-                  <tr key={profile.id} className="border-b border-zinc-50 last:border-0">
-                    <td className="px-4 py-2.5 font-medium text-zinc-800">{profile.nome ?? '-'}</td>
-                    <td className="px-4 py-2.5 text-zinc-600">{profile.email ?? '-'}</td>
-                    <td className="px-4 py-2.5 text-zinc-600">{profile.perfil}</td>
-                    <td className="px-4 py-2.5"><Badge tone={profile.ativo ? 'success' : 'neutral'} dot>{profile.ativo ? 'Ativo' : 'Inativo'}</Badge></td>
-                    <td className="space-x-3 px-4 py-2.5 text-right">
-                      <button className="font-medium text-brand-600 hover:text-brand-700" onClick={() => edit(profile)}>Editar</button>
-                      <button className="font-medium text-amber-700 hover:text-amber-800" onClick={() => toggle(profile)}>{profile.ativo ? 'Inativar' : 'Ativar'}</button>
-                    </td>
+          {rows.length === 0 ? (
+            <EmptyState title="Nenhum usuário cadastrado ainda" description="Use o formulário acima para criar o primeiro perfil." />
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-zinc-100 text-left text-xs font-medium text-zinc-500">
+                    <th className="px-4 py-2.5">Nome</th>
+                    <th className="px-4 py-2.5">E-mail</th>
+                    <th className="px-4 py-2.5">Perfil</th>
+                    <th className="px-4 py-2.5">Status</th>
+                    <th className="px-4 py-2.5" />
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {rows.map((profile) => (
+                    <tr key={profile.id} className="border-b border-zinc-50 last:border-0">
+                      <td className="px-4 py-2.5 font-medium text-zinc-800">{profile.nome ?? '-'}</td>
+                      <td className="px-4 py-2.5 text-zinc-600">{profile.email ?? '-'}</td>
+                      <td className="px-4 py-2.5 text-zinc-600">{profile.perfil}</td>
+                      <td className="px-4 py-2.5"><Badge tone={profile.ativo ? 'success' : 'neutral'} dot>{profile.ativo ? 'Ativo' : 'Inativo'}</Badge></td>
+                      <td className="space-x-3 px-4 py-2.5 text-right">
+                        <button className="font-medium text-brand-600 hover:text-brand-700" onClick={() => edit(profile)}>Editar</button>
+                        <button className="font-medium text-amber-700 hover:text-amber-800" onClick={() => toggle(profile)}>{profile.ativo ? 'Inativar' : 'Ativar'}</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </CardBody>
       </Card>
     </div>

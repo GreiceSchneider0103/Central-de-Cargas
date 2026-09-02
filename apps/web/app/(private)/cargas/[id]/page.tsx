@@ -147,7 +147,7 @@ export default async function CargaDetailPage({ params }: { params: Promise<{ id
                 ))}
                 {typedItems.length === 0 && (
                   <tr>
-                    <td colSpan={canSeeFinancial ? 9 : 7} className="px-4 py-4 text-center text-zinc-400">Sem itens.</td>
+                    <td colSpan={canSeeFinancial ? 9 : 7} className="px-4 py-4 text-center text-zinc-400">Nenhum item ainda.</td>
                   </tr>
                 )}
               </tbody>
