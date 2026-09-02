@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
   Package2,
@@ -22,29 +22,32 @@ import { StatCard } from '@/components/ui/StatCard';
 import { Select } from '@/components/ui/Field';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { money } from '@/lib/ui/format';
+import { createClient } from '@/lib/supabase/client';
 
 type Load = Record<string, string | number | null | undefined>;
+
+type DashboardMetrics = {
+  loads_day?: number | null;
+  loads_week?: number | null;
+  loads_month?: number | null;
+  loads_pending?: number | null;
+  loads_overdue?: number | null;
+  loads_wait_supplier?: number | null;
+  loads_wait_receipt?: number | null;
+  loads_wait_label?: number | null;
+  loads_wait_nf?: number | null;
+  loads_ready_pickup?: number | null;
+  fin_revenue_month?: number | null;
+  fin_cmv_month?: number | null;
+  fin_freight_month?: number | null;
+  fin_margin_month?: number | null;
+};
 
 type Props = {
   profile: UserProfile;
   loads: Load[];
   pendingRequests: number;
-  metrics?: null | {
-    loads_day?: number | null;
-    loads_week?: number | null;
-    loads_month?: number | null;
-    loads_pending?: number | null;
-    loads_overdue?: number | null;
-    loads_wait_supplier?: number | null;
-    loads_wait_receipt?: number | null;
-    loads_wait_label?: number | null;
-    loads_wait_nf?: number | null;
-    loads_ready_pickup?: number | null;
-    fin_revenue_month?: number | null;
-    fin_cmv_month?: number | null;
-    fin_freight_month?: number | null;
-    fin_margin_month?: number | null;
-  };
+  metrics?: null | DashboardMetrics;
 };
 
 function countBy(loads: Load[], pred: (l: Load) => boolean) {
@@ -54,8 +57,29 @@ function countBy(loads: Load[], pred: (l: Load) => boolean) {
 export function DashboardView({ profile, loads, pendingRequests, metrics = null }: Props) {
   const [statusFilter, setStatusFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
+  const [liveMetrics, setLiveMetrics] = useState<DashboardMetrics | null>(metrics);
+  const isFirstFilterRun = useRef(true);
 
   const canSeeFinancial = ['admin', 'gerente_estoque', 'financeiro', 'gerente_ecommerce'].includes(profile.perfil);
+
+  useEffect(() => {
+    if (isFirstFilterRun.current) {
+      isFirstFilterRun.current = false;
+      return;
+    }
+    let cancelled = false;
+    const supabase = createClient();
+    supabase
+      .rpc('get_dashboard_metrics', { p_now: new Date().toISOString(), p_tipo: typeFilter || null, p_status: statusFilter || null })
+      .then(({ data }) => {
+        if (cancelled) return;
+        const row = Array.isArray(data) ? data[0] : data;
+        setLiveMetrics((row ?? null) as DashboardMetrics | null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [typeFilter, statusFilter]);
 
   const filtered = useMemo(
     () =>
@@ -73,22 +97,22 @@ export function DashboardView({ profile, loads, pendingRequests, metrics = null 
   );
 
   const cards = useMemo(() => {
-    if (metrics) {
+    if (liveMetrics) {
       return {
-        d: Number(metrics.loads_day ?? 0),
-        w: Number(metrics.loads_week ?? 0),
-        m: Number(metrics.loads_month ?? 0),
-        pend: Number(metrics.loads_pending ?? 0),
-        atras: Number(metrics.loads_overdue ?? 0),
-        aguForn: Number(metrics.loads_wait_supplier ?? 0),
-        aguRec: Number(metrics.loads_wait_receipt ?? 0),
-        aguEtiq: Number(metrics.loads_wait_label ?? 0),
-        aguNF: Number(metrics.loads_wait_nf ?? 0),
-        prontaCol: Number(metrics.loads_ready_pickup ?? 0),
-        fat: Number(metrics.fin_revenue_month ?? 0),
-        cmv: Number(metrics.fin_cmv_month ?? 0),
-        frete: Number(metrics.fin_freight_month ?? 0),
-        margem: Number(metrics.fin_margin_month ?? 0),
+        d: Number(liveMetrics.loads_day ?? 0),
+        w: Number(liveMetrics.loads_week ?? 0),
+        m: Number(liveMetrics.loads_month ?? 0),
+        pend: Number(liveMetrics.loads_pending ?? 0),
+        atras: Number(liveMetrics.loads_overdue ?? 0),
+        aguForn: Number(liveMetrics.loads_wait_supplier ?? 0),
+        aguRec: Number(liveMetrics.loads_wait_receipt ?? 0),
+        aguEtiq: Number(liveMetrics.loads_wait_label ?? 0),
+        aguNF: Number(liveMetrics.loads_wait_nf ?? 0),
+        prontaCol: Number(liveMetrics.loads_ready_pickup ?? 0),
+        fat: Number(liveMetrics.fin_revenue_month ?? 0),
+        cmv: Number(liveMetrics.fin_cmv_month ?? 0),
+        frete: Number(liveMetrics.fin_freight_month ?? 0),
+        margem: Number(liveMetrics.fin_margin_month ?? 0),
       };
     }
 
@@ -114,7 +138,7 @@ export function DashboardView({ profile, loads, pendingRequests, metrics = null 
     const margem = filtered.reduce((s, l) => s + Number(l.margem_estimativa_valor ?? 0), 0);
 
     return { d, w, m, pend, atras, aguForn, aguRec, aguEtiq, aguNF, prontaCol, fat, cmv, frete, margem };
-  }, [filtered, metrics]);
+  }, [filtered, liveMetrics]);
 
   const alerts = useMemo(() => {
     const list: { label: string; count: number }[] = [

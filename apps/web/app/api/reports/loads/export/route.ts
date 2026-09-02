@@ -32,24 +32,40 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'RANGE_TOO_LARGE' }, { status: 422 });
     }
 
-    const { data, error } = await supabase.rpc('get_visible_loads_enriched_range', {
-      p_from: from.toISOString(),
-      p_to: to.toISOString(),
-      p_limit: 2000,
-    });
+    const [{ data, error }, companiesRes, channelsRes, storesRes] = await Promise.all([
+      supabase.rpc('get_visible_loads_enriched_range', {
+        p_from: from.toISOString(),
+        p_to: to.toISOString(),
+        p_limit: 2000,
+      }),
+      supabase.from('companies').select('id,nome'),
+      supabase.from('channels').select('id,nome'),
+      supabase.from('stores').select('id,nome'),
+    ]);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
     const financialAllowed = canViewFinancial(profile.perfil);
     const rows = Array.isArray(data) ? (data as Record<string, unknown>[]) : [];
+
+    const companyById = new Map(((companiesRes.data ?? []) as { id: string; nome: string }[]).map((r) => [r.id, r.nome] as const));
+    const channelById = new Map(((channelsRes.data ?? []) as { id: string; nome: string }[]).map((r) => [r.id, r.nome] as const));
+    const storeById = new Map(((storesRes.data ?? []) as { id: string; nome: string }[]).map((r) => [r.id, r.nome] as const));
+
+    const resolvedRows: Record<string, unknown>[] = rows.map((r) => ({
+      ...r,
+      empresa: r.empresa_id ? (companyById.get(String(r.empresa_id)) ?? r.empresa_id) : '',
+      marketplace: r.marketplace_id ? (channelById.get(String(r.marketplace_id)) ?? r.marketplace_id) : '',
+      loja_destino: r.loja_destino_id ? (storeById.get(String(r.loja_destino_id)) ?? r.loja_destino_id) : '',
+    }));
 
     const headers = [
       'codigo_interno',
       'tipo',
       'status',
       'data_agendada',
-      'empresa_id',
-      'marketplace_id',
-      'loja_destino_id',
+      'empresa',
+      'marketplace',
+      'loja_destino',
       'numero_carga_marketplace',
       'codigo_agendamento',
       'fornecedores',
@@ -69,7 +85,7 @@ export async function GET(req: NextRequest) {
 
     const lines: string[] = [];
     lines.push(finalHeaders.join(','));
-    for (const r of rows) {
+    for (const r of resolvedRows) {
       lines.push(
         finalHeaders
           .map((h) => csvEscape(r[h]))

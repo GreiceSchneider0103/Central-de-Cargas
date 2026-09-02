@@ -57,6 +57,7 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
   const [prioridade, setPrioridade] = useState('Média');
   const [dataDesejada, setDataDesejada] = useState('');
   const [observacoes, setObservacoes] = useState('');
+  const [faturamentoEstimado, setFaturamentoEstimado] = useState('');
   const toast = useToast();
   const [statusFilter, setStatusFilter] = useState('');
   const [page, setPage] = useState(0);
@@ -126,7 +127,7 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
     const { data: me } = await supabase.from('users_profile').select('id').eq('auth_user_id', authUser?.id ?? '').single();
     if (!me) return toast.error('Perfil do usuário não encontrado.');
     const code = `REQ-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
-    const { data: req, error } = await supabase.from('load_requests').insert({ codigo: code, tipo, empresa_id: empresaId || null, canal_id: canalId || null, marketplace_id: marketplaceId || null, destino_full_id: destinoFullId || null, loja_destino_id: lojaDestinoId || null, prioridade, data_desejada: dataDesejada || null, status: 'Pendente', solicitante_id: me.id, observacoes: observacoes || null }).select('id').single();
+    const { data: req, error } = await supabase.from('load_requests').insert({ codigo: code, tipo, empresa_id: empresaId || null, canal_id: canalId || null, marketplace_id: marketplaceId || null, destino_full_id: destinoFullId || null, loja_destino_id: lojaDestinoId || null, prioridade, data_desejada: dataDesejada || null, status: 'Pendente', solicitante_id: me.id, observacoes: observacoes || null, faturamento_estimado: canSeeFinancial && faturamentoEstimado ? Number(faturamentoEstimado) : null }).select('id').single();
     if (error) return toast.error(error.message);
 
     const { error: itemErr } = await supabase.from('load_request_items').insert(items.map((i) => ({ ...i, request_id: req.id })));
@@ -137,6 +138,7 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
     setPrioridade('Média');
     setDataDesejada('');
     setObservacoes('');
+    setFaturamentoEstimado('');
     setShowCreate(false);
     toast.success('Solicitação criada com sucesso.');
     await load();
@@ -303,6 +305,11 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
             <FieldGroup label="Data desejada">
               <Input type="datetime-local" value={dataDesejada} onChange={(e) => setDataDesejada(e.target.value)} />
             </FieldGroup>
+            {canSeeFinancial && (
+              <FieldGroup label="Faturamento estimado">
+                <Input type="number" value={faturamentoEstimado} onChange={(e) => setFaturamentoEstimado(e.target.value)} />
+              </FieldGroup>
+            )}
             <FieldGroup label="Observações" className="md:col-span-3">
               <Textarea value={observacoes} onChange={(e) => setObservacoes(e.target.value)} />
             </FieldGroup>
