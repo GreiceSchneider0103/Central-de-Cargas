@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireProfile } from '@/lib/server/authz';
 import { USER_PROFILES } from '@/lib/auth/roles';
+import { createAdminClient } from '@/lib/supabase/admin';
 
 function isAdmin(profile: { perfil: string }) {
   return profile.perfil === 'admin';
@@ -34,11 +35,37 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const payload = buildPayload(body);
-    if (!payload.auth_user_id) return NextResponse.json({ error: 'AUTH_USER_REQUIRED' }, { status: 422 });
+    const manualLink = Boolean(body.manual_link);
 
-    const { error } = await supabase.from('users_profile').insert(payload);
+    let authUserId = payload.auth_user_id;
+
+    if (manualLink) {
+      if (!authUserId) return NextResponse.json({ error: 'AUTH_USER_UUID_REQUIRED' }, { status: 422 });
+    } else {
+      if (!payload.email) return NextResponse.json({ error: 'EMAIL_REQUIRED' }, { status: 422 });
+
+      const admin = createAdminClient();
+      const redirectTo = `${new URL(request.url).origin}/auth/callback?next=/auth/atualizar-senha`;
+      const { data: invited, error: inviteError } = await admin.auth.admin.inviteUserByEmail(payload.email, { redirectTo });
+
+      if (inviteError || !invited.user) {
+        const alreadyRegistered = /already.*regist/i.test(inviteError?.message ?? '');
+        return NextResponse.json(
+          { error: alreadyRegistered ? 'EMAIL_ALREADY_REGISTERED' : 'USER_INVITE_FAILED' },
+          { status: alreadyRegistered ? 409 : 500 },
+        );
+      }
+
+      authUserId = invited.user.id;
+    }
+
+    const { data: inserted, error } = await supabase
+      .from('users_profile')
+      .insert({ ...payload, auth_user_id: authUserId })
+      .select()
+      .single();
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, profile: inserted });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Erro inesperado';
     return NextResponse.json({ error: message }, { status: message === 'INVALID_PROFILE' ? 422 : 500 });

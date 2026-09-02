@@ -14,6 +14,7 @@ const HOUR_HEIGHT = 56;
 export function DayView({
   day,
   loads,
+  conflictByLoadId,
   destinoDisplay,
   canEditDate,
   onOpenLoad,
@@ -21,6 +22,7 @@ export function DayView({
 }: {
   day: Date;
   loads: AgendaLoad[];
+  conflictByLoadId: Map<string, boolean>;
   destinoDisplay: (load: AgendaLoad) => string;
   canEditDate: boolean;
   onOpenLoad: (load: AgendaLoad) => void;
@@ -92,7 +94,9 @@ export function DayView({
                     setDragLoadId(null);
                   }}
                 >
-                  {events.map((load) => (
+                  {events.map((load) => {
+                    const hasConflict = conflictByLoadId.get(load.id);
+                    return (
                     <button
                       key={load.id}
                       type="button"
@@ -113,14 +117,20 @@ export function DayView({
                       <span className="font-semibold">{load.codigo_interno}</span>
                       <span className="truncate text-zinc-600">{destinoDisplay(load)}</span>
                       <Badge tone={loadStatusTone(load.status)} className="ml-auto shrink-0">{load.status}</Badge>
-                      {(load.alerts?.length ?? 0) > 0 && (
+                      {hasConflict ? (
+                        <span className="flex shrink-0 items-center gap-1 text-amber-700">
+                          <AlertTriangle className="h-3 w-3" />
+                          Conflito de agendamento
+                        </span>
+                      ) : (load.alerts?.length ?? 0) > 0 && (
                         <span className="flex shrink-0 items-center gap-1 text-amber-700">
                           <AlertTriangle className="h-3 w-3" />
                           {alertLabel(load.alerts![0].alert_type)}
                         </span>
                       )}
                     </button>
-                  ))}
+                    );
+                  })}
                 </div>
               );
             })}

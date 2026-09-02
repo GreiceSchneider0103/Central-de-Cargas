@@ -41,6 +41,7 @@ const emptyForm: FormState = {
 export function UsersManager({ profiles, stores, companies }: Props) {
   const [rows, setRows] = useState(profiles);
   const [form, setForm] = useState<FormState>(emptyForm);
+  const [manualLink, setManualLink] = useState(false);
   const [saving, setSaving] = useState(false);
   const toast = useToast();
 
@@ -55,6 +56,12 @@ export function UsersManager({ profiles, stores, companies }: Props) {
       empresa_id: profile.empresa_id ?? '',
       ativo: profile.ativo,
     });
+    setManualLink(false);
+  }
+
+  function clearForm() {
+    setForm(emptyForm);
+    setManualLink(false);
   }
 
   async function save(event: React.FormEvent) {
@@ -63,7 +70,7 @@ export function UsersManager({ profiles, stores, companies }: Props) {
     const response = await fetch('/api/users-profile', {
       method: form.id ? 'PATCH' : 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form),
+      body: JSON.stringify({ ...form, manual_link: manualLink }),
     });
     const data = await response.json();
     setSaving(false);
@@ -71,11 +78,14 @@ export function UsersManager({ profiles, stores, companies }: Props) {
       toast.error(translateError(data.error, 'Erro ao salvar perfil.'));
       return;
     }
-    toast.success('Perfil salvo. Recarregue a página para atualizar a lista.');
     if (form.id) {
+      toast.success('Perfil atualizado.');
       setRows((current) => current.map((row) => row.id === form.id ? { ...row, ...form, perfil: form.perfil as UserProfile['perfil'], loja_id: form.loja_id || null, empresa_id: form.empresa_id || null } : row));
+    } else {
+      toast.success(manualLink ? 'Perfil vinculado com sucesso.' : 'Convite enviado por e-mail. O usuário define a senha pelo link recebido.');
+      if (data.profile) setRows((current) => [...current, data.profile as UserProfile]);
     }
-    setForm(emptyForm);
+    clearForm();
   }
 
   async function toggle(profile: UserProfile) {
@@ -99,15 +109,28 @@ export function UsersManager({ profiles, stores, companies }: Props) {
         <CardBody>
           <h2 className="mb-3 font-semibold text-zinc-900">{form.id ? 'Editar perfil' : 'Novo perfil'}</h2>
           <form onSubmit={save} className="grid grid-cols-1 gap-3 md:grid-cols-3">
-            <FieldGroup label="Auth user UUID">
-              <Input placeholder="uuid do usuário no Supabase Auth" value={form.auth_user_id} disabled={Boolean(form.id)} onChange={(e) => setForm({ ...form, auth_user_id: e.target.value })} required />
-            </FieldGroup>
+            {!form.id && (
+              <p className="md:col-span-3 text-sm text-zinc-500">
+                Ao criar, o sistema envia um convite por e-mail para o usuário definir a senha — não é preciso saber o UUID dele no Auth.
+              </p>
+            )}
             <FieldGroup label="Nome">
               <Input value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} />
             </FieldGroup>
             <FieldGroup label="E-mail">
-              <Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+              <Input type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
             </FieldGroup>
+            {!form.id && (
+              <label className="flex items-center gap-2 text-sm text-zinc-600">
+                <input type="checkbox" checked={manualLink} onChange={(e) => setManualLink(e.target.checked)} />
+                Já existe no Auth — vincular pelo UUID (avançado)
+              </label>
+            )}
+            {(form.id || manualLink) && (
+              <FieldGroup label="Auth user UUID">
+                <Input placeholder="uuid do usuário no Supabase Auth" value={form.auth_user_id} disabled={Boolean(form.id)} onChange={(e) => setForm({ ...form, auth_user_id: e.target.value })} required={manualLink} />
+              </FieldGroup>
+            )}
             <FieldGroup label="Perfil">
               <Select value={form.perfil} onChange={(e) => setForm({ ...form, perfil: e.target.value })}>
                 {USER_PROFILES.map((role) => <option key={role} value={role}>{role}</option>)}
@@ -130,7 +153,7 @@ export function UsersManager({ profiles, stores, companies }: Props) {
             </label>
             <div className="flex gap-2 md:col-span-2">
               <Button type="submit" variant="primary" disabled={saving}>{saving ? 'Salvando...' : form.id ? 'Atualizar perfil' : 'Criar perfil'}</Button>
-              <Button type="button" variant="secondary" onClick={() => setForm(emptyForm)}>Limpar</Button>
+              <Button type="button" variant="secondary" onClick={clearForm}>Limpar</Button>
             </div>
           </form>
         </CardBody>

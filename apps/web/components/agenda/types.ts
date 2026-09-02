@@ -110,3 +110,24 @@ export function monthMatrix(year: number, month: number) {
   const start = startOfWeek(first);
   return Array.from({ length: 42 }, (_, i) => addDays(start, i));
 }
+
+// Flags loads that share the same day, time and destination — a likely
+// double-booking. Computed once from whatever loads are currently loaded
+// (the active view's range), so it works the same in month, week and day.
+export function computeConflicts(loads: AgendaLoad[]): Map<string, boolean> {
+  const counts = new Map<string, number>();
+  for (const l of loads) {
+    if (!l.data_agendada) continue;
+    const destKey = l.destino_full_id || l.loja_destino_id || l.marketplace_id || 'unknown';
+    const k = `${dateKeyFromIso(l.data_agendada)}|${timeFromIso(l.data_agendada)}|${destKey}`;
+    counts.set(k, (counts.get(k) ?? 0) + 1);
+  }
+  const byLoad = new Map<string, boolean>();
+  for (const l of loads) {
+    if (!l.data_agendada) continue;
+    const destKey = l.destino_full_id || l.loja_destino_id || l.marketplace_id || 'unknown';
+    const k = `${dateKeyFromIso(l.data_agendada)}|${timeFromIso(l.data_agendada)}|${destKey}`;
+    byLoad.set(l.id, (counts.get(k) ?? 0) > 1);
+  }
+  return byLoad;
+}

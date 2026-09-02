@@ -118,6 +118,17 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
   const canEditFinancialOnly = profile.perfil === 'financeiro';
   const canEditFinancial = canSeeFinancial && (canWrite || canEditFinancialOnly);
 
+  const itemTotals = useMemo(() => {
+    let peso = 0;
+    let cubagem = 0;
+    for (const i of items) {
+      const qty = Number(i.quantidade ?? 0);
+      if (i.peso != null) peso += Number(i.peso) * qty;
+      if (i.cubagem != null) cubagem += Number(i.cubagem) * qty;
+    }
+    return { peso, cubagem };
+  }, [items]);
+
   const loadData = useCallback(async () => {
     setLoadingList(true);
     const { data } = await supabase.rpc('get_visible_loads_page', { p_page: page + 1, p_page_size: PAGE_SIZE });
@@ -637,7 +648,13 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
             )}
 
             <div>
-              <h3 className="mb-2 text-sm font-semibold text-zinc-700">Itens da carga</h3>
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <h3 className="text-sm font-semibold text-zinc-700">Itens da carga</h3>
+                <div className="flex flex-wrap gap-4 text-xs text-zinc-500">
+                  <span>Peso total: <strong className="text-zinc-700">{itemTotals.peso.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} kg</strong></span>
+                  <span>Cubagem total: <strong className="text-zinc-700">{itemTotals.cubagem.toLocaleString('pt-BR', { maximumFractionDigits: 3 })} m³</strong></span>
+                </div>
+              </div>
               <div className="overflow-x-auto rounded-lg border border-zinc-100">
                 <table className="w-full text-sm">
                   <thead>

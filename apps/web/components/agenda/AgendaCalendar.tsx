@@ -14,6 +14,7 @@ import { EventDetailDialog } from './EventDetailDialog';
 import {
   addDays,
   startOfWeek,
+  computeConflicts,
   EMPTY_FILTERS,
   type AgendaFilters,
   type AgendaLoad,
@@ -123,6 +124,8 @@ export function AgendaCalendar({
       }),
     [loads, filters],
   );
+
+  const conflictByLoadId = useMemo(() => computeConflicts(filteredLoads), [filteredLoads]);
 
   async function reschedule(loadId: string, isoDate: string) {
     const previous = loads;
@@ -248,6 +251,7 @@ export function AgendaCalendar({
           year={cursor.getFullYear()}
           month={cursor.getMonth()}
           loads={filteredLoads}
+          conflictByLoadId={conflictByLoadId}
           canEditDate={canEditDate}
           onOpenLoad={setSelectedLoad}
           onDropLoad={(load, day) => {
@@ -262,6 +266,7 @@ export function AgendaCalendar({
         <WeekView
           weekStart={startOfWeek(cursor)}
           loads={filteredLoads}
+          conflictByLoadId={conflictByLoadId}
           canEditDate={canEditDate}
           onOpenLoad={setSelectedLoad}
           onDropLoad={(load, dt) => reschedule(load.id, dt.toISOString())}
@@ -271,6 +276,7 @@ export function AgendaCalendar({
         <DayView
           day={cursor}
           loads={filteredLoads}
+          conflictByLoadId={conflictByLoadId}
           destinoDisplay={destinoDisplay}
           canEditDate={canEditDate}
           onOpenLoad={setSelectedLoad}

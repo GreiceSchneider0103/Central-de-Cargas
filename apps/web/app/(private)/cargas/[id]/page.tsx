@@ -82,6 +82,9 @@ export default async function CargaDetailPage({ params }: { params: Promise<{ id
   const typedItems = (items ?? []) as VisibleLoadItem[];
   const nfEmitida = checklist?.nf_emitida;
 
+  const pesoTotal = typedItems.reduce((s, i) => s + (i.peso ?? 0) * (i.quantidade ?? 0), 0);
+  const cubagemTotal = typedItems.reduce((s, i) => s + (i.cubagem ?? 0) * (i.quantidade ?? 0), 0);
+
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -108,7 +111,10 @@ export default async function CargaDetailPage({ params }: { params: Promise<{ id
       </Card>
 
       <Card>
-        <CardHeader title="Itens da carga" />
+        <CardHeader
+          title="Itens da carga"
+          description={`Peso total: ${pesoTotal.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} kg · Cubagem total: ${cubagemTotal.toLocaleString('pt-BR', { maximumFractionDigits: 3 })} m³`}
+        />
         <CardBody className="p-0">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[720px] text-sm">
