@@ -8,6 +8,8 @@ import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { loadStatusTone } from '@/lib/ui/status-styles';
+import { money } from '@/lib/ui/format';
+import { CHECKLIST_FIELDS } from '@/lib/loads/checklist';
 
 type VisibleLoad = {
   id: string;
@@ -47,24 +49,6 @@ type VisibleLoadItem = {
 
 type ChecklistRow = Record<string, boolean | null | undefined>;
 type CommentRow = { id: string; texto: string | null; created_at: string };
-
-const CHECKLIST_FIELDS: { key: string; label: string }[] = [
-  { key: 'pedido_realizado', label: 'Pedido realizado' },
-  { key: 'pedido_confirmado_fornecedor', label: 'Pedido confirmado pelo fornecedor' },
-  { key: 'produto_recebido', label: 'Produto recebido' },
-  { key: 'montada', label: 'Carga montada' },
-  { key: 'agendada', label: 'Agendada' },
-  { key: 'etiqueta_impressa', label: 'Etiqueta impressa' },
-  { key: 'carga_separada', label: 'Carga separada' },
-  { key: 'carga_etiquetada', label: 'Carga etiquetada' },
-  { key: 'nf_emitida', label: 'NF emitida' },
-  { key: 'carga_carregada', label: 'Carga carregada' },
-  { key: 'finalizada', label: 'Finalizada' },
-];
-
-function money(value: number | null | undefined) {
-  return (value ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-}
 
 export default async function CargaDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;

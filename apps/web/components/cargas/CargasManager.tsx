@@ -15,6 +15,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { SkeletonRows } from '@/components/ui/Skeleton';
 import { loadStatusTone } from '@/lib/ui/status-styles';
 import { LoadItemFields } from './LoadItemFields';
+import { CHECKLIST_FIELDS } from '@/lib/loads/checklist';
 
 type LoadRow = {
   id: string;
@@ -80,20 +81,6 @@ type Notice = { type: 'success' | 'warning'; message: string };
 const PAGE_SIZE = 50;
 const EMPTY_ITEM: ItemDraft = { sku: '', nome_produto: '', quantidade: '1', cmv_unitario: '0' };
 
-const CHECKLIST_FIELDS: { key: string; label: string }[] = [
-  { key: 'pedido_realizado', label: 'Pedido realizado' },
-  { key: 'pedido_confirmado_fornecedor', label: 'Pedido confirmado' },
-  { key: 'produto_recebido', label: 'Produto recebido' },
-  { key: 'montada', label: 'Montada' },
-  { key: 'agendada', label: 'Agendada' },
-  { key: 'etiqueta_impressa', label: 'Etiqueta impressa' },
-  { key: 'carga_separada', label: 'Carga separada' },
-  { key: 'carga_etiquetada', label: 'Carga etiquetada' },
-  { key: 'nf_emitida', label: 'NF emitida' },
-  { key: 'carga_carregada', label: 'Carga carregada' },
-  { key: 'finalizada', label: 'Finalizada' },
-];
-
 export function CargasManager({ profile }: { profile: UserProfile }) {
   const supabase = createClient();
   const searchParams = useSearchParams();
@@ -114,6 +101,7 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
   const [newItem, setNewItem] = useState<ItemDraft>(EMPTY_ITEM);
   const [detailNewItem, setDetailNewItem] = useState<ItemDraft>(EMPTY_ITEM);
   const [editingItem, setEditingItem] = useState<ItemDraft & { id: string } | null>(null);
+  const [removingItemId, setRemovingItemId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [showCancelForm, setShowCancelForm] = useState(false);
@@ -214,6 +202,7 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
     setShowCancelForm(false);
     setConfirmFinalize(false);
     setEditingItem(null);
+    setRemovingItemId(null);
     const [it, chk] = await Promise.all([
       supabase.rpc('get_visible_load_items', { p_load_id: load.id }),
       supabase.from('load_checklists').select('*').eq('load_id', load.id).single(),
@@ -284,7 +273,12 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
 
   async function removeItem(item: LoadItemRow) {
     if (!selected || !canWrite) return;
+    if (removingItemId !== item.id) {
+      setRemovingItemId(item.id);
+      return;
+    }
     const res = await fetch(`/api/loads/${selected.id}/items?itemId=${item.id}`, { method: 'DELETE' });
+    setRemovingItemId(null);
     if (!res.ok) { const j = await res.json(); setError(j.error || 'Erro ao remover item.'); return; }
     await openLoad(selected);
     await loadData();
@@ -676,8 +670,17 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
                         <td className="px-3 py-2">{i.cubagem ?? '-'}</td>
                         {canWrite && (
                           <td className="space-x-2 px-3 py-2 text-right">
-                            <button className="font-medium text-brand-600 hover:text-brand-700" onClick={() => editItem(i)}>Editar</button>
-                            <button className="font-medium text-rose-600 hover:text-rose-700" onClick={() => removeItem(i)}>Remover</button>
+                            {removingItemId === i.id ? (
+                              <>
+                                <button className="font-medium text-rose-700 hover:text-rose-800" onClick={() => removeItem(i)}>Confirmar remoção</button>
+                                <button className="font-medium text-zinc-500 hover:text-zinc-700" onClick={() => setRemovingItemId(null)}>Cancelar</button>
+                              </>
+                            ) : (
+                              <>
+                                <button className="font-medium text-brand-600 hover:text-brand-700" onClick={() => editItem(i)}>Editar</button>
+                                <button className="font-medium text-rose-600 hover:text-rose-700" onClick={() => removeItem(i)}>Remover</button>
+                              </>
+                            )}
                           </td>
                         )}
                       </tr>

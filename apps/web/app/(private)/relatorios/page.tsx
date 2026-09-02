@@ -7,6 +7,7 @@ import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Select } from '@/components/ui/Field';
 import { StatCard } from '@/components/ui/StatCard';
+import { money } from '@/lib/ui/format';
 
 type LoadRow = {
   id: string;
@@ -42,10 +43,6 @@ function monthKey(d: Date) {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
   return `${y}-${m}`;
-}
-
-function money(value: number) {
-  return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
 export default async function ReportsPage({

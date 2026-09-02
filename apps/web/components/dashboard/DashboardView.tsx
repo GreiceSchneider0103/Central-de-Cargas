@@ -21,6 +21,7 @@ import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { StatCard } from '@/components/ui/StatCard';
 import { Select } from '@/components/ui/Field';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { money } from '@/lib/ui/format';
 
 type Load = Record<string, string | number | null | undefined>;
 
@@ -48,10 +49,6 @@ type Props = {
 
 function countBy(loads: Load[], pred: (l: Load) => boolean) {
   return loads.filter(pred).length;
-}
-
-function money(value: number) {
-  return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
 export function DashboardView({ profile, loads, pendingRequests, metrics = null }: Props) {
