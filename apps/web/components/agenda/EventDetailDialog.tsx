@@ -105,7 +105,7 @@ export function EventDetailDialog({
         {canEditDate && (
           <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3">
             <Label htmlFor="reschedule">Reagendar</Label>
-            <div className="mt-1 flex gap-2">
+            <div className="mt-1 flex flex-col gap-2 sm:flex-row">
               <Input id="reschedule" type="datetime-local" value={value} onChange={(e) => setValue(e.target.value)} />
               <Button variant="primary" onClick={save} disabled={saving}>
                 {saving ? 'Salvando...' : 'Salvar'}

@@ -180,18 +180,18 @@ export function AgendaCalendar({
 
   return (
     <div className="flex h-[calc(100vh-8rem)] min-h-[560px] flex-col gap-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-wrap items-center gap-2">
           <Button variant="secondary" size="sm" onClick={goToday}>Hoje</Button>
           <div className="flex overflow-hidden rounded-lg border border-zinc-300">
             <button className="p-2 text-zinc-500 hover:bg-zinc-50" onClick={goPrev} aria-label="Anterior"><ChevronLeft className="h-4 w-4" /></button>
             <button className="border-l border-zinc-300 p-2 text-zinc-500 hover:bg-zinc-50" onClick={goNext} aria-label="Próximo"><ChevronRight className="h-4 w-4" /></button>
           </div>
-          <h2 className="text-lg font-semibold capitalize text-zinc-900">{title}</h2>
+          <h2 className="text-base font-semibold capitalize text-zinc-900 sm:text-lg">{title}</h2>
           {loading && <span className="text-xs text-zinc-400">Atualizando...</span>}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <div className="flex overflow-hidden rounded-lg border border-zinc-300 text-sm">
             {([['month', 'Mês'], ['week', 'Semana'], ['day', 'Dia']] as const).map(([v, label]) => (
               <button
@@ -212,33 +212,33 @@ export function AgendaCalendar({
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        <Select className="w-36" value={filters.tipo} onChange={(e) => setFilters((f) => ({ ...f, tipo: e.target.value }))}>
+      <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+        <Select className="w-full sm:w-36" value={filters.tipo} onChange={(e) => setFilters((f) => ({ ...f, tipo: e.target.value }))}>
           <option value="">Tipo</option>
           <option value="FULL_MARKETPLACE">Full</option>
           <option value="LOJA_FISICA">Loja</option>
         </Select>
-        <Select className="w-44" value={filters.status} onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value }))}>
+        <Select className="w-full sm:w-44" value={filters.status} onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value }))}>
           <option value="">Status</option>
           {statusOptions.map((s) => <option key={s} value={s}>{s}</option>)}
         </Select>
-        <Select className="w-44" value={filters.empresa} onChange={(e) => setFilters((f) => ({ ...f, empresa: e.target.value }))}>
+        <Select className="w-full sm:w-44" value={filters.empresa} onChange={(e) => setFilters((f) => ({ ...f, empresa: e.target.value }))}>
           <option value="">Empresa</option>
           {options.companies.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
         </Select>
-        <Select className="w-44" value={filters.marketplace} onChange={(e) => setFilters((f) => ({ ...f, marketplace: e.target.value }))}>
+        <Select className="w-full sm:w-44" value={filters.marketplace} onChange={(e) => setFilters((f) => ({ ...f, marketplace: e.target.value }))}>
           <option value="">Marketplace</option>
           {options.channels.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
         </Select>
-        <Select className="w-40" value={filters.loja} onChange={(e) => setFilters((f) => ({ ...f, loja: e.target.value }))}>
+        <Select className="w-full sm:w-40" value={filters.loja} onChange={(e) => setFilters((f) => ({ ...f, loja: e.target.value }))}>
           <option value="">Loja</option>
           {options.stores.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}
         </Select>
-        <Select className="w-40" value={filters.fornecedor} onChange={(e) => setFilters((f) => ({ ...f, fornecedor: e.target.value }))}>
+        <Select className="w-full sm:w-40" value={filters.fornecedor} onChange={(e) => setFilters((f) => ({ ...f, fornecedor: e.target.value }))}>
           <option value="">Fornecedor</option>
           {supplierTextOptions.map((s) => <option key={s} value={s}>{s}</option>)}
         </Select>
-        <Select className="w-44" value={filters.responsavel} onChange={(e) => setFilters((f) => ({ ...f, responsavel: e.target.value }))}>
+        <Select className="w-full sm:w-44" value={filters.responsavel} onChange={(e) => setFilters((f) => ({ ...f, responsavel: e.target.value }))}>
           <option value="">Responsável</option>
           {responsavelOptions.map((r) => <option key={r.id} value={r.id}>{r.nome}</option>)}
         </Select>
