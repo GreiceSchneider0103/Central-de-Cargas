@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import type { UserProfile } from '@/lib/auth/roles';
 import { LOAD_STATUSES } from '@/lib/loads/statuses';
@@ -54,11 +55,19 @@ const PAGE_SIZE = 50;
 
 export function CargasManager({ profile }: { profile: UserProfile }) {
   const supabase = createClient();
+  const searchParams = useSearchParams();
   const [loads, setLoads] = useState<LoadRow[]>([]);
   const [selected, setSelected] = useState<LoadRow | null>(null);
   const [items, setItems] = useState<LoadItemRow[]>([]);
   const [checklist, setChecklist] = useState<ChecklistRow | null>(null);
-  const [form, setForm] = useState<Record<string, string | number>>({ tipo: 'LOJA_FISICA', status: 'Rascunho', prioridade: 'Média', custo_frete: 0, outros_custos: 0 });
+  const [form, setForm] = useState<Record<string, string | number>>(() => ({
+    tipo: 'LOJA_FISICA',
+    status: 'Rascunho',
+    prioridade: 'Média',
+    custo_frete: 0,
+    outros_custos: 0,
+    ...(searchParams.get('data_agendada') ? { data_agendada: searchParams.get('data_agendada') as string } : {}),
+  }));
   const [newItem, setNewItem] = useState<Record<string, string | number>>({ sku: '', nome_produto: '', quantidade: 1, cmv_unitario: 0 });
   const [editingItem, setEditingItem] = useState<LoadItemRow | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -342,7 +351,7 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
           <option value="">Responsável</option>
           {options.profiles.map(o => <option key={o.id} value={o.id}>{o.nome}</option>)}
         </select>
-        <input className="h-10 border rounded px-2" placeholder="Data agendada (ISO)" onChange={e=>setForm({...form,data_agendada:e.target.value})}/>
+        <input className="h-10 border rounded px-2" placeholder="Data agendada (ISO)" value={String(form.data_agendada ?? '')} onChange={e=>setForm({...form,data_agendada:e.target.value})}/>
         <input className="h-10 border rounded px-2" placeholder="Prev. recebimento (ISO)" onChange={e=>setForm({...form,data_prevista_recebimento:e.target.value})}/>
         <input className="h-10 border rounded px-2" placeholder="Real recebimento (ISO)" onChange={e=>setForm({...form,data_real_recebimento:e.target.value})}/>
         <select className="h-10 border rounded px-2" onChange={e=>setForm({...form,tipo_coleta_id:e.target.value})}><option value="">Tipo de coleta</option>{options.transports.map(o=><option key={o.id} value={o.id}>{o.nome}</option>)}</select>

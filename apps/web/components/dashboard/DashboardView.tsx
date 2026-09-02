@@ -1,7 +1,26 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import Link from 'next/link';
+import {
+  Package2,
+  CalendarClock,
+  CalendarRange,
+  ClipboardList,
+  AlertTriangle,
+  Truck,
+  Boxes,
+  Tag,
+  FileWarning,
+  PackageCheck,
+  DollarSign,
+  ArrowRight,
+} from 'lucide-react';
 import type { UserProfile } from '@/lib/auth/roles';
+import { Card, CardBody, CardHeader } from '@/components/ui/Card';
+import { StatCard } from '@/components/ui/StatCard';
+import { Select } from '@/components/ui/Field';
+import { EmptyState } from '@/components/ui/EmptyState';
 
 type Load = Record<string, string | number | null | undefined>;
 
@@ -27,31 +46,34 @@ type Props = {
   };
 };
 
-function countBy(loads: Load[], pred: (l: Load) => boolean) { return loads.filter(pred).length; }
+function countBy(loads: Load[], pred: (l: Load) => boolean) {
+  return loads.filter(pred).length;
+}
+
+function money(value: number) {
+  return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
 
 export function DashboardView({ profile, loads, pendingRequests, metrics = null }: Props) {
   const [statusFilter, setStatusFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
-  const [empresaFilter, setEmpresaFilter] = useState('');
-  const [canalFilter, setCanalFilter] = useState('');
-  const [marketplaceFilter, setMarketplaceFilter] = useState('');
-  const [lojaFilter, setLojaFilter] = useState('');
-  const [fornecedorFilter, setFornecedorFilter] = useState('');
-  const [responsavelFilter, setResponsavelFilter] = useState('');
 
   const canSeeFinancial = ['admin', 'gerente_estoque', 'financeiro', 'gerente_ecommerce'].includes(profile.perfil);
 
-  const filtered = useMemo(() => loads.filter((l) => {
-    if (statusFilter && l.status !== statusFilter) return false;
-    if (typeFilter && l.tipo !== typeFilter) return false;
-    if (empresaFilter && l.empresa_id !== empresaFilter) return false;
-    if (canalFilter && l.canal_id !== canalFilter) return false;
-    if (marketplaceFilter && l.marketplace_id !== marketplaceFilter) return false;
-    if (lojaFilter && l.loja_destino_id !== lojaFilter) return false;
-    if (fornecedorFilter && !String(l.fornecedores ?? '').toLowerCase().includes(fornecedorFilter.toLowerCase())) return false;
-    if (responsavelFilter && l.responsavel_operacional_id !== responsavelFilter) return false;
-    return true;
-  }), [loads, statusFilter, typeFilter, empresaFilter, canalFilter, marketplaceFilter, lojaFilter, fornecedorFilter, responsavelFilter]);
+  const filtered = useMemo(
+    () =>
+      loads.filter((l) => {
+        if (statusFilter && l.status !== statusFilter) return false;
+        if (typeFilter && l.tipo !== typeFilter) return false;
+        return true;
+      }),
+    [loads, statusFilter, typeFilter],
+  );
+
+  const statusOptions = useMemo(
+    () => Array.from(new Set(loads.map((l) => String(l.status ?? '')).filter(Boolean))).sort((a, b) => a.localeCompare(b)),
+    [loads],
+  );
 
   const cards = useMemo(() => {
     if (metrics) {
@@ -75,88 +97,121 @@ export function DashboardView({ profile, loads, pendingRequests, metrics = null 
 
     const now = new Date();
     const startDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const startWeek = new Date(startDay); startWeek.setDate(startDay.getDate() - startDay.getDay());
+    const startWeek = new Date(startDay);
+    startWeek.setDate(startDay.getDate() - startDay.getDay());
     const startMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const d = countBy(filtered, l => Boolean(l.data_agendada) && new Date(String(l.data_agendada)) >= startDay && new Date(String(l.data_agendada)) < new Date(startDay.getTime()+86400000));
-    const w = countBy(filtered, l => Boolean(l.data_agendada) && new Date(String(l.data_agendada)) >= startWeek);
-    const m = countBy(filtered, l => Boolean(l.data_agendada) && new Date(String(l.data_agendada)) >= startMonth);
-    const pend = countBy(filtered, l => l.status === 'Rascunho' || l.status === 'Aguardando aprovação');
-    const atras = countBy(filtered, l => Boolean(l.data_agendada) && new Date(String(l.data_agendada)) < now && !['Finalizada','Entregue','Cancelada'].includes(String(l.status)));
-    const aguForn = countBy(filtered, l => l.status === 'Aguardando fornecedor');
-    const aguRec = countBy(filtered, l => l.status === 'Aguardando recebimento');
-    const aguEtiq = countBy(filtered, l => l.status === 'Etiquetando');
-    const aguNF = countBy(filtered, l => l.status === 'Aguardando NF');
-    const prontaCol = countBy(filtered, l => l.status === 'Pronta para coleta');
+    const d = countBy(filtered, (l) => Boolean(l.data_agendada) && new Date(String(l.data_agendada)) >= startDay && new Date(String(l.data_agendada)) < new Date(startDay.getTime() + 86400000));
+    const w = countBy(filtered, (l) => Boolean(l.data_agendada) && new Date(String(l.data_agendada)) >= startWeek);
+    const m = countBy(filtered, (l) => Boolean(l.data_agendada) && new Date(String(l.data_agendada)) >= startMonth);
+    const pend = countBy(filtered, (l) => l.status === 'Rascunho' || l.status === 'Aguardando aprovação');
+    const atras = countBy(filtered, (l) => Boolean(l.data_agendada) && new Date(String(l.data_agendada)) < now && !['Finalizada', 'Entregue', 'Cancelada'].includes(String(l.status)));
+    const aguForn = countBy(filtered, (l) => l.status === 'Aguardando fornecedor');
+    const aguRec = countBy(filtered, (l) => l.status === 'Aguardando recebimento');
+    const aguEtiq = countBy(filtered, (l) => l.status === 'Etiquetando');
+    const aguNF = countBy(filtered, (l) => l.status === 'Aguardando NF');
+    const prontaCol = countBy(filtered, (l) => l.status === 'Pronta para coleta');
 
     const fat = filtered.reduce((s, l) => s + Number(l.faturamento_estimado ?? 0), 0);
     const cmv = filtered.reduce((s, l) => s + Number(l.cmv_total ?? 0), 0);
     const frete = filtered.reduce((s, l) => s + Number(l.custo_frete ?? 0), 0);
     const margem = filtered.reduce((s, l) => s + Number(l.margem_estimativa_valor ?? 0), 0);
 
-    return { d,w,m,pend,atras,aguForn,aguRec,aguEtiq,aguNF,prontaCol,fat,cmv,frete,margem };
+    return { d, w, m, pend, atras, aguForn, aguRec, aguEtiq, aguNF, prontaCol, fat, cmv, frete, margem };
   }, [filtered, metrics]);
 
   const alerts = useMemo(() => {
-    const now = new Date();
-    const oldPendingReq = pendingRequests;
-    return {
-      hoje: countBy(filtered, l => Boolean(l.data_agendada) && new Date(String(l.data_agendada)).toDateString() === now.toDateString()),
-      atrasadas: countBy(filtered, l => Boolean(l.data_agendada) && new Date(String(l.data_agendada)) < now && !['Finalizada','Entregue','Cancelada'].includes(String(l.status))),
-      semCmv: countBy(filtered, l => l.cmv_total != null && Number(l.cmv_total) <= 0),
-      semReceb: countBy(filtered, l => !l.data_prevista_recebimento),
-      aguardFornecedor: countBy(filtered, l => l.status === 'Aguardando fornecedor'),
-      aguardNF: countBy(filtered, l => l.status === 'Aguardando NF'),
-      aguardEtiqueta: countBy(filtered, l => l.status === 'Etiquetando'),
-      produtoNaoReceb: countBy(filtered, l => l.status === 'Aguardando recebimento'),
-      reqPendOld: oldPendingReq,
-    };
-  }, [filtered, pendingRequests]);
+    const list: { label: string; count: number }[] = [
+      { label: 'Cargas atrasadas', count: cards.atras },
+      { label: 'Cargas sem CMV', count: countBy(filtered, (l) => l.cmv_total != null && Number(l.cmv_total) <= 0) },
+      { label: 'Sem data de recebimento', count: countBy(filtered, (l) => !l.data_prevista_recebimento) },
+      { label: 'Aguardando fornecedor', count: cards.aguForn },
+      { label: 'Aguardando NF', count: cards.aguNF },
+      { label: 'Aguardando etiqueta', count: cards.aguEtiq },
+      { label: 'Solicitações pendentes', count: pendingRequests },
+    ];
+    return list.filter((a) => a.count > 0);
+  }, [filtered, cards, pendingRequests]);
 
-  const reportBy = (key: string) => Object.entries(filtered.reduce<Record<string, number>>((acc, l) => { const k = String(l[key] ?? 'N/A'); acc[k] = (acc[k] ?? 0) + 1; return acc; }, {}));
-  const reportMonth = Object.entries(filtered.reduce<Record<string, number>>((acc, l) => { const k = l.created_at ? new Date(String(l.created_at)).toISOString().slice(0, 7) : 'N/A'; acc[k] = (acc[k] ?? 0) + 1; return acc; }, {}));
-
-  return <div className="space-y-6">
-    <div className="flex flex-wrap gap-2">
-      <select className="h-9 border rounded px-2" value={typeFilter} onChange={e=>setTypeFilter(e.target.value)}><option value="">Tipo</option><option value="FULL_MARKETPLACE">Full</option><option value="LOJA_FISICA">Loja</option></select>
-      <input className="h-9 border rounded px-2" placeholder="Status" value={statusFilter} onChange={e=>setStatusFilter(e.target.value)} />
-      <input className="h-9 border rounded px-2" placeholder="Empresa" value={empresaFilter} onChange={e=>setEmpresaFilter(e.target.value)} />
-      <input className="h-9 border rounded px-2" placeholder="Canal" value={canalFilter} onChange={e=>setCanalFilter(e.target.value)} />
-      <input className="h-9 border rounded px-2" placeholder="Marketplace" value={marketplaceFilter} onChange={e=>setMarketplaceFilter(e.target.value)} />
-      <input className="h-9 border rounded px-2" placeholder="Loja" value={lojaFilter} onChange={e=>setLojaFilter(e.target.value)} />
-      <input className="h-9 border rounded px-2" placeholder="Fornecedor" value={fornecedorFilter} onChange={e=>setFornecedorFilter(e.target.value)} />
-      <input className="h-9 border rounded px-2" placeholder="Responsável" value={responsavelFilter} onChange={e=>setResponsavelFilter(e.target.value)} />
-    </div>
-
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-      {[
-        ['Cargas do dia', cards.d],['Cargas da semana', cards.w],['Cargas do mês', cards.m],['Cargas pendentes', cards.pend],
-        ['Solicitações pendentes', pendingRequests],['Cargas atrasadas', cards.atras],['Aguardando fornecedor', cards.aguForn],['Aguardando recebimento', cards.aguRec],
-        ['Aguardando etiqueta', cards.aguEtiq],['Aguardando NF', cards.aguNF],['Prontas coleta', cards.prontaCol],
-      ].map(([k,v])=> <div key={String(k)} className="bg-white border rounded p-3"><div className="text-zinc-500">{k}</div><div className="text-xl font-bold">{String(v)}</div></div>)}
-      {canSeeFinancial && <>
-        <div className="bg-white border rounded p-3"><div className="text-zinc-500">Faturamento estimado</div><div className="text-xl font-bold">R$ {cards.fat.toFixed(2)}</div></div>
-        <div className="bg-white border rounded p-3"><div className="text-zinc-500">CMV total</div><div className="text-xl font-bold">R$ {cards.cmv.toFixed(2)}</div></div>
-        <div className="bg-white border rounded p-3"><div className="text-zinc-500">Frete total</div><div className="text-xl font-bold">R$ {cards.frete.toFixed(2)}</div></div>
-        <div className="bg-white border rounded p-3"><div className="text-zinc-500">Margem estimada</div><div className="text-xl font-bold">R$ {cards.margem.toFixed(2)}</div></div>
-      </>}
-    </div>
-
-    <div className="bg-white border rounded p-4 text-sm">
-      <h2 className="font-semibold mb-2">Alertas</h2>
-      <div className="grid md:grid-cols-3 gap-2 text-amber-700">
-        <div>Cargas hoje: {alerts.hoje}</div><div>Cargas atrasadas: {alerts.atrasadas}</div><div>Cargas sem CMV: {alerts.semCmv}</div>
-        <div>Sem data recebimento: {alerts.semReceb}</div><div>Aguardando fornecedor: {alerts.aguardFornecedor}</div><div>Aguardando NF: {alerts.aguardNF}</div>
-        <div>Aguardando etiqueta: {alerts.aguardEtiqueta}</div><div>Produto não recebido: {alerts.produtoNaoReceb}</div><div>Solicitações pendentes {'>'} X dias: {alerts.reqPendOld}</div>
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-zinc-900">Dashboard operacional</h1>
+          <p className="text-sm text-zinc-500">Visão geral das cargas e do que precisa de atenção agora.</p>
+        </div>
+        <div className="flex gap-2">
+          <Select className="w-40" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
+            <option value="">Todos os tipos</option>
+            <option value="FULL_MARKETPLACE">Full</option>
+            <option value="LOJA_FISICA">Loja</option>
+          </Select>
+          <Select className="w-48" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+            <option value="">Todos os status</option>
+            {statusOptions.map((s) => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </Select>
+        </div>
       </div>
-    </div>
 
-    <div className="grid md:grid-cols-2 gap-4 text-sm">
-      <div className="bg-white border rounded p-4"><h3 className="font-semibold mb-2">Relatório: cargas por mês</h3>{reportMonth.map(([k,v])=><div key={k}>{k}: {String(v)}</div>)}</div>
-      <div className="bg-white border rounded p-4"><h3 className="font-semibold mb-2">Cargas por empresa</h3>{reportBy('empresa_id').map(([k,v])=><div key={k}>{k}: {String(v)}</div>)}</div>
-      <div className="bg-white border rounded p-4"><h3 className="font-semibold mb-2">Cargas por marketplace</h3>{reportBy('marketplace_id').map(([k,v])=><div key={k}>{k}: {String(v)}</div>)}</div>
-      <div className="bg-white border rounded p-4"><h3 className="font-semibold mb-2">Cargas por loja</h3>{reportBy('loja_destino_id').map(([k,v])=><div key={k}>{k}: {String(v)}</div>)}</div>
-      <div className="bg-white border rounded p-4"><h3 className="font-semibold mb-2">Cargas por fornecedor</h3>{reportBy('fornecedores').map(([k,v])=><div key={k}>{k}: {String(v)}</div>)}</div>
-      <div className="bg-white border rounded p-4"><h3 className="font-semibold mb-2">Cargas por status</h3>{reportBy('status').map(([k,v])=><div key={k}>{k}: {String(v)}</div>)}</div>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <StatCard label="Cargas do dia" value={cards.d} icon={CalendarClock} tone="brand" />
+        <StatCard label="Cargas da semana" value={cards.w} icon={CalendarRange} tone="info" />
+        <StatCard label="Cargas do mês" value={cards.m} icon={Package2} tone="info" />
+        <StatCard label="Solicitações pendentes" value={pendingRequests} icon={ClipboardList} tone="warning" />
+        <StatCard label="Cargas atrasadas" value={cards.atras} icon={AlertTriangle} tone="danger" />
+        <StatCard label="Aguardando fornecedor" value={cards.aguForn} icon={Truck} tone="warning" />
+        <StatCard label="Aguardando recebimento" value={cards.aguRec} icon={Boxes} tone="warning" />
+        <StatCard label="Aguardando etiqueta" value={cards.aguEtiq} icon={Tag} tone="progress" />
+        <StatCard label="Aguardando NF" value={cards.aguNF} icon={FileWarning} tone="warning" />
+        <StatCard label="Prontas para coleta" value={cards.prontaCol} icon={PackageCheck} tone="brand" />
+        {canSeeFinancial && (
+          <>
+            <StatCard label="Faturamento estimado" value={money(cards.fat)} icon={DollarSign} tone="success" />
+            <StatCard label="Margem estimada" value={money(cards.margem)} icon={DollarSign} tone={cards.margem >= 0 ? 'success' : 'danger'} />
+          </>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <Card className="lg:col-span-2">
+          <CardHeader title="Precisa de atenção" description="Cargas e solicitações que pedem uma ação sua." />
+          <CardBody>
+            {alerts.length === 0 ? (
+              <EmptyState icon={PackageCheck} title="Tudo em dia" description="Nenhum alerta pendente no momento." />
+            ) : (
+              <ul className="divide-y divide-zinc-100">
+                {alerts.map((a) => (
+                  <li key={a.label} className="flex items-center justify-between py-2.5 text-sm">
+                    <span className="flex items-center gap-2 text-zinc-700">
+                      <AlertTriangle className="h-4 w-4 text-amber-500" />
+                      {a.label}
+                    </span>
+                    <span className="font-semibold text-zinc-900">{a.count}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardBody>
+        </Card>
+
+        {canSeeFinancial && (
+          <Card>
+            <CardHeader title="Financeiro do mês" />
+            <CardBody className="space-y-3 text-sm">
+              <div className="flex justify-between"><span className="text-zinc-500">CMV total</span><span className="font-medium">{money(cards.cmv)}</span></div>
+              <div className="flex justify-between"><span className="text-zinc-500">Custo de frete</span><span className="font-medium">{money(cards.frete)}</span></div>
+              <div className="flex justify-between"><span className="text-zinc-500">Faturamento</span><span className="font-medium">{money(cards.fat)}</span></div>
+              <div className="flex justify-between border-t border-zinc-100 pt-3"><span className="text-zinc-500">Margem</span><span className={cards.margem >= 0 ? 'font-semibold text-emerald-700' : 'font-semibold text-rose-700'}>{money(cards.margem)}</span></div>
+            </CardBody>
+          </Card>
+        )}
+      </div>
+
+      <Link href="/relatorios" className="inline-flex items-center gap-1 text-sm font-medium text-brand-600 hover:text-brand-700">
+        Ver relatórios detalhados por empresa, marketplace, loja e fornecedor
+        <ArrowRight className="h-4 w-4" />
+      </Link>
     </div>
-  </div>;
+  );
 }

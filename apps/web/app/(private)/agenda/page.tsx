@@ -1,11 +1,8 @@
-import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import type { ComponentProps } from 'react';
 import { createClient } from '@/lib/supabase/server';
 import type { UserProfile } from '@/lib/auth/roles';
-import { AgendaCalendar, type AgendaOptions } from '@/components/agenda/AgendaCalendar';
-
-type AgendaLoads = ComponentProps<typeof AgendaCalendar>['loads'];
+import { AgendaCalendar } from '@/components/agenda/AgendaCalendar';
+import type { AgendaOptions } from '@/components/agenda/types';
 
 export default async function AgendaPage() {
   const supabase = await createClient();
@@ -43,17 +40,11 @@ export default async function AgendaPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-2xl font-bold">Agenda de Cargas</h1>
-          <p className="text-zinc-600">Visualização mensal por data agendada.</p>
-        </div>
-        <Link href="/cargas" className="px-3 py-2 bg-indigo-600 text-white rounded">
-          Nova carga
-        </Link>
+      <div>
+        <h1 className="text-2xl font-bold text-zinc-900">Agenda de cargas</h1>
+        <p className="text-sm text-zinc-500">Arraste uma carga pra outro dia/horário pra reagendar, ou clique nela pra ver os detalhes.</p>
       </div>
-      <AgendaCalendar loads={[] as unknown as AgendaLoads} profile={profile} options={options} />
+      <AgendaCalendar loads={[]} profile={profile} options={options} />
     </div>
   );
 }
-

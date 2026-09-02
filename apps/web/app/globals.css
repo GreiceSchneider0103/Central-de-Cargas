@@ -3,4 +3,10 @@
 @tailwind utilities;
 
 :root { color-scheme: light; }
-body { @apply bg-zinc-50 text-zinc-900; }
+body { @apply bg-zinc-50 text-zinc-900 antialiased; }
+
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+  }
+}
