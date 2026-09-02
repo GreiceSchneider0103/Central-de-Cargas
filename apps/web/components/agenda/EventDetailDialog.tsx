@@ -8,14 +8,8 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Input, Label } from '@/components/ui/Field';
 import { loadStatusTone } from '@/lib/ui/status-styles';
+import { toDatetimeLocalValue } from '@/lib/ui/datetime';
 import { alertLabel, type AgendaLoad } from './types';
-
-function toLocalInputValue(iso: string | null) {
-  if (!iso) return '';
-  const d = new Date(iso);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
 
 export function EventDetailDialog({
   load,
@@ -32,7 +26,7 @@ export function EventDetailDialog({
   onClose: () => void;
   onReschedule: (loadId: string, isoDate: string) => Promise<boolean>;
 }) {
-  const [value, setValue] = useState(() => toLocalInputValue(load.data_agendada));
+  const [value, setValue] = useState(() => toDatetimeLocalValue(load.data_agendada));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

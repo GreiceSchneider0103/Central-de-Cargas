@@ -1,4 +1,5 @@
 import { Input, Select, FieldGroup } from '@/components/ui/Field';
+import { toDatetimeLocalValue, fromDatetimeLocalValue } from '@/lib/ui/datetime';
 
 export type ItemFieldsValue = {
   sku?: string | number | null;
@@ -64,10 +65,18 @@ export function LoadItemFields({
         <Input type="number" value={str(value.profundidade)} onChange={(e) => onChange('profundidade', e.target.value)} />
       </FieldGroup>
       <FieldGroup label="Previsão de recebimento">
-        <Input type="datetime-local" value={str(value.data_prevista_recebimento)} onChange={(e) => onChange('data_prevista_recebimento', e.target.value)} />
+        <Input
+          type="datetime-local"
+          value={toDatetimeLocalValue(str(value.data_prevista_recebimento) || null)}
+          onChange={(e) => onChange('data_prevista_recebimento', fromDatetimeLocalValue(e.target.value) ?? '')}
+        />
       </FieldGroup>
       <FieldGroup label="Recebimento real">
-        <Input type="datetime-local" value={str(value.data_real_recebimento)} onChange={(e) => onChange('data_real_recebimento', e.target.value)} />
+        <Input
+          type="datetime-local"
+          value={toDatetimeLocalValue(str(value.data_real_recebimento) || null)}
+          onChange={(e) => onChange('data_real_recebimento', fromDatetimeLocalValue(e.target.value) ?? '')}
+        />
       </FieldGroup>
       <FieldGroup label="Status do item">
         <Input value={str(value.status_item)} onChange={(e) => onChange('status_item', e.target.value)} />

@@ -16,6 +16,7 @@ import { SkeletonRows } from '@/components/ui/Skeleton';
 import { useToast } from '@/components/ui/Toast';
 import { loadStatusTone } from '@/lib/ui/status-styles';
 import { translateError } from '@/lib/ui/error-messages';
+import { toDatetimeLocalValue, fromDatetimeLocalValue } from '@/lib/ui/datetime';
 import { LoadItemFields } from './LoadItemFields';
 import { CHECKLIST_FIELDS } from '@/lib/loads/checklist';
 
@@ -502,10 +503,10 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
               </Select>
             </FieldGroup>
             <FieldGroup label="Data agendada">
-              <Input type="datetime-local" value={form.data_agendada ?? ''} onChange={(e) => setForm({ ...form, data_agendada: e.target.value })} />
+              <Input type="datetime-local" value={toDatetimeLocalValue(form.data_agendada)} onChange={(e) => setForm({ ...form, data_agendada: fromDatetimeLocalValue(e.target.value) ?? '' })} />
             </FieldGroup>
             <FieldGroup label="Previsão de recebimento">
-              <Input type="datetime-local" value={form.data_prevista_recebimento ?? ''} onChange={(e) => setForm({ ...form, data_prevista_recebimento: e.target.value })} />
+              <Input type="datetime-local" value={toDatetimeLocalValue(form.data_prevista_recebimento)} onChange={(e) => setForm({ ...form, data_prevista_recebimento: fromDatetimeLocalValue(e.target.value) ?? '' })} />
             </FieldGroup>
             <FieldGroup label="Tipo de coleta">
               <Select value={form.tipo_coleta_id ?? ''} onChange={(e) => setForm({ ...form, tipo_coleta_id: e.target.value })}>
@@ -598,13 +599,13 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
                   </Select>
                 </FieldGroup>
                 <FieldGroup label="Data agendada">
-                  <Input type="datetime-local" value={String(selected.data_agendada ?? '')} onChange={(e) => setSelected({ ...selected, data_agendada: e.target.value || null })} />
+                  <Input type="datetime-local" value={toDatetimeLocalValue(selected.data_agendada)} onChange={(e) => setSelected({ ...selected, data_agendada: fromDatetimeLocalValue(e.target.value) })} />
                 </FieldGroup>
                 <FieldGroup label="Previsão de recebimento">
-                  <Input type="datetime-local" value={String(selected.data_prevista_recebimento ?? '')} onChange={(e) => setSelected({ ...selected, data_prevista_recebimento: e.target.value || null })} />
+                  <Input type="datetime-local" value={toDatetimeLocalValue(selected.data_prevista_recebimento)} onChange={(e) => setSelected({ ...selected, data_prevista_recebimento: fromDatetimeLocalValue(e.target.value) })} />
                 </FieldGroup>
                 <FieldGroup label="Recebimento real">
-                  <Input type="datetime-local" value={String(selected.data_real_recebimento ?? '')} onChange={(e) => setSelected({ ...selected, data_real_recebimento: e.target.value || null })} />
+                  <Input type="datetime-local" value={toDatetimeLocalValue(selected.data_real_recebimento)} onChange={(e) => setSelected({ ...selected, data_real_recebimento: fromDatetimeLocalValue(e.target.value) })} />
                 </FieldGroup>
                 <FieldGroup label="Nº carga marketplace">
                   <Input value={String(selected.numero_carga_marketplace ?? '')} onChange={(e) => setSelected({ ...selected, numero_carga_marketplace: e.target.value || null })} />

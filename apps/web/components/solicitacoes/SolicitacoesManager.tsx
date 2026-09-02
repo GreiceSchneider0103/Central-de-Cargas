@@ -33,7 +33,9 @@ const STATUS_FILTERS = [
   { label: 'Transformadas em carga', value: 'Transformada em carga' },
   { label: 'Canceladas', value: 'Cancelada' },
 ];
-const EMPTY_ITEM: Item = { sku: '', nome_produto: '', quantidade: 1, cmv_unitario: 0, cmv_total: 0 };
+function emptyItem(): Item {
+  return { sku: '', nome_produto: '', quantidade: 1, cmv_unitario: 0, cmv_total: 0 };
+}
 
 export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
   const supabase = createClient();
@@ -45,7 +47,7 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
   const [destinations, setDestinations] = useState<NamedOption[]>([]);
   const [suppliers, setSuppliers] = useState<NamedOption[]>([]);
   const [showCreate, setShowCreate] = useState(false);
-  const [items, setItems] = useState<Item[]>([EMPTY_ITEM]);
+  const [items, setItems] = useState<Item[]>(() => [emptyItem()]);
   const [tipo, setTipo] = useState<'LOJA_FISICA' | 'FULL_MARKETPLACE'>('LOJA_FISICA');
   const [lojaDestinoId, setLojaDestinoId] = useState('');
   const [marketplaceId, setMarketplaceId] = useState('');
@@ -89,23 +91,28 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
   useEffect(() => { load(); }, [load]);
 
   function updateItem(index: number, field: keyof Item, value: Item[keyof Item]) {
-    const next = [...items];
-    (next[index] as Record<string, unknown>)[field] = value;
-    next[index].cmv_total = Number(next[index].quantidade) * Number(next[index].cmv_unitario || 0);
-    setItems(next);
+    setItems((prev) =>
+      prev.map((item, i) => {
+        if (i !== index) return item;
+        const next = { ...item, [field]: value };
+        next.cmv_total = Number(next.quantidade) * Number(next.cmv_unitario || 0);
+        return next;
+      }),
+    );
   }
 
   async function handleSkuChange(index: number, sku: string) {
-    const next = [...items];
-    next[index].sku = sku;
+    setItems((prev) => prev.map((item, i) => (i === index ? { ...item, sku } : item)));
     const { data: productRows } = await supabase.rpc('get_visible_product_by_sku', { p_sku: sku });
     const product = Array.isArray(productRows) ? productRows[0] : null;
-    if (product) {
-      next[index].nome_produto = product.nome;
-      next[index].cmv_unitario = Number(product.cmv || 0);
-      next[index].cmv_total = next[index].cmv_unitario * next[index].quantidade;
-    }
-    setItems(next);
+    if (!product) return;
+    setItems((prev) =>
+      prev.map((item, i) => {
+        if (i !== index) return item;
+        const cmv_unitario = Number(product.cmv || 0);
+        return { ...item, nome_produto: product.nome, cmv_unitario, cmv_total: cmv_unitario * item.quantidade };
+      }),
+    );
   }
 
   async function createRequest() {
@@ -126,7 +133,7 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
     if (itemErr) return toast.error(itemErr.message);
 
     await supabase.from('load_request_history').insert({ request_id: req.id, acao: 'CRIADA', status_novo: 'Pendente', autor_profile_id: me.id });
-    setItems([EMPTY_ITEM]);
+    setItems([emptyItem()]);
     setPrioridade('Média');
     setDataDesejada('');
     setObservacoes('');
@@ -320,7 +327,7 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
                 </div>
               ))}
             </div>
-            <Button variant="secondary" size="sm" className="mt-2" onClick={() => setItems((prev) => [...prev, EMPTY_ITEM])}>+ Item</Button>
+            <Button variant="secondary" size="sm" className="mt-2" onClick={() => setItems((prev) => [...prev, emptyItem()])}>+ Item</Button>
           </div>
         </div>
       </Dialog>
