@@ -1,6 +1,7 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { RefreshCw, Search } from 'lucide-react';
 import type { UserProfileRole } from '@/lib/auth/roles';
 import { Card, CardBody } from '@/components/ui/Card';
@@ -21,17 +22,27 @@ type ProductRow = {
   supplier_name?: string | null;
 };
 
-export function ProductsTable({ products, role }: { products: ProductRow[]; role: UserProfileRole }) {
-  const [search, setSearch] = useState('');
+export function ProductsTable({ products, role, search: initialSearch }: { products: ProductRow[]; role: UserProfileRole; search: string }) {
+  const [search, setSearch] = useState(initialSearch);
   const [loading, setLoading] = useState(false);
   const toast = useToast();
+  const router = useRouter();
+  const isFirstRun = useRef(true);
   const isAdmin = role === 'admin';
   const canSeeFinancial = ['admin', 'gerente_estoque', 'gerente_ecommerce', 'financeiro'].includes(role);
 
-  const filtered = useMemo(() => {
-    const term = search.toLowerCase();
-    return products.filter((p) => p.sku.toLowerCase().includes(term) || p.nome.toLowerCase().includes(term));
-  }, [products, search]);
+  useEffect(() => {
+    if (isFirstRun.current) {
+      isFirstRun.current = false;
+      return;
+    }
+    const timeout = setTimeout(() => {
+      const query = search.trim() ? `?search=${encodeURIComponent(search.trim())}` : '';
+      router.push(`/produtos${query}`);
+    }, 400);
+    return () => clearTimeout(timeout);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search]);
 
   async function handleSyncNow() {
     setLoading(true);
@@ -52,7 +63,7 @@ export function ProductsTable({ products, role }: { products: ProductRow[]; role
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="relative w-full max-w-md">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
-          <Input className="pl-9" placeholder="Buscar por SKU ou nome (nesta página)" value={search} onChange={(e) => setSearch(e.target.value)} />
+          <Input className="pl-9" placeholder="Buscar por SKU ou nome" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
         {isAdmin && (
           <Button variant="primary" onClick={handleSyncNow} disabled={loading}>
@@ -64,7 +75,7 @@ export function ProductsTable({ products, role }: { products: ProductRow[]; role
 
       <Card>
         <CardBody className="p-0">
-          {filtered.length === 0 ? (
+          {products.length === 0 ? (
             <EmptyState title="Nenhum produto encontrado" description="Ajuste a busca ou sincronize os produtos com o Google Sheets." />
           ) : (
             <div className="overflow-x-auto">
@@ -80,7 +91,7 @@ export function ProductsTable({ products, role }: { products: ProductRow[]; role
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((p) => (
+                  {products.map((p) => (
                     <tr key={p.id} className="border-b border-zinc-50 last:border-0 hover:bg-zinc-50">
                       <td className="px-4 py-2.5 font-mono text-xs text-zinc-600">{p.sku}</td>
                       <td className="px-4 py-2.5 font-medium text-zinc-800">{p.nome}</td>

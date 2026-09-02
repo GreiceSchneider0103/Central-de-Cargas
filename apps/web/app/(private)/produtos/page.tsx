@@ -22,7 +22,7 @@ type ProductWithSupplier = {
 
 const PAGE_SIZE = 50;
 
-export default async function ProdutosPage({ searchParams }: { searchParams?: Promise<{ page?: string }> }) {
+export default async function ProdutosPage({ searchParams }: { searchParams?: Promise<{ page?: string; search?: string }> }) {
   const supabase = await createClient();
   const { data: userData } = await supabase.auth.getUser();
   if (!userData.user) redirect('/login');
@@ -37,8 +37,9 @@ export default async function ProdutosPage({ searchParams }: { searchParams?: Pr
 
   const resolvedSearchParams = await searchParams;
   const currentPage = Math.max(1, Number(resolvedSearchParams?.page ?? '1') || 1);
+  const search = resolvedSearchParams?.search?.trim() ?? '';
 
-  const { data: products } = await supabase.rpc('get_visible_products_page', { p_page: currentPage, p_page_size: PAGE_SIZE });
+  const { data: products } = await supabase.rpc('get_visible_products_page', { p_page: currentPage, p_page_size: PAGE_SIZE, p_search: search || null });
 
   const typedProducts = (products ?? []) as (ProductWithSupplier & { total_count?: number })[];
   const totalProducts = Number(typedProducts[0]?.total_count ?? 0);
@@ -60,18 +61,18 @@ export default async function ProdutosPage({ searchParams }: { searchParams?: Pr
         <h1 className="text-2xl font-bold text-zinc-900">Produtos</h1>
         <p className="text-sm text-zinc-500">Sincronização de SKU, nome e CMV via Google Sheets, toda segunda-feira às 8h.</p>
       </div>
-      <ProductsTable products={normalized} role={profile.perfil} />
+      <ProductsTable products={normalized} role={profile.perfil} search={search} />
       <div className="flex items-center justify-between text-sm">
         <Link
           className={`rounded-lg border border-zinc-300 bg-white px-3 py-1.5 font-medium text-zinc-700 hover:bg-zinc-50 ${currentPage === 1 ? 'pointer-events-none opacity-50' : ''}`}
-          href={`/produtos?page=${Math.max(1, currentPage - 1)}`}
+          href={`/produtos?page=${Math.max(1, currentPage - 1)}${search ? `&search=${encodeURIComponent(search)}` : ''}`}
         >
           Anterior
         </Link>
         <span className="text-zinc-500">Página {currentPage} de {totalPages} ({totalProducts} produtos)</span>
         <Link
           className={`rounded-lg border border-zinc-300 bg-white px-3 py-1.5 font-medium text-zinc-700 hover:bg-zinc-50 ${currentPage >= totalPages ? 'pointer-events-none opacity-50' : ''}`}
-          href={`/produtos?page=${currentPage + 1}`}
+          href={`/produtos?page=${currentPage + 1}${search ? `&search=${encodeURIComponent(search)}` : ''}`}
         >
           Próxima
         </Link>

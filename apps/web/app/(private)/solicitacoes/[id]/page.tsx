@@ -90,7 +90,7 @@ export default async function SolicitacaoDetailPage({ params }: { params: Promis
                   </tr>
                 ))}
                 {typedItems.length === 0 && (
-                  <tr><td colSpan={canSeeFinancial ? 5 : 3} className="px-4 py-4 text-center text-zinc-400">Sem itens.</td></tr>
+                  <tr><td colSpan={canSeeFinancial ? 5 : 3} className="px-4 py-4 text-center text-zinc-400">Nenhum item ainda.</td></tr>
                 )}
               </tbody>
             </table>
