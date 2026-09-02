@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { EventPill } from './EventPill';
-import { dateKey, dateKeyFromIso, monthMatrix, timeFromIso, type AgendaLoad } from './types';
+import { dateKey, dateKeyFromIso, monthMatrix, type AgendaLoad } from './types';
 
 const WEEKDAY_LABELS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 const MAX_VISIBLE_PER_DAY = 3;
@@ -14,6 +14,7 @@ export function MonthView({
   year,
   month,
   loads,
+  conflictByLoadId,
   canEditDate,
   onOpenLoad,
   onDropLoad,
@@ -21,6 +22,7 @@ export function MonthView({
   year: number;
   month: number;
   loads: AgendaLoad[];
+  conflictByLoadId: Map<string, boolean>;
   canEditDate: boolean;
   onOpenLoad: (load: AgendaLoad) => void;
   onDropLoad: (load: AgendaLoad, newDay: Date) => void;
@@ -42,24 +44,6 @@ export function MonthView({
       list.sort((a, b) => (a.data_agendada ?? '').localeCompare(b.data_agendada ?? ''));
     }
     return map;
-  }, [loads]);
-
-  const conflictByLoadId = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const l of loads) {
-      if (!l.data_agendada) continue;
-      const destKey = l.destino_full_id || l.loja_destino_id || l.marketplace_id || 'unknown';
-      const k = `${dateKeyFromIso(l.data_agendada)}|${timeFromIso(l.data_agendada)}|${destKey}`;
-      counts.set(k, (counts.get(k) ?? 0) + 1);
-    }
-    const byLoad = new Map<string, boolean>();
-    for (const l of loads) {
-      if (!l.data_agendada) continue;
-      const destKey = l.destino_full_id || l.loja_destino_id || l.marketplace_id || 'unknown';
-      const k = `${dateKeyFromIso(l.data_agendada)}|${timeFromIso(l.data_agendada)}|${destKey}`;
-      byLoad.set(l.id, (counts.get(k) ?? 0) > 1);
-    }
-    return byLoad;
   }, [loads]);
 
   const loadsById = useMemo(() => new Map(loads.map((l) => [l.id, l])), [loads]);

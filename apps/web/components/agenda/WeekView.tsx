@@ -11,12 +11,14 @@ const HOUR_HEIGHT = 48;
 export function WeekView({
   weekStart,
   loads,
+  conflictByLoadId,
   canEditDate,
   onOpenLoad,
   onDropLoad,
 }: {
   weekStart: Date;
   loads: AgendaLoad[];
+  conflictByLoadId: Map<string, boolean>;
   canEditDate: boolean;
   onOpenLoad: (load: AgendaLoad) => void;
   onDropLoad: (load: AgendaLoad, newDateTime: Date) => void;
@@ -105,6 +107,7 @@ export function WeekView({
                         <EventPill
                           load={load}
                           draggable={canEditDate}
+                          conflict={conflictByLoadId.get(load.id)}
                           onClick={() => onOpenLoad(load)}
                           onDragStart={(e) => {
                             setDragLoadId(load.id);

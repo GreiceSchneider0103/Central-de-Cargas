@@ -5,6 +5,7 @@ import { CommentForm } from '@/components/comments/CommentForm';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { requestStatusTone } from '@/lib/ui/status-styles';
+import { money } from '@/lib/ui/format';
 
 type VisibleRequestItem = {
   id: string;
@@ -56,6 +57,9 @@ export default async function SolicitacaoDetailPage({ params }: { params: Promis
           <p><span className="text-zinc-500">Canal:</span> <span className="font-medium">{request.channels?.nome ?? '-'}</span></p>
           <p><span className="text-zinc-500">Destino Full:</span> <span className="font-medium">{request.full_destinations?.nome ?? '-'}</span></p>
           <p><span className="text-zinc-500">Loja destino:</span> <span className="font-medium">{request.stores?.nome ?? '-'}</span></p>
+          {canSeeFinancial && (
+            <p><span className="text-zinc-500">Faturamento estimado:</span> <span className="font-medium">{request.faturamento_estimado != null ? money(Number(request.faturamento_estimado)) : '-'}</span></p>
+          )}
           <p><span className="text-zinc-500">Observações:</span> <span className="font-medium">{request.observacoes ?? '-'}</span></p>
           {request.motivo_recusa && <p className="md:col-span-2 text-rose-700"><span className="text-rose-500">Motivo da recusa:</span> {request.motivo_recusa}</p>}
         </CardBody>
