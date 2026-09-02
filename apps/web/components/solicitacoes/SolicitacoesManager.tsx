@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
-import { Plus, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Plus, AlertTriangle } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import type { UserProfile } from '@/lib/auth/roles';
 import { Button } from '@/components/ui/Button';
@@ -12,13 +12,14 @@ import { Input, Select, Textarea, FieldGroup } from '@/components/ui/Field';
 import { Badge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { SkeletonRows } from '@/components/ui/Skeleton';
+import { useToast } from '@/components/ui/Toast';
 import { cn } from '@/lib/utils';
 import { requestStatusTone } from '@/lib/ui/status-styles';
+import { translateError } from '@/lib/ui/error-messages';
 
 type Item = { sku: string; nome_produto: string; quantidade: number; fornecedor_origem_id?: string; cmv_unitario: number; cmv_total: number };
 type NamedOption = { id: string; nome: string; tipo?: string | null };
 type RequestRow = { id: string; codigo: string; tipo: string; status: string; created_at: string; carga_id?: string | null };
-type Notice = { type: 'success' | 'warning'; message: string };
 type ReasonAction = { id: string; kind: 'Recusada' | 'Ajuste solicitado' };
 
 const PAGE_SIZE = 50;
@@ -54,8 +55,7 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
   const [prioridade, setPrioridade] = useState('Média');
   const [dataDesejada, setDataDesejada] = useState('');
   const [observacoes, setObservacoes] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<Notice | null>(null);
+  const toast = useToast();
   const [statusFilter, setStatusFilter] = useState('');
   const [page, setPage] = useState(0);
   const [totalRequests, setTotalRequests] = useState(0);
@@ -109,22 +109,21 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
   }
 
   async function createRequest() {
-    setError(null);
-    if (profile.perfil === 'gerente_ecommerce' && tipo !== 'FULL_MARKETPLACE') return setError('Gerente e-commerce cria apenas Full.');
-    if (profile.perfil === 'vendedor_loja' && tipo !== 'LOJA_FISICA') return setError('Vendedor cria apenas Loja Física.');
-    if (tipo === 'LOJA_FISICA' && !lojaDestinoId) return setError('Solicitação de loja física exige loja destino.');
-    if (tipo === 'FULL_MARKETPLACE' && (!destinoFullId || (!marketplaceId && !canalId))) return setError('Solicitação Full exige destino e marketplace/canal.');
-    if (items.some((i) => !i.sku || !i.nome_produto || i.quantidade <= 0)) return setError('Cada item precisa SKU, nome e quantidade.');
+    if (profile.perfil === 'gerente_ecommerce' && tipo !== 'FULL_MARKETPLACE') return toast.error('Gerente e-commerce cria apenas Full.');
+    if (profile.perfil === 'vendedor_loja' && tipo !== 'LOJA_FISICA') return toast.error('Vendedor cria apenas Loja Física.');
+    if (tipo === 'LOJA_FISICA' && !lojaDestinoId) return toast.error('Solicitação de loja física exige loja destino.');
+    if (tipo === 'FULL_MARKETPLACE' && (!destinoFullId || (!marketplaceId && !canalId))) return toast.error('Solicitação Full exige destino e marketplace/canal.');
+    if (items.some((i) => !i.sku || !i.nome_produto || i.quantidade <= 0)) return toast.error('Cada item precisa SKU, nome e quantidade.');
 
     const authUser = (await supabase.auth.getUser()).data.user;
     const { data: me } = await supabase.from('users_profile').select('id').eq('auth_user_id', authUser?.id ?? '').single();
-    if (!me) return setError('Perfil do usuário não encontrado.');
+    if (!me) return toast.error('Perfil do usuário não encontrado.');
     const code = `REQ-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
     const { data: req, error } = await supabase.from('load_requests').insert({ codigo: code, tipo, empresa_id: empresaId || null, canal_id: canalId || null, marketplace_id: marketplaceId || null, destino_full_id: destinoFullId || null, loja_destino_id: lojaDestinoId || null, prioridade, data_desejada: dataDesejada || null, status: 'Pendente', solicitante_id: me.id, observacoes: observacoes || null }).select('id').single();
-    if (error) return setError(error.message);
+    if (error) return toast.error(error.message);
 
     const { error: itemErr } = await supabase.from('load_request_items').insert(items.map((i) => ({ ...i, request_id: req.id })));
-    if (itemErr) return setError(itemErr.message);
+    if (itemErr) return toast.error(itemErr.message);
 
     await supabase.from('load_request_history').insert({ request_id: req.id, acao: 'CRIADA', status_novo: 'Pendente', autor_profile_id: me.id });
     setItems([EMPTY_ITEM]);
@@ -132,7 +131,7 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
     setDataDesejada('');
     setObservacoes('');
     setShowCreate(false);
-    setNotice({ type: 'success', message: 'Solicitação criada com sucesso.' });
+    toast.success('Solicitação criada com sucesso.');
     await load();
   }
 
@@ -140,8 +139,8 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
     if (!canApprove) return;
     const url = status === 'Aprovada' ? `/api/load-requests/${id}/approve` : status === 'Recusada' ? `/api/load-requests/${id}/reject` : `/api/load-requests/${id}/request-adjust`;
     const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ motivo }) });
-    if (!res.ok) { const j = await res.json(); setError(j.error || 'Erro'); return; }
-    setNotice({ type: 'success', message: `Solicitação marcada como "${status}".` });
+    if (!res.ok) { const j = await res.json(); toast.error(translateError(j.error, 'Não foi possível atualizar a solicitação.')); return; }
+    toast.success(`Solicitação marcada como "${status}".`);
     await load();
   }
 
@@ -157,8 +156,8 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
     const res = await fetch(`/api/load-requests/${convertId}/convert`, { method: 'POST' });
     const j = await res.json();
     setConvertId(null);
-    if (!res.ok) { setError(j.error || 'Erro na conversão'); return; }
-    setNotice({ type: 'success', message: `Carga criada com sucesso: ${j.loadId}` });
+    if (!res.ok) { toast.error(translateError(j.error, 'Erro na conversão.')); return; }
+    toast.success(`Carga criada com sucesso: ${j.loadId}`);
     await load();
   }
 
@@ -172,14 +171,6 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
           Nova solicitação
         </Button>
       </div>
-
-      {notice && (
-        <div className={cn('flex items-center gap-2 rounded-lg p-3 text-sm', notice.type === 'success' ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-800')}>
-          {notice.type === 'success' ? <CheckCircle2 className="h-4 w-4 shrink-0" /> : <AlertTriangle className="h-4 w-4 shrink-0" />}
-          {notice.message}
-        </div>
-      )}
-      {error && <p className="text-sm text-rose-600">{error}</p>}
 
       <Card>
         <CardBody className="space-y-3">
@@ -331,8 +322,6 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
             </div>
             <Button variant="secondary" size="sm" className="mt-2" onClick={() => setItems((prev) => [...prev, EMPTY_ITEM])}>+ Item</Button>
           </div>
-
-          {error && <p className="text-sm text-rose-600">{error}</p>}
         </div>
       </Dialog>
 

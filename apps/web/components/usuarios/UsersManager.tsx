@@ -6,6 +6,8 @@ import { Card, CardBody } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input, Select, FieldGroup } from '@/components/ui/Field';
 import { Badge } from '@/components/ui/Badge';
+import { useToast } from '@/components/ui/Toast';
+import { translateError } from '@/lib/ui/error-messages';
 
 type RegistryOption = { id: string; nome: string };
 
@@ -39,8 +41,8 @@ const emptyForm: FormState = {
 export function UsersManager({ profiles, stores, companies }: Props) {
   const [rows, setRows] = useState(profiles);
   const [form, setForm] = useState<FormState>(emptyForm);
-  const [message, setMessage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const toast = useToast();
 
   function edit(profile: UserProfile) {
     setForm({
@@ -58,7 +60,6 @@ export function UsersManager({ profiles, stores, companies }: Props) {
   async function save(event: React.FormEvent) {
     event.preventDefault();
     setSaving(true);
-    setMessage(null);
     const response = await fetch('/api/users-profile', {
       method: form.id ? 'PATCH' : 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -67,10 +68,10 @@ export function UsersManager({ profiles, stores, companies }: Props) {
     const data = await response.json();
     setSaving(false);
     if (!response.ok) {
-      setMessage(data.error || 'Erro ao salvar perfil.');
+      toast.error(translateError(data.error, 'Erro ao salvar perfil.'));
       return;
     }
-    setMessage('Perfil salvo. Recarregue a página para atualizar a lista.');
+    toast.success('Perfil salvo. Recarregue a página para atualizar a lista.');
     if (form.id) {
       setRows((current) => current.map((row) => row.id === form.id ? { ...row, ...form, perfil: form.perfil as UserProfile['perfil'], loja_id: form.loja_id || null, empresa_id: form.empresa_id || null } : row));
     }
@@ -84,9 +85,12 @@ export function UsersManager({ profiles, stores, companies }: Props) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
-    if (response.ok) {
-      setRows((current) => current.map((row) => row.id === profile.id ? { ...row, ativo: !row.ativo } : row));
+    if (!response.ok) {
+      const data = await response.json();
+      toast.error(translateError(data.error, 'Erro ao atualizar o usuário.'));
+      return;
     }
+    setRows((current) => current.map((row) => row.id === profile.id ? { ...row, ativo: !row.ativo } : row));
   }
 
   return (
@@ -129,7 +133,6 @@ export function UsersManager({ profiles, stores, companies }: Props) {
               <Button type="button" variant="secondary" onClick={() => setForm(emptyForm)}>Limpar</Button>
             </div>
           </form>
-          {message && <p className="mt-3 text-sm text-zinc-600">{message}</p>}
         </CardBody>
       </Card>
 

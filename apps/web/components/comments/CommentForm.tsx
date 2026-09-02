@@ -4,15 +4,16 @@ import type { FormEvent } from 'react';
 import { useState } from 'react';
 import { Textarea } from '@/components/ui/Field';
 import { Button } from '@/components/ui/Button';
+import { useToast } from '@/components/ui/Toast';
+import { translateError } from '@/lib/ui/error-messages';
 
 export function CommentForm({ entidade, entidadeId }: { entidade: 'load' | 'load_request'; entidadeId: string }) {
   const [texto, setTexto] = useState('');
-  const [message, setMessage] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const toast = useToast();
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    setMessage(null);
     setSending(true);
     const response = await fetch('/api/comments', {
       method: 'POST',
@@ -22,18 +23,17 @@ export function CommentForm({ entidade, entidadeId }: { entidade: 'load' | 'load
     setSending(false);
     if (!response.ok) {
       const data = await response.json();
-      setMessage(data.error || 'Erro ao comentar.');
+      toast.error(translateError(data.error, 'Erro ao comentar.'));
       return;
     }
     setTexto('');
-    setMessage('Comentário salvo. Recarregue para atualizar a lista.');
+    toast.success('Comentário salvo. Recarregue para ver na lista.');
   }
 
   return (
     <form onSubmit={submit} className="space-y-2">
       <Textarea rows={3} value={texto} onChange={(e) => setTexto(e.target.value)} placeholder="Adicionar comentário interno" />
       <Button type="submit" variant="primary" size="sm" disabled={sending || !texto.trim()}>{sending ? 'Enviando...' : 'Comentar'}</Button>
-      {message && <p className="text-sm text-zinc-600">{message}</p>}
     </form>
   );
 }

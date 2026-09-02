@@ -9,6 +9,7 @@ import { Input, FieldGroup } from '@/components/ui/Field';
 import { Badge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { SkeletonRows } from '@/components/ui/Skeleton';
+import { useToast } from '@/components/ui/Toast';
 import { cn } from '@/lib/utils';
 
 type BaseRow = {
@@ -46,7 +47,8 @@ export function CadastrosManager({ role }: { role: UserProfileRole }) {
   const [loading, setLoading] = useState(true);
   const [showInactive, setShowInactive] = useState(false);
   const [form, setForm] = useState<Record<string, string>>({});
-  const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const toast = useToast();
 
   const canManage = role === 'admin' || role === 'gerente_estoque';
 
@@ -59,14 +61,14 @@ export function CadastrosManager({ role }: { role: UserProfileRole }) {
     if (!showInactive) query.eq('ativo', true);
     const { data, error } = await query;
     if (error) {
-      setError(error.message);
+      setLoadError(error.message);
       setLoading(false);
       return;
     }
     const sourceRows: unknown[] = Array.isArray(data) ? [...data] : [];
     const normalizedRows = sourceRows.filter(isBaseRow);
     setRows(normalizedRows);
-    setError(null);
+    setLoadError(null);
     setLoading(false);
   }, [activeSection.table, baseSelect, showInactive]);
 
@@ -82,10 +84,11 @@ export function CadastrosManager({ role }: { role: UserProfileRole }) {
     const supabase = createClient();
     const { error } = await supabase.from(activeSection.table).insert(payload);
     if (error) {
-      setError(error.message);
+      toast.error(error.message);
       return;
     }
     setForm({});
+    toast.success('Cadastro salvo.');
     await loadData();
   }
 
@@ -94,7 +97,7 @@ export function CadastrosManager({ role }: { role: UserProfileRole }) {
     const supabase = createClient();
     const { error } = await supabase.from(activeSection.table).update({ ativo: !row.ativo }).eq('id', row.id);
     if (error) {
-      setError(error.message);
+      toast.error(error.message);
       return;
     }
     await loadData();
@@ -141,10 +144,10 @@ export function CadastrosManager({ role }: { role: UserProfileRole }) {
             </form>
           )}
 
-          {error && <p className="text-sm text-rose-600">{error}</p>}
-
           {loading ? (
             <SkeletonRows rows={5} />
+          ) : loadError ? (
+            <EmptyState title="Não foi possível carregar" description={loadError} />
           ) : rows.length === 0 ? (
             <EmptyState title="Nada cadastrado ainda" description={canManage ? 'Use o formulário acima para cadastrar o primeiro registro.' : 'Nenhum registro disponível.'} />
           ) : (

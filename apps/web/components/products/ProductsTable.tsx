@@ -8,6 +8,8 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Field';
 import { Badge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { useToast } from '@/components/ui/Toast';
+import { translateError } from '@/lib/ui/error-messages';
 
 type ProductRow = {
   id: string;
@@ -21,8 +23,8 @@ type ProductRow = {
 
 export function ProductsTable({ products, role }: { products: ProductRow[]; role: UserProfileRole }) {
   const [search, setSearch] = useState('');
-  const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const toast = useToast();
   const isAdmin = role === 'admin';
   const canSeeFinancial = ['admin', 'gerente_estoque', 'gerente_ecommerce', 'financeiro'].includes(role);
 
@@ -33,17 +35,16 @@ export function ProductsTable({ products, role }: { products: ProductRow[]; role
 
   async function handleSyncNow() {
     setLoading(true);
-    setMessage(null);
     const response = await fetch('/api/products/sync', { method: 'POST' });
     const data = await response.json();
     if (!response.ok) {
-      setMessage(data.error || 'Erro ao sincronizar.');
+      toast.error(translateError(data.error, 'Erro ao sincronizar.'));
       setLoading(false);
       return;
     }
-    setMessage(`Sincronização concluída: ${data.created} criados, ${data.updated} atualizados.`);
+    toast.success(`Sincronização concluída: ${data.created} criados, ${data.updated} atualizados.`);
     setLoading(false);
-    window.location.reload();
+    setTimeout(() => window.location.reload(), 1200);
   }
 
   return (
@@ -60,8 +61,6 @@ export function ProductsTable({ products, role }: { products: ProductRow[]; role
           </Button>
         )}
       </div>
-
-      {message && <p className="text-sm text-zinc-600">{message}</p>}
 
       <Card>
         <CardBody className="p-0">

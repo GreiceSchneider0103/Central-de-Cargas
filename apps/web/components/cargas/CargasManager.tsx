@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Plus, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Plus, AlertTriangle } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import type { UserProfile } from '@/lib/auth/roles';
 import { LOAD_STATUSES } from '@/lib/loads/statuses';
@@ -13,7 +13,9 @@ import { Input, Select, Textarea, FieldGroup } from '@/components/ui/Field';
 import { Badge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { SkeletonRows } from '@/components/ui/Skeleton';
+import { useToast } from '@/components/ui/Toast';
 import { loadStatusTone } from '@/lib/ui/status-styles';
+import { translateError } from '@/lib/ui/error-messages';
 import { LoadItemFields } from './LoadItemFields';
 import { CHECKLIST_FIELDS } from '@/lib/loads/checklist';
 
@@ -76,7 +78,6 @@ type ItemDraft = {
   status_item?: string;
   observacao?: string;
 };
-type Notice = { type: 'success' | 'warning'; message: string };
 
 const PAGE_SIZE = 50;
 const EMPTY_ITEM: ItemDraft = { sku: '', nome_produto: '', quantidade: '1', cmv_unitario: '0' };
@@ -102,8 +103,7 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
   const [detailNewItem, setDetailNewItem] = useState<ItemDraft>(EMPTY_ITEM);
   const [editingItem, setEditingItem] = useState<ItemDraft & { id: string } | null>(null);
   const [removingItemId, setRemovingItemId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<Notice | null>(null);
+  const toast = useToast();
   const [showCancelForm, setShowCancelForm] = useState(false);
   const [cancelMotivo, setCancelMotivo] = useState('');
   const [confirmFinalize, setConfirmFinalize] = useState(false);
@@ -147,13 +147,12 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
 
   async function createLoad() {
     if (!canWrite) return;
-    setError(null);
     if (!newItem.sku || !newItem.nome_produto || Number(newItem.quantidade || 0) <= 0) {
-      setError('Informe ao menos um item com SKU, nome e quantidade maior que zero.');
+      toast.error('Informe ao menos um item com SKU, nome e quantidade maior que zero.');
       return;
     }
     if (profile.perfil === 'gerente_ecommerce' && form.tipo !== 'FULL_MARKETPLACE') {
-      setError('Gerente e-commerce pode criar apenas cargas FULL.');
+      toast.error('Gerente e-commerce pode criar apenas cargas FULL.');
       return;
     }
 
@@ -189,11 +188,11 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
     });
 
     const result = await response.json();
-    if (!response.ok) return setError(result.error || 'Erro ao criar carga.');
+    if (!response.ok) return toast.error(translateError(result.error, 'Erro ao criar carga.'));
 
     setNewItem(EMPTY_ITEM);
     setShowCreate(false);
-    setNotice({ type: 'success', message: 'Carga criada com sucesso.' });
+    toast.success('Carga criada com sucesso.');
     await loadData();
   }
 
@@ -233,7 +232,7 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
       observacao: detailNewItem.observacao || null,
     };
     const res = await fetch(`/api/loads/${selected.id}/items`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-    if (!res.ok) { const j = await res.json(); return setError(j.error || 'Erro ao adicionar item.'); }
+    if (!res.ok) { const j = await res.json(); return toast.error(translateError(j.error, 'Erro ao adicionar item.')); }
     setDetailNewItem(EMPTY_ITEM);
     await openLoad(selected);
     await loadData();
@@ -265,7 +264,7 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(editingItem),
     });
-    if (!res.ok) { const j = await res.json(); setError(j.error || 'Erro ao editar item.'); return; }
+    if (!res.ok) { const j = await res.json(); toast.error(translateError(j.error, 'Erro ao editar item.')); return; }
     setEditingItem(null);
     await openLoad(selected);
     await loadData();
@@ -279,7 +278,7 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
     }
     const res = await fetch(`/api/loads/${selected.id}/items?itemId=${item.id}`, { method: 'DELETE' });
     setRemovingItemId(null);
-    if (!res.ok) { const j = await res.json(); setError(j.error || 'Erro ao remover item.'); return; }
+    if (!res.ok) { const j = await res.json(); toast.error(translateError(j.error, 'Erro ao remover item.')); return; }
     await openLoad(selected);
     await loadData();
   }
@@ -304,8 +303,8 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
         observacoes: selected.observacoes ?? null,
       }),
     });
-    if (!res.ok) { const j = await res.json(); setError(j.error || 'Erro ao atualizar carga.'); return; }
-    setNotice({ type: 'success', message: 'Dados da carga atualizados.' });
+    if (!res.ok) { const j = await res.json(); toast.error(translateError(j.error, 'Erro ao atualizar carga.')); return; }
+    toast.success('Dados da carga atualizados.');
     await loadData();
   }
 
@@ -321,8 +320,8 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
         faturamento_estimado: selected.faturamento_estimado ?? null,
       }),
     });
-    if (!res.ok) { const j = await res.json(); setError(j.error || 'Erro ao atualizar financeiro.'); return; }
-    setNotice({ type: 'success', message: 'Financeiro atualizado.' });
+    if (!res.ok) { const j = await res.json(); toast.error(translateError(j.error, 'Erro ao atualizar financeiro.')); return; }
+    toast.success('Financeiro atualizado.');
     await openLoad(selected);
     await loadData();
   }
@@ -330,17 +329,17 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
   async function toggleChecklist(field: string, value: boolean) {
     if (!selected || !checklist || !canChecklist) return;
     const res = await fetch(`/api/loads/${selected.id}/checklist`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ field, value }) });
-    if (!res.ok) { const j = await res.json(); setError(j.error || 'Erro checklist'); return; }
+    if (!res.ok) { const j = await res.json(); toast.error(translateError(j.error, 'Não foi possível atualizar o checklist.')); return; }
     await openLoad(selected);
   }
 
   async function confirmCancel() {
     if (!selected || !canWrite || !cancelMotivo.trim()) return;
     const res = await fetch(`/api/loads/${selected.id}/cancel`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ motivo: cancelMotivo }) });
-    if (!res.ok) { const j = await res.json(); setError(j.error || 'Erro ao cancelar.'); return; }
+    if (!res.ok) { const j = await res.json(); toast.error(translateError(j.error, 'Erro ao cancelar a carga.')); return; }
     setShowCancelForm(false);
     setCancelMotivo('');
-    setNotice({ type: 'success', message: 'Carga cancelada.' });
+    toast.success('Carga cancelada.');
     await openLoad({ ...selected, status: 'Cancelada' });
     await loadData();
   }
@@ -353,9 +352,10 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
     }
     const res = await fetch(`/api/loads/${selected.id}/finalize`, { method: 'POST' });
     const j = await res.json();
-    if (!res.ok) { setError(j.error || 'Erro finalização'); return; }
+    if (!res.ok) { toast.error(translateError(j.error, 'Erro ao finalizar a carga.')); return; }
     setConfirmFinalize(false);
-    setNotice(j.warning ? { type: 'warning', message: 'Carga finalizada sem NF emitida.' } : { type: 'success', message: 'Carga finalizada com sucesso.' });
+    if (j.warning) toast.warning('Carga finalizada sem NF emitida.');
+    else toast.success('Carga finalizada com sucesso.');
     await openLoad({ ...selected, status: 'Finalizada' });
     await loadData();
   }
@@ -544,8 +544,6 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
               <p className="mt-2 flex items-center gap-1 text-xs text-amber-600"><AlertTriangle className="h-3.5 w-3.5" />Produto sem CMV cadastrado — a margem pode ficar incorreta.</p>
             )}
           </div>
-
-          {error && <p className="text-sm text-rose-600">{error}</p>}
         </div>
       </Dialog>
 
@@ -558,13 +556,6 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
       >
         {selected && (
           <div className="space-y-5">
-            {notice && (
-              <div className={`flex items-center gap-2 rounded-lg p-3 text-sm ${notice.type === 'success' ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-800'}`}>
-                {notice.type === 'success' ? <CheckCircle2 className="h-4 w-4 shrink-0" /> : <AlertTriangle className="h-4 w-4 shrink-0" />}
-                {notice.message}
-              </div>
-            )}
-            {error && <p className="text-sm text-rose-600">{error}</p>}
             <p className="text-xs text-zinc-500">Cargas agendadas antes do recebimento e finalizações sem NF são permitidas, mas geram alerta.</p>
 
             {canWrite && (
