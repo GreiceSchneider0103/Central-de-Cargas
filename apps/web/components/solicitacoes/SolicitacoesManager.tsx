@@ -19,7 +19,7 @@ import { translateError } from '@/lib/ui/error-messages';
 
 type Item = { sku: string; nome_produto: string; quantidade: number; fornecedor_origem_id?: string; cmv_unitario: number; cmv_total: number };
 type NamedOption = { id: string; nome: string; tipo?: string | null };
-type RequestRow = { id: string; codigo: string; tipo: string; status: string; created_at: string; carga_id?: string | null };
+type RequestRow = { id: string; codigo: string; tipo: string; status: string; created_at: string; carga_id?: string | null; motivo_recusa?: string | null };
 type ReasonAction = { id: string; kind: 'Recusada' | 'Ajuste solicitado' };
 
 const PAGE_SIZE = 50;
@@ -73,7 +73,7 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
     setLoadingList(true);
     const [reqs, c, s, ch, d, sup] = await Promise.all([
       (() => {
-        let query = supabase.from('load_requests').select('id,codigo,tipo,status,created_at,carga_id', { count: 'exact' }).order('created_at', { ascending: false }).range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1);
+        let query = supabase.from('load_requests').select('id,codigo,tipo,status,created_at,carga_id,motivo_recusa', { count: 'exact' }).order('created_at', { ascending: false }).range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1);
         if (statusFilter) query = query.eq('status', statusFilter);
         return query;
       })(),
@@ -216,7 +216,12 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
                     <tr key={r.id} className="border-b border-zinc-50 last:border-0">
                       <td className="py-2"><Link className="font-medium text-brand-600 hover:text-brand-700" href={`/solicitacoes/${r.id}`}>{r.codigo}</Link></td>
                       <td className="py-2 text-zinc-600">{r.tipo === 'FULL_MARKETPLACE' ? 'Full' : 'Loja'}</td>
-                      <td className="py-2"><Badge tone={requestStatusTone(r.status)} dot>{r.status}</Badge></td>
+                      <td className="py-2">
+                        <Badge tone={requestStatusTone(r.status)} dot>{r.status}</Badge>
+                        {r.status === 'Recusada' && r.motivo_recusa && (
+                          <div className="mt-1 max-w-xs text-xs text-zinc-500">{r.motivo_recusa}</div>
+                        )}
+                      </td>
                       <td className="py-2 text-zinc-500">{new Date(r.created_at).toLocaleString('pt-BR')}</td>
                       <td className="space-x-3 py-2 text-right whitespace-nowrap">
                         {canApprove && r.status !== 'Aprovada' && r.status !== 'Recusada' && r.status !== 'Transformada em carga' && (

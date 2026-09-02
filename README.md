@@ -52,3 +52,10 @@ Toda a implementação React/Vite/Firebase foi movida para `legacy-vite/` sem ex
   2. A Vercel injeta automaticamente o header `Authorization: Bearer <CRON_SECRET>` nas chamadas do cron — o endpoint já valida esse header antes de rodar a sincronização.
   3. Sem `CRON_SECRET` configurado, o endpoint continua funcionando apenas no modo manual (admin autenticado).
 - Em caso de variáveis do Google não configuradas, a API retorna erro amigável.
+
+## Deploy bloqueado na Vercel ("Deployment Blocked")
+O plano **Hobby** da Vercel não aceita colaboração em repositório privado: só é aceito deploy de commits cujo autor seja o dono da conta/projeto. Se um deploy de Production aparecer como **Blocked** com a mensagem "the commit author did not have contributing access to the project on Vercel":
+
+- Confira o autor do commit (`git log -1 --format='%an <%ae>'`). Precisa bater com a conta dona do projeto na Vercel.
+- Os commits feitos com ajuda do Claude Code neste repositório usam o autor `GreiceSchneider0103 <greicelessul@gmail.com>` (configurado localmente via `git config user.name`/`user.email`), justamente para evitar esse bloqueio.
+- Se o bloqueio voltar a acontecer, as opções são: (1) fazer upgrade para o plano Pro da Vercel (aceita múltiplos colaboradores), ou (2) garantir que o commit que chega em `main` tenha o autor correto antes do merge.

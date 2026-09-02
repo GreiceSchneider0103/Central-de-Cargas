@@ -15,6 +15,69 @@ function parseDate(value: string | undefined) {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
+const FIELD_LABELS: Record<string, string> = {
+  status: 'Status',
+  custo_frete: 'Custo de frete',
+  outros_custos: 'Outros custos',
+  faturamento_estimado: 'Faturamento estimado',
+  cmv_unitario: 'CMV unitário',
+  quantidade: 'Quantidade',
+  data_agendada: 'Data agendada',
+  data_prevista_recebimento: 'Previsão de recebimento',
+  data_real_recebimento: 'Recebimento real',
+  responsavel_operacional_id: 'Responsável',
+  transportador_id: 'Transportador',
+  sku: 'SKU',
+  texto: 'Texto',
+};
+
+const PAYLOAD_KEY_LABELS: Record<string, string> = {
+  codigo_interno: 'Código',
+  tipo: 'Tipo',
+  items_count: 'Itens',
+  previous_status: 'Status anterior',
+  new_status: 'Novo status',
+  warning: 'Aviso',
+  request_id: 'Solicitação',
+  load_id: 'Carga',
+  sku: 'SKU',
+  entidade: 'Entidade',
+  entidade_id: 'ID',
+};
+
+function formatValue(value: unknown) {
+  return value == null || value === '' ? '—' : String(value);
+}
+
+function AuditDetail({ fieldName, oldValue, newValue, payload }: { fieldName: string | null; oldValue: string | null; newValue: string | null; payload: unknown }) {
+  if (fieldName) {
+    return (
+      <div className="text-xs text-zinc-700">
+        <span className="font-medium">{FIELD_LABELS[fieldName] ?? fieldName}</span>
+        {(oldValue != null || newValue != null) && (
+          <div className="mt-0.5 text-zinc-500">
+            {formatValue(oldValue)} → {formatValue(newValue)}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  const entries = payload && typeof payload === 'object' ? Object.entries(payload as Record<string, unknown>) : [];
+  if (entries.length === 0) return <span className="text-xs text-zinc-400">—</span>;
+
+  return (
+    <dl className="space-y-0.5 text-xs text-zinc-600">
+      {entries.map(([key, value]) => (
+        <div key={key} className="flex gap-1">
+          <dt className="font-medium text-zinc-700">{PAYLOAD_KEY_LABELS[key] ?? key}:</dt>
+          <dd>{formatValue(value)}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
 export default async function AuditPage({
   searchParams,
 }: {
@@ -48,7 +111,7 @@ export default async function AuditPage({
 
   let q = supabase
     .from('audit_logs')
-    .select('id,tabela,registro_id,acao,created_at,profile_id,payload,users_profile(nome,email,perfil)', { count: 'exact' })
+    .select('id,tabela,registro_id,acao,created_at,profile_id,payload,field_name,old_value,new_value,users_profile(nome,email,perfil)', { count: 'exact' })
     .order('created_at', { ascending: false })
     .range((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE - 1);
 
@@ -82,6 +145,9 @@ export default async function AuditPage({
     created_at: string;
     profile_id: string | null;
     payload: unknown;
+    field_name: string | null;
+    old_value: string | null;
+    new_value: string | null;
     users_profile?: { nome: string | null; email: string | null; perfil: string | null }[] | null;
   };
 
@@ -133,7 +199,7 @@ export default async function AuditPage({
                     <th className="px-4 py-2.5">Registro</th>
                     <th className="px-4 py-2.5">Ação</th>
                     <th className="px-4 py-2.5">Usuário</th>
-                    <th className="px-4 py-2.5">Payload</th>
+                    <th className="px-4 py-2.5">Detalhe</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -149,8 +215,8 @@ export default async function AuditPage({
                           <div className="text-xs text-zinc-700">{(up?.nome || up?.email || r.profile_id) ?? '-'}</div>
                           {up?.perfil && <div className="text-[10px] text-zinc-500">{up.perfil}</div>}
                         </td>
-                        <td className="px-4 py-2.5">
-                          <pre className="max-w-[420px] whitespace-pre-wrap text-[10px] text-zinc-500">{JSON.stringify((r.payload ?? {}) as unknown, null, 2)}</pre>
+                        <td className="max-w-[320px] px-4 py-2.5">
+                          <AuditDetail fieldName={r.field_name} oldValue={r.old_value} newValue={r.new_value} payload={r.payload} />
                         </td>
                       </tr>
                     );
