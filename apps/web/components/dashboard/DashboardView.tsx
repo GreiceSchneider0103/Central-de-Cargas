@@ -3,9 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
-  Package2,
   CalendarClock,
-  CalendarRange,
   ClipboardList,
   AlertTriangle,
   Truck,
@@ -13,7 +11,6 @@ import {
   Tag,
   FileWarning,
   PackageCheck,
-  DollarSign,
   ArrowRight,
 } from 'lucide-react';
 import type { UserProfile } from '@/lib/auth/roles';
@@ -176,22 +173,19 @@ export function DashboardView({ profile, loads, pendingRequests, metrics = null 
       </div>
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatCard label="Cargas do dia" value={cards.d} icon={CalendarClock} tone="brand" />
-        <StatCard label="Cargas da semana" value={cards.w} icon={CalendarRange} tone="info" />
-        <StatCard label="Cargas do mês" value={cards.m} icon={Package2} tone="info" />
+        <StatCard
+          label="Cargas de hoje"
+          value={cards.d}
+          hint={`Semana: ${cards.w} · Mês: ${cards.m}`}
+          icon={CalendarClock}
+          tone="brand"
+        />
         <StatCard label="Solicitações pendentes" value={pendingRequests} icon={ClipboardList} tone="warning" />
-        <StatCard label="Cargas atrasadas" value={cards.atras} icon={AlertTriangle} tone="danger" />
         <StatCard label="Aguardando fornecedor" value={cards.aguForn} icon={Truck} tone="warning" />
         <StatCard label="Aguardando recebimento" value={cards.aguRec} icon={Boxes} tone="warning" />
         <StatCard label="Aguardando etiqueta" value={cards.aguEtiq} icon={Tag} tone="progress" />
         <StatCard label="Aguardando NF" value={cards.aguNF} icon={FileWarning} tone="warning" />
         <StatCard label="Prontas para coleta" value={cards.prontaCol} icon={PackageCheck} tone="brand" />
-        {canSeeFinancial && (
-          <>
-            <StatCard label="Faturamento estimado" value={money(cards.fat)} icon={DollarSign} tone="success" />
-            <StatCard label="Margem estimada" value={money(cards.margem)} icon={DollarSign} tone={cards.margem >= 0 ? 'success' : 'danger'} />
-          </>
-        )}
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
