@@ -15,6 +15,7 @@ import { SkeletonRows } from '@/components/ui/Skeleton';
 import { useToast } from '@/components/ui/Toast';
 import { cn } from '@/lib/utils';
 import { requestStatusTone } from '@/lib/ui/status-styles';
+import { ProductSkuInput, type ProductSuggestion } from '@/components/products/ProductSkuInput';
 import { translateError } from '@/lib/ui/error-messages';
 
 type Item = { sku: string; nome_produto: string; quantidade: number; fornecedor_origem_id?: string; cmv_unitario: number; cmv_total: number };
@@ -102,9 +103,19 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
     );
   }
 
+  function selectProduct(index: number, product: ProductSuggestion) {
+    setItems((prev) =>
+      prev.map((item, i) => {
+        if (i !== index) return item;
+        const cmv_unitario = Number(product.cmv || 0);
+        return { ...item, sku: product.sku, nome_produto: product.nome, cmv_unitario, cmv_total: cmv_unitario * item.quantidade };
+      }),
+    );
+  }
+
   async function handleSkuChange(index: number, sku: string) {
     setItems((prev) => prev.map((item, i) => (i === index ? { ...item, sku } : item)));
-    const { data: productRows } = await supabase.rpc('get_visible_product_by_sku', { p_sku: sku });
+    const { data: productRows } = await supabase.rpc('get_visible_product_by_sku', { p_sku: sku, p_company_id: empresaId || null });
     const product = Array.isArray(productRows) ? productRows[0] : null;
     if (!product) return;
     setItems((prev) =>
@@ -325,7 +336,7 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
             <div className="space-y-3">
               {items.map((item, idx) => (
                 <div key={idx} className="grid grid-cols-1 gap-2 md:grid-cols-6">
-                  <FieldGroup label="SKU"><Input value={item.sku} onChange={(e) => handleSkuChange(idx, e.target.value)} /></FieldGroup>
+                  <FieldGroup label="SKU"><ProductSkuInput value={item.sku} companyId={empresaId} onChange={(sku) => handleSkuChange(idx, sku)} onSelect={(product) => selectProduct(idx, product)} /></FieldGroup>
                   <FieldGroup label="Nome" className="md:col-span-2"><Input value={item.nome_produto} onChange={(e) => updateItem(idx, 'nome_produto', e.target.value)} /></FieldGroup>
                   <FieldGroup label="Quantidade"><Input type="number" value={item.quantidade} onChange={(e) => updateItem(idx, 'quantidade', Number(e.target.value))} /></FieldGroup>
                   <FieldGroup label="Fornecedor">
