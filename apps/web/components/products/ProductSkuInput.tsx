@@ -4,7 +4,17 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Input } from '@/components/ui/Field';
 
-export type ProductSuggestion = { id: string; sku: string; nome: string; cmv: number | null };
+export type ProductSuggestion = {
+  id: string;
+  sku: string;
+  nome: string;
+  cmv: number | null;
+  fornecedor_id: string | null;
+  peso: number | null;
+  altura: number | null;
+  largura: number | null;
+  profundidade: number | null;
+};
 
 // Campo de SKU com sugestões dos produtos vinculados à empresa (busca por SKU
 // ou nome). Sem empresa selecionada, funciona como um campo de texto comum.
@@ -41,7 +51,19 @@ export function ProductSkuInput({
         p_company_id: companyId,
       });
       if (cancelled) return;
-      setSuggestions(((data ?? []) as ProductSuggestion[]).map((p) => ({ id: p.id, sku: p.sku, nome: p.nome, cmv: p.cmv })));
+      setSuggestions(
+        ((data ?? []) as ProductSuggestion[]).map((p) => ({
+          id: p.id,
+          sku: p.sku,
+          nome: p.nome,
+          cmv: p.cmv,
+          fornecedor_id: p.fornecedor_id,
+          peso: p.peso,
+          altura: p.altura,
+          largura: p.largura,
+          profundidade: p.profundidade,
+        })),
+      );
       setSearched(true);
     }, 300);
     return () => {

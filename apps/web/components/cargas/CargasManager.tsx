@@ -19,6 +19,7 @@ import { translateError } from '@/lib/ui/error-messages';
 import { toDatetimeLocalValue, fromDatetimeLocalValue } from '@/lib/ui/datetime';
 import { LoadItemFields } from './LoadItemFields';
 import { CHECKLIST_FIELDS } from '@/lib/loads/checklist';
+import { findProductChanges, ProductSyncPrompt, type ProductSyncProposal } from '@/components/products/ProductSyncPrompt';
 
 type LoadRow = {
   id: string;
@@ -111,6 +112,7 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
   const [options, setOptions] = useState<{ companies: Option[]; channels: Option[]; stores: Option[]; destinations: Option[]; cds: Option[]; suppliers: Option[]; transports: Option[]; profiles: Option[] }>({ companies: [], channels: [], stores: [], destinations: [], cds: [], suppliers: [], transports: [], profiles: [] });
   const [page, setPage] = useState(0);
   const [totalLoads, setTotalLoads] = useState(0);
+  const [productSync, setProductSync] = useState<ProductSyncProposal | null>(null);
 
   const canWrite = ['admin', 'gerente_estoque', 'gerente_ecommerce'].includes(profile.perfil);
   const canChecklist = ['admin', 'gerente_estoque', 'operador_carga'].includes(profile.perfil);
@@ -118,6 +120,14 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
   const canEditFinancialOnly = profile.perfil === 'financeiro';
   const canEditFinancial = canSeeFinancial && (canWrite || canEditFinancialOnly);
   const selectedCompanyId = typeof selected?.empresa_id === 'string' ? selected.empresa_id : null;
+  const canManageProducts = profile.perfil === 'admin' || profile.perfil === 'gerente_estoque';
+
+  // Depois de salvar um item: se o CMV ou o fornecedor digitados diferem do
+  // cadastro do produto, pergunta se deve atualizar o produto.
+  async function proposeProductUpdate(item: ItemDraft) {
+    if (!canManageProducts) return;
+    setProductSync(await findProductChanges(supabase, item, options.suppliers));
+  }
 
   const itemTotals = useMemo(() => {
     let peso = 0;
@@ -203,10 +213,12 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
     const result = await response.json();
     if (!response.ok) return toast.error(translateError(result.error, 'Erro ao criar carga.'));
 
+    const createdItem = newItem;
     setNewItem(EMPTY_ITEM);
     setShowCreate(false);
     toast.success('Carga criada com sucesso.');
     await loadData();
+    await proposeProductUpdate(createdItem);
   }
 
   async function openLoad(load: LoadRow) {
@@ -233,12 +245,12 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
       sku: detailNewItem.sku,
       nome_produto: detailNewItem.nome_produto || product?.nome,
       quantidade: detailNewItem.quantidade,
-      fornecedor_origem_id: detailNewItem.fornecedor_origem_id || null,
+      fornecedor_origem_id: detailNewItem.fornecedor_origem_id || product?.fornecedor_id || null,
       cmv_unitario: detailNewItem.cmv_unitario || product?.cmv || 0,
-      altura: detailNewItem.altura || null,
-      largura: detailNewItem.largura || null,
-      profundidade: detailNewItem.profundidade || null,
-      peso: detailNewItem.peso || null,
+      altura: detailNewItem.altura || product?.altura || null,
+      largura: detailNewItem.largura || product?.largura || null,
+      profundidade: detailNewItem.profundidade || product?.profundidade || null,
+      peso: detailNewItem.peso || product?.peso || null,
       data_prevista_recebimento: detailNewItem.data_prevista_recebimento || null,
       data_real_recebimento: detailNewItem.data_real_recebimento || null,
       status_item: detailNewItem.status_item || null,
@@ -246,9 +258,11 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
     };
     const res = await fetch(`/api/loads/${selected.id}/items`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     if (!res.ok) { const j = await res.json(); return toast.error(translateError(j.error, 'Erro ao adicionar item.')); }
+    const addedItem = detailNewItem;
     setDetailNewItem(EMPTY_ITEM);
     await openLoad(selected);
     await loadData();
+    await proposeProductUpdate(addedItem);
   }
 
   function editItem(item: LoadItemRow) {
@@ -278,9 +292,11 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
       body: JSON.stringify(editingItem),
     });
     if (!res.ok) { const j = await res.json(); toast.error(translateError(j.error, 'Erro ao editar item.')); return; }
+    const editedItem = editingItem;
     setEditingItem(null);
     await openLoad(selected);
     await loadData();
+    await proposeProductUpdate(editedItem);
   }
 
   async function removeItem(item: LoadItemRow) {
@@ -776,6 +792,7 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
           </div>
         )}
       </Dialog>
+      <ProductSyncPrompt proposal={productSync} onClose={() => setProductSync(null)} supabase={supabase} />
     </div>
   );
 }

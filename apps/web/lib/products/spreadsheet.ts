@@ -5,6 +5,10 @@ export type ImportProductRow = {
   nome: string;
   cmv: number | null;
   fornecedor: string | null;
+  peso: number | null;
+  altura: number | null;
+  largura: number | null;
+  profundidade: number | null;
 };
 
 export type ParsedProductSheet = {
@@ -22,6 +26,12 @@ const HEADERS = {
   cmv: ['preco de custo', 'cmv', 'custo'],
   fornecedor: ['fornecedor'],
   tipo: ['tipo do produto'],
+  // Olist: peso em kg e medidas da embalagem em cm (comprimento = profundidade).
+  pesoBruto: ['peso bruto (kg)', 'peso bruto', 'peso', 'peso (kg)'],
+  pesoLiquido: ['peso liquido (kg)', 'peso liquido'],
+  altura: ['altura embalagem', 'altura', 'altura (cm)'],
+  largura: ['largura embalagem', 'largura', 'largura (cm)'],
+  profundidade: ['comprimento embalagem', 'profundidade', 'comprimento', 'profundidade (cm)', 'comprimento (cm)'],
 };
 
 function normalizeHeader(value: string) {
@@ -56,6 +66,16 @@ export function parseProductWorkbook(workbook: WorkBook, utils: typeof import('x
     cmv: find(HEADERS.cmv),
     fornecedor: find(HEADERS.fornecedor),
     tipo: find(HEADERS.tipo),
+    pesoBruto: find(HEADERS.pesoBruto),
+    pesoLiquido: find(HEADERS.pesoLiquido),
+    altura: find(HEADERS.altura),
+    largura: find(HEADERS.largura),
+    profundidade: find(HEADERS.profundidade),
+  };
+  const positive = (column: string | undefined, r: Record<string, unknown>) => {
+    if (!column) return null;
+    const value = toNumber(r[column]);
+    return value != null && value > 0 ? value : null;
   };
 
   const skuCol = col.sku;
@@ -87,6 +107,10 @@ export function parseProductWorkbook(workbook: WorkBook, utils: typeof import('x
       nome,
       cmv: col.cmv ? toNumber(r[col.cmv]) : null,
       fornecedor: col.fornecedor ? String(t[col.fornecedor] ?? '').trim() || null : null,
+      peso: positive(col.pesoBruto, r) ?? positive(col.pesoLiquido, r),
+      altura: positive(col.altura, r),
+      largura: positive(col.largura, r),
+      profundidade: positive(col.profundidade, r),
     });
   });
 

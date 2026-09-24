@@ -3,22 +3,13 @@ import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { ProductsTable } from '@/components/products/ProductsTable';
 import type { UserProfile } from '@/lib/auth/roles';
+import type { ProductRow } from '@/lib/products/types';
 
-type ProductSupplier = {
-  nome?: string | null;
-};
-
-type ProductWithSupplier = {
-  id: string;
-  sku: string;
-  nome: string;
+type ProductPageRow = Omit<ProductRow, 'cmv' | 'ativo' | 'company_ids'> & {
   cmv: number | null;
   ativo: boolean | null;
-  last_synced_at: string | null;
-  fornecedor_id?: string | null;
-  suppliers?: ProductSupplier[] | ProductSupplier | null;
-  supplier_name?: string | null;
-  company_names?: string | null;
+  company_ids: string[] | null;
+  total_count?: number;
 };
 
 const PAGE_SIZE = 50;
@@ -40,7 +31,10 @@ export default async function ProdutosPage({ searchParams }: { searchParams?: Pr
   const currentPage = Math.max(1, Number(resolvedSearchParams?.page ?? '1') || 1);
   const search = resolvedSearchParams?.search?.trim() ?? '';
 
-  const { data: companies } = await supabase.from('companies').select('id,nome').eq('ativo', true).order('nome');
+  const [{ data: companies }, { data: suppliers }] = await Promise.all([
+    supabase.from('companies').select('id,nome').eq('ativo', true).order('nome'),
+    supabase.from('suppliers').select('id,nome').eq('ativo', true).order('nome'),
+  ]);
   const companyList = (companies ?? []) as { id: string; nome: string }[];
   const requestedCompany = resolvedSearchParams?.empresa ?? '';
   const companyId = companyList.some((c) => c.id === requestedCompany) ? requestedCompany : '';
@@ -53,19 +47,25 @@ export default async function ProdutosPage({ searchParams }: { searchParams?: Pr
   });
   const pageQuery = `${search ? `&search=${encodeURIComponent(search)}` : ''}${companyId ? `&empresa=${companyId}` : ''}`;
 
-  const typedProducts = (products ?? []) as (ProductWithSupplier & { total_count?: number })[];
+  const typedProducts = (products ?? []) as ProductPageRow[];
   const totalProducts = Number(typedProducts[0]?.total_count ?? 0);
   const totalPages = Math.max(1, Math.ceil(totalProducts / PAGE_SIZE));
-  const normalized = typedProducts.map((p) => {
-    const supplier = Array.isArray(p.suppliers) ? p.suppliers[0] : p.suppliers;
-
-    return {
-      ...p,
-      cmv: p.cmv ?? 0,
-      ativo: p.ativo ?? false,
-      supplier_name: p.supplier_name ?? supplier?.nome ?? p.fornecedor_id ?? null,
-    };
-  });
+  const normalized: ProductRow[] = typedProducts.map((p) => ({
+    id: p.id,
+    sku: p.sku,
+    nome: p.nome,
+    cmv: p.cmv ?? 0,
+    ativo: p.ativo ?? false,
+    last_synced_at: p.last_synced_at,
+    fornecedor_id: p.fornecedor_id,
+    supplier_name: p.supplier_name,
+    peso: p.peso,
+    altura: p.altura,
+    largura: p.largura,
+    profundidade: p.profundidade,
+    company_names: p.company_names,
+    company_ids: p.company_ids ?? [],
+  }));
 
   return (
     <div className="space-y-4">
@@ -73,7 +73,15 @@ export default async function ProdutosPage({ searchParams }: { searchParams?: Pr
         <h1 className="text-2xl font-bold text-zinc-900">Produtos</h1>
         <p className="text-sm text-zinc-500">Importe produtos por planilha escolhendo a empresa (um SKU pode pertencer a mais de uma) ou sincronize via Google Sheets.</p>
       </div>
-      <ProductsTable products={normalized} role={profile.perfil} search={search} companies={companyList} companyId={companyId} />
+      <ProductsTable
+        products={normalized}
+        role={profile.perfil}
+        search={search}
+        companies={companyList}
+        suppliers={(suppliers ?? []) as { id: string; nome: string }[]}
+        companyId={companyId}
+        totalProducts={totalProducts}
+      />
       <div className="flex items-center justify-between text-sm">
         <Link
           className={`rounded-lg border border-zinc-300 bg-white px-3 py-1.5 font-medium text-zinc-700 hover:bg-zinc-50 ${currentPage === 1 ? 'pointer-events-none opacity-50' : ''}`}

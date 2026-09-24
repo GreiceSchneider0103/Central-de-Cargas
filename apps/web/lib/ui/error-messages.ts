@@ -39,6 +39,8 @@ const ERROR_MESSAGES: Record<string, string> = {
   USER_INVITE_FAILED: 'Não foi possível criar o convite de acesso. Tente novamente.',
   EMPRESA_REQUIRED: 'Selecione a empresa.',
   EMPRESA_NOT_FOUND: 'Empresa não encontrada.',
+  SKU_REQUIRED: 'Informe o SKU.',
+  SKU_ALREADY_EXISTS: 'Já existe outro produto com esse SKU.',
   SPREADSHEET_EMPTY: 'A planilha está vazia.',
   SPREADSHEET_MISSING_COLUMNS: 'A planilha precisa ter as colunas de SKU e Nome (ou "Código (SKU)" e "Descrição", como na exportação do Olist).',
   SPREADSHEET_NO_PRODUCTS: 'Nenhum produto válido encontrado na planilha.',

@@ -9,9 +9,12 @@ import { FieldGroup, Input } from '@/components/ui/Field';
 import { useToast } from '@/components/ui/Toast';
 import { createClient } from '@/lib/supabase/client';
 import { translateError } from '@/lib/ui/error-messages';
+import { CompanyCheckboxes } from './CompanyCheckboxes';
 import { parseProductWorkbook, type ParsedProductSheet } from '@/lib/products/spreadsheet';
 
-export type CompanyOption = { id: string; nome: string };
+import type { NamedOption } from '@/lib/products/types';
+
+export type CompanyOption = NamedOption;
 
 const CHUNK_SIZE = 1000;
 
@@ -23,10 +26,6 @@ export function ProductImportDialog({ open, onClose, companies }: { open: boolea
   const [importing, setImporting] = useState(false);
   const toast = useToast();
   const router = useRouter();
-
-  function toggleCompany(id: string) {
-    setCompanyIds((prev) => (prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id]));
-  }
 
   function reset() {
     setCompanyIds([]);
@@ -108,30 +107,7 @@ export function ProductImportDialog({ open, onClose, companies }: { open: boolea
     >
       <div className="space-y-4">
         <FieldGroup label={`Empresas${companyIds.length > 0 ? ` (${companyIds.length} selecionada${companyIds.length > 1 ? 's' : ''})` : ''}`}>
-          <div className="grid grid-cols-1 gap-1 rounded-lg border border-zinc-300 p-2 sm:grid-cols-2">
-            {companies.map((c) => (
-              <label key={c.id} className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm text-zinc-800 hover:bg-zinc-50">
-                <input
-                  type="checkbox"
-                  className="h-4 w-4 rounded border-zinc-300 accent-brand-600"
-                  checked={companyIds.includes(c.id)}
-                  onChange={() => toggleCompany(c.id)}
-                  disabled={importing}
-                />
-                {c.nome}
-              </label>
-            ))}
-          </div>
-          {companies.length > 1 && (
-            <button
-              type="button"
-              className="self-start text-xs font-medium text-brand-600 hover:underline disabled:opacity-50"
-              disabled={importing}
-              onClick={() => setCompanyIds(companyIds.length === companies.length ? [] : companies.map((c) => c.id))}
-            >
-              {companyIds.length === companies.length ? 'Desmarcar todas' : 'Marcar todas'}
-            </button>
-          )}
+          <CompanyCheckboxes companies={companies} value={companyIds} onChange={setCompanyIds} disabled={importing} />
         </FieldGroup>
 
         <FieldGroup label="Planilha">
@@ -154,6 +130,7 @@ export function ProductImportDialog({ open, onClose, companies }: { open: boolea
               {parsed.skippedParents > 0 && <li>{parsed.skippedParents} produtos pai de variação ignorados (as variações entram)</li>}
               {parsed.skippedInvalid > 0 && <li>{parsed.skippedInvalid} linhas sem SKU ou nome ignoradas</li>}
               <li>{parsed.rows.filter((r) => !r.cmv || r.cmv <= 0).length} sem preço de custo (mantêm o CMV já cadastrado, se houver)</li>
+              <li>{parsed.rows.filter((r) => r.peso || r.altura || r.largura || r.profundidade).length} com peso ou medidas da embalagem</li>
             </ul>
             <p className="mt-2 text-xs text-zinc-500">
               SKUs que já existem são atualizados e ganham o vínculo com as empresas marcadas, sem perder os vínculos que já tinham.

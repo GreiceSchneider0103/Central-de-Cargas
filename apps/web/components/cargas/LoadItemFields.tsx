@@ -38,6 +38,10 @@ export function LoadItemFields({
     onChange('sku', product.sku);
     onChange('nome_produto', product.nome);
     if (showFinancial && product.cmv != null && Number(product.cmv) > 0) onChange('cmv_unitario', String(product.cmv));
+    if (product.fornecedor_id) onChange('fornecedor_origem_id', product.fornecedor_id);
+    for (const field of ['peso', 'altura', 'largura', 'profundidade'] as const) {
+      if (product[field] != null && Number(product[field]) > 0) onChange(field, String(product[field]));
+    }
   }
 
   return (

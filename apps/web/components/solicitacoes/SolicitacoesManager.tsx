@@ -108,7 +108,14 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
       prev.map((item, i) => {
         if (i !== index) return item;
         const cmv_unitario = Number(product.cmv || 0);
-        return { ...item, sku: product.sku, nome_produto: product.nome, cmv_unitario, cmv_total: cmv_unitario * item.quantidade };
+        return {
+          ...item,
+          sku: product.sku,
+          nome_produto: product.nome,
+          fornecedor_origem_id: product.fornecedor_id ?? item.fornecedor_origem_id,
+          cmv_unitario,
+          cmv_total: cmv_unitario * item.quantidade,
+        };
       }),
     );
   }
