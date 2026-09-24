@@ -12,12 +12,13 @@
     "@supabase/ssr": "^0.5.2",
     "@supabase/supabase-js": "^2.49.8",
     "clsx": "^2.1.1",
+    "googleapis": "^144.0.0",
     "lucide-react": "^0.546.0",
     "next": "15.3.9",
     "react": "19.0.0",
     "react-dom": "19.0.0",
     "tailwind-merge": "^3.5.0",
-    "googleapis": "^144.0.0"
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/node": "^22.10.1",

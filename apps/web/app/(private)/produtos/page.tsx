@@ -18,11 +18,12 @@ type ProductWithSupplier = {
   fornecedor_id?: string | null;
   suppliers?: ProductSupplier[] | ProductSupplier | null;
   supplier_name?: string | null;
+  company_names?: string | null;
 };
 
 const PAGE_SIZE = 50;
 
-export default async function ProdutosPage({ searchParams }: { searchParams?: Promise<{ page?: string; search?: string }> }) {
+export default async function ProdutosPage({ searchParams }: { searchParams?: Promise<{ page?: string; search?: string; empresa?: string }> }) {
   const supabase = await createClient();
   const { data: userData } = await supabase.auth.getUser();
   if (!userData.user) redirect('/login');
@@ -39,7 +40,18 @@ export default async function ProdutosPage({ searchParams }: { searchParams?: Pr
   const currentPage = Math.max(1, Number(resolvedSearchParams?.page ?? '1') || 1);
   const search = resolvedSearchParams?.search?.trim() ?? '';
 
-  const { data: products } = await supabase.rpc('get_visible_products_page', { p_page: currentPage, p_page_size: PAGE_SIZE, p_search: search || null });
+  const { data: companies } = await supabase.from('companies').select('id,nome').eq('ativo', true).order('nome');
+  const companyList = (companies ?? []) as { id: string; nome: string }[];
+  const requestedCompany = resolvedSearchParams?.empresa ?? '';
+  const companyId = companyList.some((c) => c.id === requestedCompany) ? requestedCompany : '';
+
+  const { data: products } = await supabase.rpc('get_visible_products_page', {
+    p_page: currentPage,
+    p_page_size: PAGE_SIZE,
+    p_search: search || null,
+    p_company_id: companyId || null,
+  });
+  const pageQuery = `${search ? `&search=${encodeURIComponent(search)}` : ''}${companyId ? `&empresa=${companyId}` : ''}`;
 
   const typedProducts = (products ?? []) as (ProductWithSupplier & { total_count?: number })[];
   const totalProducts = Number(typedProducts[0]?.total_count ?? 0);
@@ -59,20 +71,20 @@ export default async function ProdutosPage({ searchParams }: { searchParams?: Pr
     <div className="space-y-4">
       <div>
         <h1 className="text-2xl font-bold text-zinc-900">Produtos</h1>
-        <p className="text-sm text-zinc-500">Sincronização de SKU, nome e CMV via Google Sheets, toda segunda-feira às 8h.</p>
+        <p className="text-sm text-zinc-500">Importe produtos por planilha escolhendo a empresa (um SKU pode pertencer a mais de uma) ou sincronize via Google Sheets.</p>
       </div>
-      <ProductsTable products={normalized} role={profile.perfil} search={search} />
+      <ProductsTable products={normalized} role={profile.perfil} search={search} companies={companyList} companyId={companyId} />
       <div className="flex items-center justify-between text-sm">
         <Link
           className={`rounded-lg border border-zinc-300 bg-white px-3 py-1.5 font-medium text-zinc-700 hover:bg-zinc-50 ${currentPage === 1 ? 'pointer-events-none opacity-50' : ''}`}
-          href={`/produtos?page=${Math.max(1, currentPage - 1)}${search ? `&search=${encodeURIComponent(search)}` : ''}`}
+          href={`/produtos?page=${Math.max(1, currentPage - 1)}${pageQuery}`}
         >
           Anterior
         </Link>
         <span className="text-zinc-500">Página {currentPage} de {totalPages} ({totalProducts} produtos)</span>
         <Link
           className={`rounded-lg border border-zinc-300 bg-white px-3 py-1.5 font-medium text-zinc-700 hover:bg-zinc-50 ${currentPage >= totalPages ? 'pointer-events-none opacity-50' : ''}`}
-          href={`/produtos?page=${currentPage + 1}${search ? `&search=${encodeURIComponent(search)}` : ''}`}
+          href={`/produtos?page=${currentPage + 1}${pageQuery}`}
         >
           Próxima
         </Link>
