@@ -63,6 +63,7 @@ export default async function ProdutosPage({ searchParams }: { searchParams?: Pr
     altura: p.altura,
     largura: p.largura,
     profundidade: p.profundidade,
+    preco_venda: p.preco_venda,
     company_names: p.company_names,
     company_ids: p.company_ids ?? [],
   }));

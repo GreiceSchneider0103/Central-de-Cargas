@@ -11,6 +11,7 @@ export type ProductRow = {
   altura: number | null;
   largura: number | null;
   profundidade: number | null;
+  preco_venda: number | null;
   company_names: string | null;
   company_ids: string[];
 };
