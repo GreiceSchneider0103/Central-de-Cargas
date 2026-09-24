@@ -3,7 +3,7 @@
 - Frontend: Next.js (App Router)
 - Banco e autenticação: Supabase (PostgreSQL + Auth)
 - Deploy: Vercel
-- Produtos/CMV: integração Google Sheets
+- Produtos/CMV: importação de planilha por empresa (tela Produtos)
 - Sem upload de documentos no MVP
 
 ## Estado atual desta etapa

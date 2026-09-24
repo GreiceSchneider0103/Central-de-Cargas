@@ -71,7 +71,7 @@ export default async function ProdutosPage({ searchParams }: { searchParams?: Pr
     <div className="space-y-4">
       <div>
         <h1 className="text-2xl font-bold text-zinc-900">Produtos</h1>
-        <p className="text-sm text-zinc-500">Importe produtos por planilha escolhendo a empresa (um SKU pode pertencer a mais de uma) ou sincronize via Google Sheets.</p>
+        <p className="text-sm text-zinc-500">Importe produtos por planilha escolhendo as empresas (um SKU pode pertencer a mais de uma).</p>
       </div>
       <ProductsTable
         products={normalized}

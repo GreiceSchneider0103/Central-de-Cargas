@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Pencil, RefreshCw, Search, Trash2, Upload } from 'lucide-react';
+import { Pencil, Search, Trash2, Upload } from 'lucide-react';
 import type { UserProfileRole } from '@/lib/auth/roles';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -44,7 +44,6 @@ export function ProductsTable({
   totalProducts: number;
 }) {
   const [search, setSearch] = useState(initialSearch);
-  const [loading, setLoading] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [editing, setEditing] = useState<ProductRow | null>(null);
   const [bulkEditIds, setBulkEditIds] = useState<string[] | null>(null);
@@ -54,7 +53,6 @@ export function ProductsTable({
   const toast = useToast();
   const router = useRouter();
   const isFirstRun = useRef(true);
-  const isAdmin = role === 'admin';
   const canManage = role === 'admin' || role === 'gerente_estoque';
   const canSeeFinancial = ['admin', 'gerente_estoque', 'gerente_ecommerce', 'financeiro'].includes(role);
 
@@ -109,20 +107,6 @@ export function ProductsTable({
     afterBulk();
   }
 
-  async function handleSyncNow() {
-    setLoading(true);
-    const response = await fetch('/api/products/sync', { method: 'POST' });
-    const data = await response.json();
-    if (!response.ok) {
-      toast.error(translateError(data.error, `Erro ao sincronizar${data.error ? `: ${data.error}` : '.'}`));
-      setLoading(false);
-      return;
-    }
-    toast.success(`Sincronização concluída: ${data.created} criados, ${data.updated} atualizados.`);
-    setLoading(false);
-    setTimeout(() => window.location.reload(), 1200);
-  }
-
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -148,12 +132,6 @@ export function ProductsTable({
             <Button variant="secondary" onClick={() => setImportOpen(true)}>
               <Upload className="h-4 w-4" />
               Importar planilha
-            </Button>
-          )}
-          {isAdmin && (
-            <Button variant="primary" onClick={handleSyncNow} disabled={loading}>
-              <RefreshCw className={loading ? 'h-4 w-4 animate-spin' : 'h-4 w-4'} />
-              {loading ? 'Sincronizando...' : 'Sincronizar agora'}
             </Button>
           )}
         </div>
