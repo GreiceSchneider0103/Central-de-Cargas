@@ -1,5 +1,6 @@
 import { Input, Select, FieldGroup } from '@/components/ui/Field';
 import { toDatetimeLocalValue, fromDatetimeLocalValue } from '@/lib/ui/datetime';
+import { ProductSkuInput, type ProductSuggestion } from '@/components/products/ProductSkuInput';
 
 export type ItemFieldsValue = {
   sku?: string | number | null;
@@ -22,18 +23,27 @@ export function LoadItemFields({
   onChange,
   suppliers,
   showFinancial,
+  companyId,
 }: {
   value: ItemFieldsValue;
   onChange: (field: keyof ItemFieldsValue, value: string) => void;
   suppliers: { id: string; nome: string }[];
   showFinancial: boolean;
+  // Empresa da carga: o SKU sugere só os produtos vinculados a ela.
+  companyId?: string | null;
 }) {
   const str = (v: string | number | null | undefined) => (v === null || v === undefined ? '' : String(v));
+
+  function selectProduct(product: ProductSuggestion) {
+    onChange('sku', product.sku);
+    onChange('nome_produto', product.nome);
+    if (showFinancial && product.cmv != null && Number(product.cmv) > 0) onChange('cmv_unitario', String(product.cmv));
+  }
 
   return (
     <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
       <FieldGroup label="SKU">
-        <Input value={str(value.sku)} onChange={(e) => onChange('sku', e.target.value)} />
+        <ProductSkuInput value={str(value.sku)} companyId={companyId} onChange={(sku) => onChange('sku', sku)} onSelect={selectProduct} />
       </FieldGroup>
       <FieldGroup label="Nome do produto" className="md:col-span-2">
         <Input value={str(value.nome_produto)} onChange={(e) => onChange('nome_produto', e.target.value)} />

@@ -117,6 +117,7 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
   const canSeeFinancial = ['admin', 'gerente_estoque', 'gerente_ecommerce', 'financeiro'].includes(profile.perfil);
   const canEditFinancialOnly = profile.perfil === 'financeiro';
   const canEditFinancial = canSeeFinancial && (canWrite || canEditFinancialOnly);
+  const selectedCompanyId = typeof selected?.empresa_id === 'string' ? selected.empresa_id : null;
 
   const itemTotals = useMemo(() => {
     let peso = 0;
@@ -224,7 +225,7 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
 
   async function addItem() {
     if (!selected || !canWrite) return;
-    const { data: productRows } = await supabase.rpc('get_visible_product_by_sku', { p_sku: detailNewItem.sku });
+    const { data: productRows } = await supabase.rpc('get_visible_product_by_sku', { p_sku: detailNewItem.sku, p_company_id: selectedCompanyId });
     const product = Array.isArray(productRows) ? productRows[0] : null;
     const payload = {
       load_id: selected.id,
@@ -551,7 +552,7 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
 
           <div className="border-t border-zinc-100 pt-4">
             <h3 className="mb-2 text-sm font-semibold text-zinc-700">Primeiro item da carga</h3>
-            <LoadItemFields value={newItem} onChange={(field, value) => setNewItem((prev) => ({ ...prev, [field]: value }))} suppliers={options.suppliers} showFinancial={canSeeFinancial} />
+            <LoadItemFields value={newItem} onChange={(field, value) => setNewItem((prev) => ({ ...prev, [field]: value }))} suppliers={options.suppliers} showFinancial={canSeeFinancial} companyId={form.empresa_id} />
             {canSeeFinancial && Number(newItem.cmv_unitario || 0) <= 0 && (
               <p className="mt-2 flex items-center gap-1 text-xs text-amber-600"><AlertTriangle className="h-3.5 w-3.5" />Produto sem CMV cadastrado — a margem pode ficar incorreta.</p>
             )}
@@ -704,7 +705,7 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
               {canWrite && (
                 <div className="mt-3 rounded-lg border border-dashed border-zinc-200 p-3">
                   <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">Adicionar item</h4>
-                  <LoadItemFields value={detailNewItem} onChange={(field, value) => setDetailNewItem((prev) => ({ ...prev, [field]: value }))} suppliers={options.suppliers} showFinancial={canSeeFinancial} />
+                  <LoadItemFields value={detailNewItem} onChange={(field, value) => setDetailNewItem((prev) => ({ ...prev, [field]: value }))} suppliers={options.suppliers} showFinancial={canSeeFinancial} companyId={selectedCompanyId} />
                   <Button variant="secondary" className="mt-2" onClick={addItem}>Adicionar item</Button>
                 </div>
               )}
@@ -712,7 +713,7 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
               {editingItem && canWrite && (
                 <div className="mt-3 rounded-lg bg-zinc-50 p-3">
                   <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">Editar item</h4>
-                  <LoadItemFields value={editingItem} onChange={(field, value) => setEditingItem((prev) => (prev ? { ...prev, [field]: value } : prev))} suppliers={options.suppliers} showFinancial={canSeeFinancial} />
+                  <LoadItemFields value={editingItem} onChange={(field, value) => setEditingItem((prev) => (prev ? { ...prev, [field]: value } : prev))} suppliers={options.suppliers} showFinancial={canSeeFinancial} companyId={selectedCompanyId} />
                   <div className="mt-2 flex gap-2">
                     <Button variant="primary" onClick={saveEditingItem}>Salvar item</Button>
                     <Button variant="ghost" onClick={() => setEditingItem(null)}>Cancelar</Button>
