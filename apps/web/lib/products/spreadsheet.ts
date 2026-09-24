@@ -9,6 +9,7 @@ export type ImportProductRow = {
   altura: number | null;
   largura: number | null;
   profundidade: number | null;
+  preco_venda: number | null;
 };
 
 export type ParsedProductSheet = {
@@ -24,6 +25,8 @@ const HEADERS = {
   sku: ['codigo (sku)', 'sku', 'codigo'],
   nome: ['descricao', 'nome', 'produto', 'nome do produto'],
   cmv: ['preco de custo', 'cmv', 'custo'],
+  // Olist: "Preço" é o preço de venda.
+  precoVenda: ['preco', 'preco de venda', 'preco venda', 'valor de venda'],
   fornecedor: ['fornecedor'],
   tipo: ['tipo do produto'],
   // Olist: peso em kg e medidas da embalagem em cm (comprimento = profundidade).
@@ -71,6 +74,7 @@ export function parseProductWorkbook(workbook: WorkBook, utils: typeof import('x
     altura: find(HEADERS.altura),
     largura: find(HEADERS.largura),
     profundidade: find(HEADERS.profundidade),
+    precoVenda: find(HEADERS.precoVenda),
   };
   const positive = (column: string | undefined, r: Record<string, unknown>) => {
     if (!column) return null;
@@ -111,6 +115,7 @@ export function parseProductWorkbook(workbook: WorkBook, utils: typeof import('x
       altura: positive(col.altura, r),
       largura: positive(col.largura, r),
       profundidade: positive(col.profundidade, r),
+      preco_venda: positive(col.precoVenda, r),
     });
   });
 

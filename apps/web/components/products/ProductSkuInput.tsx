@@ -14,6 +14,7 @@ export type ProductSuggestion = {
   altura: number | null;
   largura: number | null;
   profundidade: number | null;
+  preco_venda: number | null;
 };
 
 // Campo de SKU com sugestões dos produtos vinculados à empresa (busca por SKU
@@ -62,6 +63,7 @@ export function ProductSkuInput({
           altura: p.altura,
           largura: p.largura,
           profundidade: p.profundidade,
+          preco_venda: p.preco_venda,
         })),
       );
       setSearched(true);

@@ -198,6 +198,7 @@ export function ProductsTable({
                     <th className="px-4 py-2.5">SKU</th>
                     <th className="px-4 py-2.5">Nome</th>
                     {canSeeFinancial && <th className="px-4 py-2.5">CMV</th>}
+                    {canSeeFinancial && <th className="px-4 py-2.5">Preço de venda</th>}
                     <th className="px-4 py-2.5">Peso</th>
                     <th className="px-4 py-2.5">Medidas (L × A × P)</th>
                     <th className="px-4 py-2.5">Empresas</th>
@@ -220,6 +221,9 @@ export function ProductsTable({
                         <td className="whitespace-nowrap px-4 py-2.5">
                           {Number(p.cmv) <= 0 ? <Badge tone="danger">CMV pendente</Badge> : `R$ ${Number(p.cmv).toFixed(2)}`}
                         </td>
+                      )}
+                      {canSeeFinancial && (
+                        <td className="whitespace-nowrap px-4 py-2.5 text-zinc-600">{p.preco_venda ? `R$ ${Number(p.preco_venda).toFixed(2)}` : '-'}</td>
                       )}
                       <td className="whitespace-nowrap px-4 py-2.5 text-zinc-600">{p.peso ? `${Number(p.peso).toLocaleString('pt-BR')} kg` : '-'}</td>
                       <td className="whitespace-nowrap px-4 py-2.5 text-zinc-600">{formatDimensions(p) ?? '-'}</td>

@@ -18,6 +18,7 @@ import { loadStatusTone } from '@/lib/ui/status-styles';
 import { translateError } from '@/lib/ui/error-messages';
 import { toDatetimeLocalValue, fromDatetimeLocalValue } from '@/lib/ui/datetime';
 import { LoadItemFields } from './LoadItemFields';
+import { EMPTY_NEW_LOAD_ITEM, NewLoadItemsEditor, newLoadItemsRevenue, type NewLoadItem } from './NewLoadItemsEditor';
 import { CHECKLIST_FIELDS } from '@/lib/loads/checklist';
 import { findProductChanges, ProductSyncPrompt, type ProductSyncProposal } from '@/components/products/ProductSyncPrompt';
 
@@ -101,7 +102,10 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
     outros_custos: '0',
     data_agendada: searchParams.get('data_agendada') ?? '',
   }));
-  const [newItem, setNewItem] = useState<ItemDraft>(EMPTY_ITEM);
+  const [newItems, setNewItems] = useState<NewLoadItem[]>([EMPTY_NEW_LOAD_ITEM]);
+  // Enquanto o usuário não digitar o faturamento, ele acompanha a soma do
+  // preço de venda × quantidade dos itens escolhidos.
+  const [faturamentoManual, setFaturamentoManual] = useState(false);
   const [detailNewItem, setDetailNewItem] = useState<ItemDraft>(EMPTY_ITEM);
   const [editingItem, setEditingItem] = useState<ItemDraft & { id: string } | null>(null);
   const [removingItemId, setRemovingItemId] = useState<string | null>(null);
@@ -168,10 +172,14 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
     loadOptions();
   }, [supabase]);
 
+  const suggestedRevenue = newLoadItemsRevenue(newItems);
+  const faturamentoEstimado = faturamentoManual ? (form.faturamento_estimado ?? '') : suggestedRevenue > 0 ? suggestedRevenue.toFixed(2) : '';
+
   async function createLoad() {
     if (!canWrite) return;
-    if (!newItem.sku || !newItem.nome_produto || Number(newItem.quantidade || 0) <= 0) {
-      toast.error('Informe ao menos um item com SKU, nome e quantidade maior que zero.');
+    const itemsToSave = newItems.filter((i) => i.sku.trim() || i.nome_produto.trim());
+    if (itemsToSave.length === 0 || itemsToSave.some((i) => !i.sku.trim() || Number(i.quantidade || 0) <= 0)) {
+      toast.error('Informe ao menos um item, cada um com SKU e quantidade maior que zero.');
       return;
     }
     if (profile.perfil === 'gerente_ecommerce' && form.tipo !== 'FULL_MARKETPLACE') {
@@ -195,30 +203,28 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
           cd_origem_id: form.cd_origem_id || null,
           responsavel_operacional_id: form.responsavel_operacional_id || null,
           data_agendada: form.data_agendada || null,
-          data_prevista_recebimento: form.data_prevista_recebimento || null,
-          data_real_recebimento: form.data_real_recebimento || null,
           custo_frete: form.custo_frete || 0,
           outros_custos: form.outros_custos || 0,
-          faturamento_estimado: form.faturamento_estimado || null,
+          faturamento_estimado: faturamentoEstimado || null,
           numero_carga_marketplace: form.numero_carga_marketplace || null,
           codigo_agendamento: form.codigo_agendamento || null,
           tipo_coleta_id: form.tipo_coleta_id || null,
           transportador_id: form.transportador_id || null,
           observacoes: form.observacoes || null,
         },
-        items: [newItem],
+        items: itemsToSave.map((i) => ({ sku: i.sku.trim(), nome_produto: i.nome_produto.trim(), quantidade: i.quantidade })),
       }),
     });
 
     const result = await response.json();
     if (!response.ok) return toast.error(translateError(result.error, 'Erro ao criar carga.'));
 
-    const createdItem = newItem;
-    setNewItem(EMPTY_ITEM);
+    setNewItems([EMPTY_NEW_LOAD_ITEM]);
+    setFaturamentoManual(false);
+    setForm((prev) => ({ ...prev, faturamento_estimado: '' }));
     setShowCreate(false);
-    toast.success('Carga criada com sucesso.');
+    toast.success('Carga criada. Abra o detalhe para completar os dados dos itens.');
     await loadData();
-    await proposeProductUpdate(createdItem);
   }
 
   async function openLoad(load: LoadRow) {
@@ -325,7 +331,6 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
         tipo_coleta_id: selected.tipo_coleta_id ?? null,
         transportador_id: selected.transportador_id ?? null,
         data_agendada: selected.data_agendada ?? null,
-        data_prevista_recebimento: selected.data_prevista_recebimento ?? null,
         data_real_recebimento: selected.data_real_recebimento ?? null,
         numero_carga_marketplace: selected.numero_carga_marketplace ?? null,
         codigo_agendamento: selected.codigo_agendamento ?? null,
@@ -533,9 +538,6 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
             <FieldGroup label="Data agendada">
               <Input type="datetime-local" value={toDatetimeLocalValue(form.data_agendada)} onChange={(e) => setForm({ ...form, data_agendada: fromDatetimeLocalValue(e.target.value) ?? '' })} />
             </FieldGroup>
-            <FieldGroup label="Previsão de recebimento">
-              <Input type="datetime-local" value={toDatetimeLocalValue(form.data_prevista_recebimento)} onChange={(e) => setForm({ ...form, data_prevista_recebimento: fromDatetimeLocalValue(e.target.value) ?? '' })} />
-            </FieldGroup>
             <FieldGroup label="Tipo de coleta">
               <Select value={form.tipo_coleta_id ?? ''} onChange={(e) => setForm({ ...form, tipo_coleta_id: e.target.value })}>
                 <option value="">Selecionar</option>
@@ -551,7 +553,22 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
             {canEditFinancial && (
               <>
                 <FieldGroup label="Faturamento estimado">
-                  <Input type="number" value={form.faturamento_estimado ?? ''} onChange={(e) => setForm({ ...form, faturamento_estimado: e.target.value })} />
+                  <Input
+                    type="number"
+                    value={faturamentoEstimado}
+                    onChange={(e) => {
+                      setFaturamentoManual(true);
+                      setForm({ ...form, faturamento_estimado: e.target.value });
+                    }}
+                  />
+                  {!faturamentoManual && suggestedRevenue > 0 && (
+                    <span className="text-xs text-zinc-500">Soma do preço de venda × quantidade dos itens</span>
+                  )}
+                  {faturamentoManual && suggestedRevenue > 0 && (
+                    <button type="button" className="self-start text-xs font-medium text-brand-600 hover:underline" onClick={() => setFaturamentoManual(false)}>
+                      Usar soma dos itens (R$ {suggestedRevenue.toFixed(2)})
+                    </button>
+                  )}
                 </FieldGroup>
                 <FieldGroup label="Custo de frete">
                   <Input type="number" value={form.custo_frete} onChange={(e) => setForm({ ...form, custo_frete: e.target.value })} />
@@ -567,11 +584,11 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
           </div>
 
           <div className="border-t border-zinc-100 pt-4">
-            <h3 className="mb-2 text-sm font-semibold text-zinc-700">Primeiro item da carga</h3>
-            <LoadItemFields value={newItem} onChange={(field, value) => setNewItem((prev) => ({ ...prev, [field]: value }))} suppliers={options.suppliers} showFinancial={canSeeFinancial} companyId={form.empresa_id} />
-            {canSeeFinancial && Number(newItem.cmv_unitario || 0) <= 0 && (
-              <p className="mt-2 flex items-center gap-1 text-xs text-amber-600"><AlertTriangle className="h-3.5 w-3.5" />Produto sem CMV cadastrado — a margem pode ficar incorreta.</p>
-            )}
+            <h3 className="text-sm font-semibold text-zinc-700">Itens da carga</h3>
+            <p className="mb-2 text-xs text-zinc-500">
+              Informe SKU, nome e quantidade. CMV, fornecedor, peso e medidas vêm do cadastro do produto; o resto você completa no detalhe da carga.
+            </p>
+            <NewLoadItemsEditor items={newItems} onChange={setNewItems} companyId={form.empresa_id} />
           </div>
         </div>
       </Dialog>
@@ -629,8 +646,10 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
                 <FieldGroup label="Data agendada">
                   <Input type="datetime-local" value={toDatetimeLocalValue(selected.data_agendada)} onChange={(e) => setSelected({ ...selected, data_agendada: fromDatetimeLocalValue(e.target.value) })} />
                 </FieldGroup>
-                <FieldGroup label="Previsão de recebimento">
-                  <Input type="datetime-local" value={toDatetimeLocalValue(selected.data_prevista_recebimento)} onChange={(e) => setSelected({ ...selected, data_prevista_recebimento: fromDatetimeLocalValue(e.target.value) })} />
+                <FieldGroup label="Previsão de recebimento (pelos itens)">
+                  <p className="flex h-10 items-center text-sm text-zinc-700">
+                    {selected.data_prevista_recebimento ? new Date(selected.data_prevista_recebimento).toLocaleString('pt-BR') : 'Defina nas datas dos itens'}
+                  </p>
                 </FieldGroup>
                 <FieldGroup label="Recebimento real">
                   <Input type="datetime-local" value={toDatetimeLocalValue(selected.data_real_recebimento)} onChange={(e) => setSelected({ ...selected, data_real_recebimento: fromDatetimeLocalValue(e.target.value) })} />

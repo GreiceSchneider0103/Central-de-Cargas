@@ -15,6 +15,7 @@ type Draft = {
   sku: string;
   nome: string;
   cmv: string;
+  preco_venda: string;
   fornecedor_id: string;
   ativo: boolean;
   peso: string;
@@ -31,6 +32,7 @@ function toDraft(p: ProductRow): Draft {
     sku: p.sku,
     nome: p.nome,
     cmv: str(p.cmv),
+    preco_venda: str(p.preco_venda),
     fornecedor_id: p.fornecedor_id ?? '',
     ativo: p.ativo,
     peso: str(p.peso),
@@ -74,6 +76,7 @@ export function ProductEditDialog({
         sku: draft.sku,
         nome: draft.nome,
         cmv: draft.cmv,
+        preco_venda: draft.preco_venda,
         fornecedor_id: draft.fornecedor_id,
         ativo: draft.ativo,
         peso: draft.peso,
@@ -114,7 +117,10 @@ export function ProductEditDialog({
         <FieldGroup label="CMV (R$)">
           <Input type="number" step="0.01" value={draft.cmv} onChange={(e) => set('cmv', e.target.value)} />
         </FieldGroup>
-        <FieldGroup label="Fornecedor" className="md:col-span-2">
+        <FieldGroup label="Preço de venda (R$)">
+          <Input type="number" step="0.01" value={draft.preco_venda} onChange={(e) => set('preco_venda', e.target.value)} />
+        </FieldGroup>
+        <FieldGroup label="Fornecedor">
           <Select value={draft.fornecedor_id} onChange={(e) => set('fornecedor_id', e.target.value)}>
             <option value="">Sem fornecedor</option>
             {suppliers.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}
