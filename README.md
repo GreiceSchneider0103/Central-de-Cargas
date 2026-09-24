@@ -4,7 +4,7 @@
 - **Frontend:** Next.js (App Router)
 - **Banco/Auth:** Supabase (PostgreSQL + Supabase Auth)
 - **Deploy:** Vercel
-- **Produtos/CMV:** Google Sheets
+- **Produtos/CMV:** importação de planilha (exportação de produtos do Olist ou planilha com SKU/Nome/CMV) na tela Produtos
 - **MVP:** sem upload de documentos
 
 ## Estrutura do repositório
@@ -27,11 +27,6 @@ Copie `.env.example` para `.env.local` (ou equivalente) e preencha:
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY` (uso **somente server-side**)
-- `GOOGLE_SHEETS_ID`
-- `GOOGLE_SHEETS_RANGE`
-- `GOOGLE_SERVICE_ACCOUNT_EMAIL`
-- `GOOGLE_PRIVATE_KEY`
-- `CRON_SECRET`
 
 ## O que é legado
 Toda a implementação React/Vite/Firebase foi movida para `legacy-vite/` sem exclusão, para servir de referência visual e de domínio durante a migração.
@@ -43,15 +38,9 @@ Toda a implementação React/Vite/Firebase foi movida para `legacy-vite/` sem ex
 4. Migrar gradualmente módulos (dashboard, solicitações, cargas, produtos, agenda).
 
 
-## Sincronização de produtos (Google Sheets)
-- Endpoint interno: `GET|POST /api/products/sync`
-- Manual: usuário `admin` autenticado pode acionar na tela de Produtos.
-- Automático (cron gratuito): `apps/web/vercel.json` declara um Vercel Cron Job (`0 11 * * 1` = toda segunda-feira, 08:00 no horário de Brasília) que chama esse endpoint. Cron Jobs fazem parte do plano gratuito (Hobby) da Vercel, com o limite de rodar no máximo 1x/dia por job — semanal está dentro do limite.
-- Para o cron funcionar em produção:
-  1. Defina a env var `CRON_SECRET` (qualquer string aleatória) nas configurações do projeto na Vercel.
-  2. A Vercel injeta automaticamente o header `Authorization: Bearer <CRON_SECRET>` nas chamadas do cron — o endpoint já valida esse header antes de rodar a sincronização.
-  3. Sem `CRON_SECRET` configurado, o endpoint continua funcionando apenas no modo manual (admin autenticado).
-- Em caso de variáveis do Google não configuradas, a API retorna erro amigável.
+## Produtos
+- Cadastro por importação de planilha na tela Produtos (admin e gerente de estoque), escolhendo uma ou mais empresas. Aceita a exportação de produtos do Olist (.xls) — SKU, descrição, preço de custo, fornecedor, peso e medidas da embalagem — ou uma planilha com SKU / Nome / CMV.
+- A antiga sincronização com o Google Sheets (`/api/products/sync` e o cron semanal) foi removida.
 
 ## Deploy bloqueado na Vercel ("Deployment Blocked")
 O plano **Hobby** da Vercel não aceita colaboração em repositório privado: só é aceito deploy de commits cujo autor seja o dono da conta/projeto. Se um deploy de Production aparecer como **Blocked** com a mensagem "the commit author did not have contributing access to the project on Vercel":
