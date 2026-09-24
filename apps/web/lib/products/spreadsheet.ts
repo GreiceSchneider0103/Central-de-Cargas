@@ -121,3 +121,26 @@ export function parseProductWorkbook(workbook: WorkBook, utils: typeof import('x
 
   return { rows, totalRows: raw.length, skippedParents, skippedInvalid };
 }
+
+// Junta as linhas de várias planilhas. SKU repetido vira uma linha só: cada
+// campo fica com o último valor preenchido (vazio não apaga o de outra
+// planilha).
+export function mergeProductRows(sheets: ImportProductRow[][]) {
+  const bySku = new Map<string, ImportProductRow>();
+  let total = 0;
+  for (const row of sheets.flat()) {
+    total += 1;
+    const current = bySku.get(row.sku);
+    if (!current) {
+      bySku.set(row.sku, { ...row });
+      continue;
+    }
+    const merged: ImportProductRow = { ...current };
+    for (const key of Object.keys(row) as (keyof ImportProductRow)[]) {
+      const value = row[key];
+      if (value !== null && value !== '') (merged as Record<string, unknown>)[key] = value;
+    }
+    bySku.set(row.sku, merged);
+  }
+  return { rows: Array.from(bySku.values()), duplicates: total - bySku.size };
+}
