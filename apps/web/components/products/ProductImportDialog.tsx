@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Upload } from 'lucide-react';
 import { Dialog } from '@/components/ui/Dialog';
 import { Button } from '@/components/ui/Button';
-import { FieldGroup, Input, Select } from '@/components/ui/Field';
+import { FieldGroup, Input } from '@/components/ui/Field';
 import { useToast } from '@/components/ui/Toast';
 import { createClient } from '@/lib/supabase/client';
 import { translateError } from '@/lib/ui/error-messages';
@@ -16,7 +16,7 @@ export type CompanyOption = { id: string; nome: string };
 const CHUNK_SIZE = 1000;
 
 export function ProductImportDialog({ open, onClose, companies }: { open: boolean; onClose: () => void; companies: CompanyOption[] }) {
-  const [companyId, setCompanyId] = useState('');
+  const [companyIds, setCompanyIds] = useState<string[]>([]);
   const [fileName, setFileName] = useState('');
   const [parsed, setParsed] = useState<ParsedProductSheet | null>(null);
   const [reading, setReading] = useState(false);
@@ -24,8 +24,12 @@ export function ProductImportDialog({ open, onClose, companies }: { open: boolea
   const toast = useToast();
   const router = useRouter();
 
+  function toggleCompany(id: string) {
+    setCompanyIds((prev) => (prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id]));
+  }
+
   function reset() {
-    setCompanyId('');
+    setCompanyIds([]);
     setFileName('');
     setParsed(null);
   }
@@ -56,14 +60,14 @@ export function ProductImportDialog({ open, onClose, companies }: { open: boolea
   }
 
   async function handleImport() {
-    if (!parsed || !companyId) return;
+    if (!parsed || companyIds.length === 0) return;
     setImporting(true);
     const supabase = createClient();
     const totals = { created: 0, updated: 0, linked: 0 };
 
     for (let i = 0; i < parsed.rows.length; i += CHUNK_SIZE) {
-      const { data, error } = await supabase.rpc('import_products_for_company', {
-        p_company_id: companyId,
+      const { data, error } = await supabase.rpc('import_products_for_companies', {
+        p_company_ids: companyIds,
         p_rows: parsed.rows.slice(i, i + CHUNK_SIZE),
       });
       if (error) {
@@ -78,8 +82,8 @@ export function ProductImportDialog({ open, onClose, companies }: { open: boolea
       totals.linked += result?.linked ?? 0;
     }
 
-    const companyName = companies.find((c) => c.id === companyId)?.nome ?? 'a empresa';
-    toast.success(`Importação concluída: ${totals.created} criados, ${totals.updated} atualizados, ${totals.linked} novos vínculos com ${companyName}.`);
+    const target = companyIds.length === 1 ? (companies.find((c) => c.id === companyIds[0])?.nome ?? 'a empresa') : `${companyIds.length} empresas`;
+    toast.success(`Importação concluída: ${totals.created} criados, ${totals.updated} atualizados, ${totals.linked} novos vínculos com ${target}.`);
     setImporting(false);
     reset();
     onClose();
@@ -95,7 +99,7 @@ export function ProductImportDialog({ open, onClose, companies }: { open: boolea
       footer={
         <>
           <Button variant="secondary" onClick={handleClose} disabled={importing}>Cancelar</Button>
-          <Button variant="primary" onClick={handleImport} disabled={!parsed || !companyId || importing}>
+          <Button variant="primary" onClick={handleImport} disabled={!parsed || companyIds.length === 0 || importing}>
             <Upload className="h-4 w-4" />
             {importing ? 'Importando...' : `Importar ${parsed?.rows.length ?? ''} produtos`}
           </Button>
@@ -103,13 +107,31 @@ export function ProductImportDialog({ open, onClose, companies }: { open: boolea
       }
     >
       <div className="space-y-4">
-        <FieldGroup label="Empresa">
-          <Select value={companyId} onChange={(e) => setCompanyId(e.target.value)} disabled={importing}>
-            <option value="">Selecione a empresa</option>
+        <FieldGroup label={`Empresas${companyIds.length > 0 ? ` (${companyIds.length} selecionada${companyIds.length > 1 ? 's' : ''})` : ''}`}>
+          <div className="grid grid-cols-1 gap-1 rounded-lg border border-zinc-300 p-2 sm:grid-cols-2">
             {companies.map((c) => (
-              <option key={c.id} value={c.id}>{c.nome}</option>
+              <label key={c.id} className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm text-zinc-800 hover:bg-zinc-50">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-zinc-300 accent-brand-600"
+                  checked={companyIds.includes(c.id)}
+                  onChange={() => toggleCompany(c.id)}
+                  disabled={importing}
+                />
+                {c.nome}
+              </label>
             ))}
-          </Select>
+          </div>
+          {companies.length > 1 && (
+            <button
+              type="button"
+              className="self-start text-xs font-medium text-brand-600 hover:underline disabled:opacity-50"
+              disabled={importing}
+              onClick={() => setCompanyIds(companyIds.length === companies.length ? [] : companies.map((c) => c.id))}
+            >
+              {companyIds.length === companies.length ? 'Desmarcar todas' : 'Marcar todas'}
+            </button>
+          )}
         </FieldGroup>
 
         <FieldGroup label="Planilha">
@@ -134,7 +156,7 @@ export function ProductImportDialog({ open, onClose, companies }: { open: boolea
               <li>{parsed.rows.filter((r) => !r.cmv || r.cmv <= 0).length} sem preço de custo (mantêm o CMV já cadastrado, se houver)</li>
             </ul>
             <p className="mt-2 text-xs text-zinc-500">
-              SKUs que já existem são atualizados e ganham o vínculo com a empresa escolhida, sem perder os vínculos com outras empresas.
+              SKUs que já existem são atualizados e ganham o vínculo com as empresas marcadas, sem perder os vínculos que já tinham.
             </p>
           </div>
         )}
