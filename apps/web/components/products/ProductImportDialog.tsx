@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Upload } from 'lucide-react';
+import { Upload, X } from 'lucide-react';
 import { Dialog } from '@/components/ui/Dialog';
 import { Button } from '@/components/ui/Button';
 import { FieldGroup, Input } from '@/components/ui/Field';
@@ -10,7 +10,7 @@ import { useToast } from '@/components/ui/Toast';
 import { createClient } from '@/lib/supabase/client';
 import { translateError } from '@/lib/ui/error-messages';
 import { CompanyCheckboxes } from './CompanyCheckboxes';
-import { parseProductWorkbook, type ParsedProductSheet } from '@/lib/products/spreadsheet';
+import { mergeProductRows, parseProductWorkbook, type ImportProductRow, type ParsedProductSheet } from '@/lib/products/spreadsheet';
 
 import type { NamedOption } from '@/lib/products/types';
 
@@ -18,20 +18,27 @@ export type CompanyOption = NamedOption;
 
 const CHUNK_SIZE = 1000;
 
+type SheetFile = { key: string; name: string; parsed: ParsedProductSheet };
+
 export function ProductImportDialog({ open, onClose, companies }: { open: boolean; onClose: () => void; companies: CompanyOption[] }) {
   const [companyIds, setCompanyIds] = useState<string[]>([]);
-  const [fileName, setFileName] = useState('');
-  const [parsed, setParsed] = useState<ParsedProductSheet | null>(null);
-  const [reading, setReading] = useState(false);
+  const [files, setFiles] = useState<SheetFile[]>([]);
+  const [reading, setReading] = useState<string | null>(null);
+  const [inputKey, setInputKey] = useState(0);
   const [importing, setImporting] = useState(false);
   const toast = useToast();
   const router = useRouter();
 
   function reset() {
     setCompanyIds([]);
-    setFileName('');
-    setParsed(null);
+    setFiles([]);
+    setInputKey((k) => k + 1);
   }
+
+  const { rows, duplicates } = mergeProductRows(files.map((f) => f.parsed.rows));
+  const count = (predicate: (r: ImportProductRow) => boolean) => rows.filter(predicate).length;
+  const skippedParents = files.reduce((sum, f) => sum + f.parsed.skippedParents, 0);
+  const skippedInvalid = files.reduce((sum, f) => sum + f.parsed.skippedInvalid, 0);
 
   function handleClose() {
     if (importing) return;
@@ -39,35 +46,38 @@ export function ProductImportDialog({ open, onClose, companies }: { open: boolea
     onClose();
   }
 
-  async function handleFile(file: File | undefined) {
-    setParsed(null);
-    setFileName(file?.name ?? '');
-    if (!file) return;
-    setReading(true);
-    try {
-      const XLSX = await import('xlsx');
-      const workbook = XLSX.read(await file.arrayBuffer(), { type: 'array' });
-      const result = parseProductWorkbook(workbook, XLSX.utils);
-      if (result.rows.length === 0) throw new Error('SPREADSHEET_NO_PRODUCTS');
-      setParsed(result);
-    } catch (error) {
-      toast.error(translateError(error instanceof Error ? error.message : undefined, 'Não foi possível ler a planilha.'));
-      setFileName('');
-    } finally {
-      setReading(false);
+  async function handleFiles(list: FileList | null) {
+    const selected = Array.from(list ?? []);
+    setInputKey((k) => k + 1);
+    if (selected.length === 0) return;
+    const XLSX = await import('xlsx');
+    const added: SheetFile[] = [];
+    for (const file of selected) {
+      setReading(file.name);
+      try {
+        const workbook = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+        const result = parseProductWorkbook(workbook, XLSX.utils);
+        if (result.rows.length === 0) throw new Error('SPREADSHEET_NO_PRODUCTS');
+        added.push({ key: `${file.name}-${file.size}-${file.lastModified}`, name: file.name, parsed: result });
+      } catch (error) {
+        toast.error(`${file.name}: ${translateError(error instanceof Error ? error.message : undefined, 'não foi possível ler a planilha.')}`);
+      }
     }
+    setReading(null);
+    // Selecionar de novo o mesmo arquivo substitui a leitura anterior.
+    setFiles((prev) => [...prev.filter((f) => !added.some((a) => a.key === f.key)), ...added]);
   }
 
   async function handleImport() {
-    if (!parsed || companyIds.length === 0) return;
+    if (rows.length === 0 || companyIds.length === 0) return;
     setImporting(true);
     const supabase = createClient();
     const totals = { created: 0, updated: 0, linked: 0 };
 
-    for (let i = 0; i < parsed.rows.length; i += CHUNK_SIZE) {
+    for (let i = 0; i < rows.length; i += CHUNK_SIZE) {
       const { data, error } = await supabase.rpc('import_products_for_companies', {
         p_company_ids: companyIds,
-        p_rows: parsed.rows.slice(i, i + CHUNK_SIZE),
+        p_rows: rows.slice(i, i + CHUNK_SIZE),
       });
       if (error) {
         toast.error(translateError(error.message, 'Erro ao importar a planilha.'));
@@ -94,13 +104,13 @@ export function ProductImportDialog({ open, onClose, companies }: { open: boolea
       open={open}
       onClose={handleClose}
       title="Importar produtos por planilha"
-      description="Aceita a exportação de produtos do Olist (.xls) ou uma planilha com as colunas SKU, Nome e CMV."
+      description="Aceita uma ou mais exportações de produtos do Olist (.xls) ou planilhas com as colunas SKU, Nome e CMV."
       footer={
         <>
           <Button variant="secondary" onClick={handleClose} disabled={importing}>Cancelar</Button>
-          <Button variant="primary" onClick={handleImport} disabled={!parsed || companyIds.length === 0 || importing}>
+          <Button variant="primary" onClick={handleImport} disabled={rows.length === 0 || companyIds.length === 0 || importing || reading !== null}>
             <Upload className="h-4 w-4" />
-            {importing ? 'Importando...' : `Importar ${parsed?.rows.length ?? ''} produtos`}
+            {importing ? 'Importando...' : `Importar ${rows.length || ''} produtos`}
           </Button>
         </>
       }
@@ -110,28 +120,53 @@ export function ProductImportDialog({ open, onClose, companies }: { open: boolea
           <CompanyCheckboxes companies={companies} value={companyIds} onChange={setCompanyIds} disabled={importing} />
         </FieldGroup>
 
-        <FieldGroup label="Planilha">
+        <FieldGroup label="Planilhas">
           <Input
+            key={inputKey}
             type="file"
+            multiple
             accept=".xls,.xlsx,.csv"
             className="py-2 h-auto"
-            disabled={importing || reading}
-            onChange={(e) => handleFile(e.target.files?.[0])}
+            disabled={importing || reading !== null}
+            onChange={(e) => handleFiles(e.target.files)}
           />
+          <span className="text-xs text-zinc-500">Selecione vários arquivos de uma vez ou adicione mais depois.</span>
         </FieldGroup>
 
-        {reading && <p className="text-sm text-zinc-500">Lendo {fileName}...</p>}
+        {reading && <p className="text-sm text-zinc-500">Lendo {reading}...</p>}
 
-        {parsed && (
+        {files.length > 0 && (
+          <ul className="divide-y divide-zinc-100 rounded-lg border border-zinc-200 text-sm">
+            {files.map((f) => (
+              <li key={f.key} className="flex items-center justify-between gap-2 px-3 py-2">
+                <span className="truncate text-zinc-800">{f.name}</span>
+                <span className="flex shrink-0 items-center gap-2 text-zinc-500">
+                  {f.parsed.rows.length} produtos
+                  <button
+                    type="button"
+                    aria-label={`Remover ${f.name}`}
+                    className="rounded p-1 text-zinc-400 hover:bg-zinc-100 hover:text-rose-600 disabled:opacity-40"
+                    disabled={importing}
+                    onClick={() => setFiles((prev) => prev.filter((x) => x.key !== f.key))}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {rows.length > 0 && (
           <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-sm text-zinc-700">
-            <p className="font-medium text-zinc-900">{fileName}</p>
-            <ul className="mt-1 space-y-0.5">
-              <li>{parsed.rows.length} produtos serão importados</li>
-              {parsed.skippedParents > 0 && <li>{parsed.skippedParents} produtos pai de variação ignorados (as variações entram)</li>}
-              {parsed.skippedInvalid > 0 && <li>{parsed.skippedInvalid} linhas sem SKU ou nome ignoradas</li>}
-              <li>{parsed.rows.filter((r) => !r.cmv || r.cmv <= 0).length} sem preço de custo (mantêm o CMV já cadastrado, se houver)</li>
-              <li>{parsed.rows.filter((r) => r.peso || r.altura || r.largura || r.profundidade).length} com peso ou medidas da embalagem</li>
-              <li>{parsed.rows.filter((r) => r.preco_venda).length} com preço de venda</li>
+            <ul className="space-y-0.5">
+              <li className="font-medium text-zinc-900">{rows.length} produtos serão importados{files.length > 1 ? ` de ${files.length} planilhas` : ''}</li>
+              {duplicates > 0 && <li>{duplicates} SKUs repetidos entre as planilhas foram juntados</li>}
+              {skippedParents > 0 && <li>{skippedParents} produtos pai de variação ignorados (as variações entram)</li>}
+              {skippedInvalid > 0 && <li>{skippedInvalid} linhas sem SKU ou nome ignoradas</li>}
+              <li>{count((r) => !r.cmv || r.cmv <= 0)} sem preço de custo (mantêm o CMV já cadastrado, se houver)</li>
+              <li>{count((r) => Boolean(r.peso || r.altura || r.largura || r.profundidade))} com peso ou medidas da embalagem</li>
+              <li>{count((r) => Boolean(r.preco_venda))} com preço de venda</li>
             </ul>
             <p className="mt-2 text-xs text-zinc-500">
               SKUs que já existem são atualizados e ganham o vínculo com as empresas marcadas, sem perder os vínculos que já tinham.
