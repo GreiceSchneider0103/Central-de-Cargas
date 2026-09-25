@@ -108,12 +108,14 @@ export function ProductEditDialog({
       }
     >
       <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500 md:col-span-4">Produto</h3>
         <FieldGroup label="SKU">
           <Input value={draft.sku} onChange={(e) => set('sku', e.target.value)} />
         </FieldGroup>
         <FieldGroup label="Nome" className="md:col-span-3">
           <Input value={draft.nome} onChange={(e) => set('nome', e.target.value)} />
         </FieldGroup>
+        <h3 className="mt-2 border-t border-zinc-100 pt-4 text-xs font-semibold uppercase tracking-wide text-zinc-500 md:col-span-4">Valores e fornecedor</h3>
         <FieldGroup label="CMV (R$)">
           <Input type="number" step="0.01" value={draft.cmv} onChange={(e) => set('cmv', e.target.value)} />
         </FieldGroup>
@@ -132,6 +134,7 @@ export function ProductEditDialog({
             <option value="false">Inativo</option>
           </Select>
         </FieldGroup>
+        <h3 className="mt-2 border-t border-zinc-100 pt-4 text-xs font-semibold uppercase tracking-wide text-zinc-500 md:col-span-4">Embalagem (para o cálculo da carga)</h3>
         <FieldGroup label="Peso (kg)">
           <Input type="number" step="0.01" value={draft.peso} onChange={(e) => set('peso', e.target.value)} />
         </FieldGroup>
@@ -144,7 +147,8 @@ export function ProductEditDialog({
         <FieldGroup label="Profundidade / comprimento (cm)">
           <Input type="number" step="0.1" value={draft.profundidade} onChange={(e) => set('profundidade', e.target.value)} />
         </FieldGroup>
-        <FieldGroup label="Empresas" className="md:col-span-4">
+        <h3 className="mt-2 border-t border-zinc-100 pt-4 text-xs font-semibold uppercase tracking-wide text-zinc-500 md:col-span-4">Empresas</h3>
+        <FieldGroup className="md:col-span-4">
           <CompanyCheckboxes companies={companies} value={draft.company_ids} onChange={(ids) => set('company_ids', ids)} />
         </FieldGroup>
       </div>

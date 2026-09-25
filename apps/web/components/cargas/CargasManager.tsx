@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Plus, AlertTriangle, Pencil, Trash2 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
@@ -687,9 +688,15 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
       >
         {selected && (
           <div className="space-y-5">
-            <p className="text-xs text-zinc-500">Cargas agendadas antes do recebimento e finalizações sem NF são permitidas, mas geram alerta.</p>
+            {selected.id && (
+              <Link href={`/cargas/${selected.id}`} className="inline-flex text-sm font-medium text-brand-600 hover:text-brand-700">
+                Abrir página da carga →
+              </Link>
+            )}
 
             {canWrite && (
+              <div>
+              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">Dados da carga</h3>
               <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
                 <FieldGroup label="Status">
                   <Select value={selected.status ?? ''} onChange={(e) => setSelected({ ...selected, status: e.target.value })}>
@@ -749,10 +756,13 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
                   <Button variant="secondary" onClick={patchSelectedLoad}>Salvar dados da carga</Button>
                 </div>
               </div>
+              <p className="mt-2 text-xs text-zinc-400">Agendar antes do recebimento e finalizar sem NF é permitido, mas gera alerta.</p>
+              </div>
             )}
 
             {canEditFinancial && (
               <div className="rounded-lg bg-zinc-50 p-3">
+                <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">Financeiro</h3>
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
                   <FieldGroup label="Faturamento estimado">
                     <Input type="number" value={Number(selected.faturamento_estimado ?? 0)} onChange={(e) => setSelected({ ...selected, faturamento_estimado: Number(e.target.value) })} />
@@ -770,7 +780,7 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
 
             <div>
               <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                <h3 className="text-sm font-semibold text-zinc-700">Itens da carga</h3>
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Itens da carga</h3>
                 <div className="flex flex-wrap gap-4 text-xs text-zinc-500">
                   <span>Peso total: <strong className="text-zinc-700">{itemTotals.peso.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} kg</strong></span>
                   <span>Cubagem total: <strong className="text-zinc-700">{itemTotals.cubagem.toLocaleString('pt-BR', { maximumFractionDigits: 3 })} m³</strong></span>
@@ -850,15 +860,15 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
 
             {canSeeFinancial && (
               <div className="grid grid-cols-3 gap-3 rounded-lg bg-zinc-50 p-3 text-sm">
-                <div><div className="text-xs text-zinc-500">CMV total</div><div className="font-semibold">{totals.cmv.toFixed(2)}</div></div>
-                <div><div className="text-xs text-zinc-500">Margem (valor)</div><div className={`font-semibold ${totals.margemValor >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>{totals.margemValor.toFixed(2)}</div></div>
+                <div><div className="text-xs text-zinc-500">CMV total</div><div className="font-semibold">{brl(totals.cmv)}</div></div>
+                <div><div className="text-xs text-zinc-500">Margem (valor)</div><div className={`font-semibold ${totals.margemValor >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>{brl(totals.margemValor)}</div></div>
                 <div><div className="text-xs text-zinc-500">Margem (%)</div><div className="font-semibold">{totals.margemPct === null ? 'pendente' : `${(totals.margemPct * 100).toFixed(2)}%`}</div></div>
               </div>
             )}
 
             {checklist && (
               <div>
-                <h3 className="mb-2 text-sm font-semibold text-zinc-700">Checklist operacional</h3>
+                <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">Checklist operacional</h3>
                 <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
                   {CHECKLIST_FIELDS.map((f) => (
                     <label key={f.key} className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm ${checklist[f.key] ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-zinc-200 text-zinc-600'}`}>

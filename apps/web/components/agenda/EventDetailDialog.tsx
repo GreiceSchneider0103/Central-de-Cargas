@@ -53,6 +53,9 @@ export function EventDetailDialog({
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>Fechar</Button>
+          <Link href={`/cargas?abrir=${load.id}`}>
+            <Button variant="secondary">Editar carga</Button>
+          </Link>
           <Link href={`/cargas/${load.id}`}>
             <Button variant="secondary">
               Ver carga completa
