@@ -20,6 +20,8 @@ type VisibleRequestItem = {
 
 type CommentRow = { id: string; texto: string | null; created_at: string };
 
+const brl = (v: number | string | null | undefined) => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
 export default async function SolicitacaoDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = await createClient();
@@ -109,19 +111,19 @@ export default async function SolicitacaoDetailPage({ params }: { params: Promis
                 <tr className="border-b border-zinc-100 text-left text-xs font-medium text-zinc-500">
                   <th className="px-4 py-2">SKU</th>
                   <th className="px-4 py-2">Produto</th>
-                  <th className="px-4 py-2">Qtd</th>
-                  {canSeeFinancial && <th className="px-4 py-2">CMV unit.</th>}
-                  {canSeeFinancial && <th className="px-4 py-2">CMV total</th>}
+                  <th className="px-4 py-2 text-right">Qtd</th>
+                  {canSeeFinancial && <th className="px-4 py-2 text-right">CMV unit.</th>}
+                  {canSeeFinancial && <th className="px-4 py-2 text-right">CMV total</th>}
                 </tr>
               </thead>
               <tbody>
                 {typedItems.map((i) => (
                   <tr key={i.id} className="border-b border-zinc-50 last:border-0">
-                    <td className="px-4 py-2">{i.sku}</td>
+                    <td className="whitespace-nowrap px-4 py-2 font-mono text-xs text-zinc-600">{i.sku}</td>
                     <td className="px-4 py-2">{i.nome_produto}</td>
-                    <td className="px-4 py-2">{i.quantidade}</td>
-                    {canSeeFinancial && <td className="px-4 py-2">{i.cmv_unitario}</td>}
-                    {canSeeFinancial && <td className="px-4 py-2">{i.cmv_total}</td>}
+                    <td className="px-4 py-2 text-right">{i.quantidade}</td>
+                    {canSeeFinancial && <td className="whitespace-nowrap px-4 py-2 text-right">{brl(i.cmv_unitario)}</td>}
+                    {canSeeFinancial && <td className="whitespace-nowrap px-4 py-2 text-right">{brl(i.cmv_total)}</td>}
                   </tr>
                 ))}
                 {typedItems.length === 0 && (
