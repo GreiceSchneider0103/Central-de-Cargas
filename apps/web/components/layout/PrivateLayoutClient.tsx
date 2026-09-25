@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Menu } from 'lucide-react';
 import type { UserProfile } from '@/lib/auth/roles';
 import { Sidebar } from '@/components/layout/Sidebar';
@@ -14,11 +14,27 @@ export function PrivateLayoutClient({
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
+
+  useEffect(() => {
+    try {
+      setCollapsed(localStorage.getItem('sidebar-collapsed') === '1');
+    } catch {}
+  }, []);
+
+  function toggleCollapsed() {
+    setCollapsed((prev) => {
+      try {
+        localStorage.setItem('sidebar-collapsed', prev ? '0' : '1');
+      } catch {}
+      return !prev;
+    });
+  }
 
   return (
     <ToastProvider>
       <div className="flex min-h-screen bg-zinc-50">
-        <Sidebar profile={profile} open={open} onClose={() => setOpen(false)} />
+        <Sidebar profile={profile} open={open} onClose={() => setOpen(false)} collapsed={collapsed} onToggleCollapsed={toggleCollapsed} />
 
         {open && (
           <button
@@ -41,7 +57,7 @@ export function PrivateLayoutClient({
             <div className="w-9" />
           </div>
 
-          <main className="flex-1 p-4 md:p-8">{children}</main>
+          <main className="flex-1 p-4 md:p-6">{children}</main>
         </div>
       </div>
     </ToastProvider>

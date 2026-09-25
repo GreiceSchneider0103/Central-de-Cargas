@@ -18,6 +18,19 @@ import { ProductImportDialog } from '@/components/products/ProductImportDialog';
 import { ProductEditDialog } from '@/components/products/ProductEditDialog';
 import { ProductBulkEditDialog } from '@/components/products/ProductBulkEditDialog';
 
+const money = (v: number) => `R$ ${Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+function CompaniesCell({ names }: { names: string | null }) {
+  const list = (names ?? '').split(',').map((n) => n.trim()).filter(Boolean);
+  if (list.length === 0) return <>-</>;
+  if (list.length <= 2) return <>{list.join(', ')}</>;
+  return (
+    <span title={list.join('\n')} className="cursor-help whitespace-nowrap underline decoration-dotted underline-offset-2">
+      {list.length} empresas
+    </span>
+  );
+}
+
 function productsUrl(search: string, companyId: string) {
   const params = new URLSearchParams();
   if (search.trim()) params.set('search', search.trim());
@@ -191,47 +204,54 @@ export function ProductsTable({
                 <thead>
                   <tr className="border-b border-zinc-100 bg-zinc-50 text-left text-xs font-medium text-zinc-500">
                     {canManage && (
-                      <th className="w-10 px-4 py-2.5">
+                      <th className="w-10 px-3 py-2.5">
                         <input type="checkbox" aria-label="Selecionar a página" className="h-4 w-4 accent-brand-600" checked={allPageSelected} onChange={togglePage} />
                       </th>
                     )}
-                    <th className="px-4 py-2.5">SKU</th>
-                    <th className="px-4 py-2.5">Nome</th>
-                    {canSeeFinancial && <th className="px-4 py-2.5">CMV</th>}
-                    {canSeeFinancial && <th className="px-4 py-2.5">Preço de venda</th>}
-                    <th className="px-4 py-2.5">Peso</th>
-                    <th className="px-4 py-2.5">Medidas (L × A × P)</th>
-                    <th className="px-4 py-2.5">Empresas</th>
-                    <th className="px-4 py-2.5">Fornecedor / fabricante</th>
-                    <th className="px-4 py-2.5">Status</th>
-                    {canManage && <th className="w-10 px-4 py-2.5" />}
+                    <th className="px-3 py-2.5">SKU</th>
+                    <th className="px-3 py-2.5">Nome</th>
+                    {canSeeFinancial && <th className="px-3 py-2.5 text-right">CMV</th>}
+                    {canSeeFinancial && <th className="px-3 py-2.5 text-right">Venda</th>}
+                    <th className="px-3 py-2.5">Peso · medidas (L×A×P)</th>
+                    <th className="px-3 py-2.5">Empresas</th>
+                    <th className="px-3 py-2.5">Fornecedor</th>
+                    <th className="px-3 py-2.5">Status</th>
+                    {canManage && <th className="w-10 px-2 py-2.5" />}
                   </tr>
                 </thead>
                 <tbody>
                   {products.map((p) => (
                     <tr key={p.id} className={`border-b border-zinc-50 last:border-0 hover:bg-zinc-50 ${selected.includes(p.id) ? 'bg-brand-50/60' : ''}`}>
                       {canManage && (
-                        <td className="px-4 py-2.5">
+                        <td className="px-3 py-2">
                           <input type="checkbox" aria-label={`Selecionar ${p.sku}`} className="h-4 w-4 accent-brand-600" checked={selected.includes(p.id)} onChange={() => toggle(p.id)} />
                         </td>
                       )}
-                      <td className="px-4 py-2.5 font-mono text-xs text-zinc-600">{p.sku}</td>
-                      <td className="px-4 py-2.5 font-medium text-zinc-800">{p.nome}</td>
+                      <td className="whitespace-nowrap px-3 py-2 font-mono text-xs text-zinc-600">{p.sku}</td>
+                      <td className="min-w-[14rem] px-3 py-2 font-medium text-zinc-800">{p.nome}</td>
                       {canSeeFinancial && (
-                        <td className="whitespace-nowrap px-4 py-2.5">
-                          {Number(p.cmv) <= 0 ? <Badge tone="danger">CMV pendente</Badge> : `R$ ${Number(p.cmv).toFixed(2)}`}
+                        <td className="whitespace-nowrap px-3 py-2 text-right">
+                          {Number(p.cmv) <= 0 ? <Badge tone="danger">Pendente</Badge> : money(p.cmv)}
                         </td>
                       )}
                       {canSeeFinancial && (
-                        <td className="whitespace-nowrap px-4 py-2.5 text-zinc-600">{p.preco_venda ? `R$ ${Number(p.preco_venda).toFixed(2)}` : '-'}</td>
+                        <td className="whitespace-nowrap px-3 py-2 text-right text-zinc-600">{p.preco_venda ? money(p.preco_venda) : '-'}</td>
                       )}
-                      <td className="whitespace-nowrap px-4 py-2.5 text-zinc-600">{p.peso ? `${Number(p.peso).toLocaleString('pt-BR')} kg` : '-'}</td>
-                      <td className="whitespace-nowrap px-4 py-2.5 text-zinc-600">{formatDimensions(p) ?? '-'}</td>
-                      <td className="px-4 py-2.5 text-zinc-600">{p.company_names || '-'}</td>
-                      <td className="px-4 py-2.5 text-zinc-600">{p.supplier_name || '-'}</td>
-                      <td className="px-4 py-2.5"><Badge tone={p.ativo ? 'success' : 'neutral'} dot>{p.ativo ? 'Ativo' : 'Inativo'}</Badge></td>
+                      <td className="whitespace-nowrap px-3 py-2 text-xs text-zinc-600">
+                        {p.peso || formatDimensions(p) ? (
+                          <>
+                            <div>{p.peso ? `${Number(p.peso).toLocaleString('pt-BR')} kg` : '-'}</div>
+                            <div className="text-zinc-400">{formatDimensions(p) ?? '-'}</div>
+                          </>
+                        ) : (
+                          '-'
+                        )}
+                      </td>
+                      <td className="px-3 py-2 text-zinc-600"><CompaniesCell names={p.company_names} /></td>
+                      <td className="px-3 py-2 text-zinc-600">{p.supplier_name || '-'}</td>
+                      <td className="px-3 py-2"><Badge tone={p.ativo ? 'success' : 'neutral'} dot>{p.ativo ? 'Ativo' : 'Inativo'}</Badge></td>
                       {canManage && (
-                        <td className="px-4 py-2.5">
+                        <td className="px-2 py-2">
                           <button type="button" aria-label={`Editar ${p.sku}`} className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700" onClick={() => setEditing(p)}>
                             <Pencil className="h-4 w-4" />
                           </button>
