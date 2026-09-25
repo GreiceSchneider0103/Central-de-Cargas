@@ -3,6 +3,9 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { Button } from '@/components/ui/Button';
+import { FieldGroup } from '@/components/ui/Field';
+import { PasswordInput } from './PasswordInput';
 
 export function UpdatePasswordForm() {
   const router = useRouter();
@@ -40,40 +43,19 @@ export function UpdatePasswordForm() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="space-y-2">
-        <label htmlFor="password" className="text-sm font-medium">Nova senha</label>
-        <input
-          id="password"
-          type="password"
-          required
-          minLength={6}
-          className="w-full h-11 rounded-md border border-zinc-300 px-3"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
-      </div>
-      <div className="space-y-2">
-        <label htmlFor="confirm-password" className="text-sm font-medium">Confirmar nova senha</label>
-        <input
-          id="confirm-password"
-          type="password"
-          required
-          minLength={6}
-          className="w-full h-11 rounded-md border border-zinc-300 px-3"
-          value={confirmPassword}
-          onChange={(e) => setConfirmPassword(e.target.value)}
-        />
-      </div>
+      <FieldGroup label="Nova senha">
+        <PasswordInput id="password" required minLength={6} autoFocus autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} />
+        <span className="text-xs text-zinc-400">Mínimo de 6 caracteres.</span>
+      </FieldGroup>
+      <FieldGroup label="Confirmar nova senha">
+        <PasswordInput id="confirm-password" required minLength={6} autoComplete="new-password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
+      </FieldGroup>
 
-      {error && <p className="text-sm text-rose-600">{error}</p>}
+      {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
 
-      <button
-        type="submit"
-        disabled={loading}
-        className="w-full h-11 rounded-md bg-indigo-600 text-white font-medium hover:bg-indigo-700 disabled:opacity-50"
-      >
+      <Button type="submit" variant="primary" disabled={loading} className="h-11 w-full">
         {loading ? 'Salvando...' : 'Salvar nova senha'}
-      </button>
+      </Button>
     </form>
   );
 }
