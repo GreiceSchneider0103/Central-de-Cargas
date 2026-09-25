@@ -1,13 +1,13 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { AlertTriangle, CheckCircle2, Circle } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, CheckCircle2, Circle, History, Pencil } from 'lucide-react';
 import { createClient } from '@/lib/supabase/server';
 import type { UserProfile } from '@/lib/auth/roles';
 import { CommentForm } from '@/components/comments/CommentForm';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
-import { loadStatusTone } from '@/lib/ui/status-styles';
+import { loadStatusTone, priorityTone } from '@/lib/ui/status-styles';
 import { money } from '@/lib/ui/format';
 import { CHECKLIST_FIELDS } from '@/lib/loads/checklist';
 
@@ -47,6 +47,19 @@ type VisibleLoadItem = {
   status_item: string | null;
 };
 
+const dateTime = (v: string | null) =>
+  v ? new Date(v).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-';
+const num = (v: number | null | undefined, digits = 2) => (v == null ? '-' : Number(v).toLocaleString('pt-BR', { maximumFractionDigits: digits }));
+
+function Info({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="min-w-0">
+      <dt className="text-xs text-zinc-500">{label}</dt>
+      <dd className="mt-0.5 truncate font-medium text-zinc-800">{children}</dd>
+    </div>
+  );
+}
+
 type ChecklistRow = Record<string, boolean | null | undefined>;
 type CommentRow = { id: string; texto: string | null; created_at: string };
 
@@ -84,166 +97,170 @@ export default async function CargaDetailPage({ params }: { params: Promise<{ id
 
   const pesoTotal = typedItems.reduce((s, i) => s + (i.peso ?? 0) * (i.quantidade ?? 0), 0);
   const cubagemTotal = typedItems.reduce((s, i) => s + (i.cubagem ?? 0) * (i.quantidade ?? 0), 0);
+  const unidades = typedItems.reduce((s, i) => s + (i.quantidade ?? 0), 0);
+  const hasItemStatus = typedItems.some((i) => i.status_item);
+  const checklistDone = checklist ? CHECKLIST_FIELDS.filter((f) => checklist[f.key]).length : 0;
+  const itemCols = 4 + (canSeeFinancial ? 2 : 0) + (hasItemStatus ? 1 : 0);
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-3">
+    <div className="space-y-4">
+      <Link href="/cargas" className="inline-flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-800">
+        <ArrowLeft className="h-4 w-4" />
+        Cargas
+      </Link>
+
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
           <h1 className="text-2xl font-bold text-zinc-900">{load.codigo_interno}</h1>
           <Badge tone={loadStatusTone(load.status)} dot>{load.status}</Badge>
-          {load.prioridade && <span className="text-sm text-zinc-500">Prioridade: {load.prioridade}</span>}
+          {load.prioridade && <Badge tone={priorityTone(load.prioridade)}>{load.prioridade}</Badge>}
+          <span className="text-sm text-zinc-500">{load.tipo === 'FULL_MARKETPLACE' ? 'Full marketplace' : 'Loja física'}</span>
         </div>
-        <Link href="/cargas"><Button variant="secondary">Editar na lista de cargas</Button></Link>
+        <div className="flex gap-2">
+          <Link href={`/auditoria?registro_id=${id}`}>
+            <Button variant="secondary"><History className="h-4 w-4" />Histórico</Button>
+          </Link>
+          <Link href={`/cargas?abrir=${id}`}>
+            <Button variant="primary"><Pencil className="h-4 w-4" />Editar carga</Button>
+          </Link>
+        </div>
       </div>
 
-      <Card>
-        <CardBody className="grid grid-cols-1 gap-3 text-sm md:grid-cols-3">
-          <p><span className="text-zinc-500">Nº carga marketplace:</span> <span className="font-medium">{load.numero_carga_marketplace ?? '-'}</span></p>
-          <p><span className="text-zinc-500">Código de agendamento:</span> <span className="font-medium">{load.codigo_agendamento ?? '-'}</span></p>
-          <p><span className="text-zinc-500">Data agendada:</span> <span className="font-medium">{load.data_agendada ? new Date(load.data_agendada).toLocaleString('pt-BR') : '-'}</span></p>
-          <p><span className="text-zinc-500">Prev. recebimento:</span> <span className="font-medium">{load.data_prevista_recebimento ? new Date(load.data_prevista_recebimento).toLocaleString('pt-BR') : '-'}</span></p>
-          <p><span className="text-zinc-500">Real recebimento:</span> <span className="font-medium">{load.data_real_recebimento ? new Date(load.data_real_recebimento).toLocaleString('pt-BR') : '-'}</span></p>
-          <p><span className="text-zinc-500">Observações:</span> <span className="font-medium">{load.observacoes ?? '-'}</span></p>
-          {load.status === 'Cancelada' && (
-            <p className="text-rose-700 md:col-span-3"><span className="text-rose-500">Motivo do cancelamento:</span> {load.motivo_cancelamento ?? '-'}</p>
-          )}
-        </CardBody>
-      </Card>
+      {load.status === 'Cancelada' && (
+        <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+          <strong>Cancelada.</strong> Motivo: {load.motivo_cancelamento ?? '-'}
+        </div>
+      )}
 
       <Card>
-        <CardHeader
-          title="Itens da carga"
-          description={`Peso total: ${pesoTotal.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} kg · Cubagem total: ${cubagemTotal.toLocaleString('pt-BR', { maximumFractionDigits: 3 })} m³`}
-        />
-        <CardBody className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] text-sm">
-              <thead>
-                <tr className="border-b border-zinc-100 text-left text-xs font-medium text-zinc-500">
-                  <th className="px-4 py-2">SKU</th>
-                  <th className="px-4 py-2">Nome</th>
-                  <th className="px-4 py-2">Qtd</th>
-                  {canSeeFinancial && <th className="px-4 py-2">CMV unit.</th>}
-                  {canSeeFinancial && <th className="px-4 py-2">CMV total</th>}
-                  <th className="px-4 py-2">Peso</th>
-                  <th className="px-4 py-2">Dimensões (A×L×P)</th>
-                  <th className="px-4 py-2">Cubagem</th>
-                  <th className="px-4 py-2">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {typedItems.map((i) => (
-                  <tr key={i.id} className="border-b border-zinc-50 last:border-0">
-                    <td className="px-4 py-2">{i.sku}</td>
-                    <td className="px-4 py-2">{i.nome_produto}</td>
-                    <td className="px-4 py-2">{i.quantidade}</td>
-                    {canSeeFinancial && <td className="px-4 py-2">{i.cmv_unitario ?? '-'}</td>}
-                    {canSeeFinancial && <td className="px-4 py-2">{i.cmv_total ?? '-'}</td>}
-                    <td className="px-4 py-2">{i.peso ?? '-'}</td>
-                    <td className="px-4 py-2">{i.altura ?? '-'} × {i.largura ?? '-'} × {i.profundidade ?? '-'}</td>
-                    <td className="px-4 py-2">{i.cubagem ?? '-'}</td>
-                    <td className="px-4 py-2">{i.status_item ?? '-'}</td>
-                  </tr>
-                ))}
-                {typedItems.length === 0 && (
-                  <tr>
-                    <td colSpan={canSeeFinancial ? 9 : 7} className="px-4 py-4 text-center text-zinc-400">Nenhum item ainda.</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+        <CardBody>
+          <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm md:grid-cols-3 xl:grid-cols-6">
+            <Info label="Data agendada">{dateTime(load.data_agendada)}</Info>
+            <Info label="Previsão de recebimento">{dateTime(load.data_prevista_recebimento)}</Info>
+            <Info label="Recebimento real">{dateTime(load.data_real_recebimento)}</Info>
+            <Info label="Nº carga marketplace">{load.numero_carga_marketplace ?? '-'}</Info>
+            <Info label="Código de agendamento">{load.codigo_agendamento ?? '-'}</Info>
+            <Info label="Volume">{typedItems.length} itens · {unidades.toLocaleString('pt-BR')} un.</Info>
+          </dl>
+          {load.observacoes && (
+            <p className="mt-3 border-t border-zinc-100 pt-3 text-sm text-zinc-600"><span className="text-zinc-500">Observações:</span> {load.observacoes}</p>
+          )}
         </CardBody>
       </Card>
 
       {canSeeFinancial && (
-        <Card>
-          <CardBody className="grid grid-cols-2 gap-4 text-sm md:grid-cols-5">
-            <div>
-              <div className="text-xs text-zinc-500">Faturamento estimado</div>
-              <div className="font-semibold">{money(load.faturamento_estimado)}</div>
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+          {[
+            ['Faturamento estimado', money(load.faturamento_estimado)],
+            ['CMV total', money(load.cmv_total)],
+            ['Frete', money(load.custo_frete)],
+            ['Outros custos', money(load.outros_custos)],
+          ].map(([label, value]) => (
+            <div key={label} className="rounded-card border border-zinc-200 bg-white px-4 py-3 shadow-card">
+              <div className="text-xs text-zinc-500">{label}</div>
+              <div className="font-semibold text-zinc-900">{value}</div>
             </div>
-            <div>
-              <div className="text-xs text-zinc-500">CMV total</div>
-              <div className="font-semibold">{money(load.cmv_total)}</div>
+          ))}
+          <div className="col-span-2 rounded-card border border-zinc-200 bg-white px-4 py-3 shadow-card md:col-span-1">
+            <div className="text-xs text-zinc-500">Margem estimada</div>
+            <div className={`font-semibold ${(load.margem_estimativa_valor ?? 0) >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+              {money(load.margem_estimativa_valor)}
+              <span className="ml-1 text-xs font-normal text-zinc-500">
+                {load.margem_estimativa_percentual != null ? `${(load.margem_estimativa_percentual * 100).toFixed(1)}%` : 'pendente'}
+              </span>
             </div>
-            <div>
-              <div className="text-xs text-zinc-500">Custo de frete</div>
-              <div className="font-semibold">{money(load.custo_frete)}</div>
-            </div>
-            <div>
-              <div className="text-xs text-zinc-500">Outros custos</div>
-              <div className="font-semibold">{money(load.outros_custos)}</div>
-            </div>
-            <div>
-              <div className="text-xs text-zinc-500">Margem estimada</div>
-              <div className={`font-semibold ${(load.margem_estimativa_valor ?? 0) >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
-                {money(load.margem_estimativa_valor)}
-                {load.margem_estimativa_percentual !== null && load.margem_estimativa_percentual !== undefined
-                  ? ` (${(load.margem_estimativa_percentual * 100).toFixed(2)}%)`
-                  : ' (pendente)'}
-              </div>
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+        <Card className="xl:col-span-2">
+          <CardHeader
+            title="Itens da carga"
+            description={`Peso total: ${num(pesoTotal)} kg · Cubagem total: ${num(cubagemTotal, 3)} m³`}
+          />
+          <CardBody className="p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-zinc-100 bg-zinc-50 text-left text-xs font-medium text-zinc-500">
+                    <th className="px-3 py-2">SKU</th>
+                    <th className="px-3 py-2">Nome</th>
+                    <th className="px-3 py-2 text-right">Qtd</th>
+                    {canSeeFinancial && <th className="px-3 py-2 text-right">CMV unit.</th>}
+                    {canSeeFinancial && <th className="px-3 py-2 text-right">CMV total</th>}
+                    <th className="px-3 py-2">Peso · medidas (A×L×P)</th>
+                    {hasItemStatus && <th className="px-3 py-2">Status</th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {typedItems.map((i) => (
+                    <tr key={i.id} className="border-b border-zinc-50 align-top last:border-0">
+                      <td className="whitespace-nowrap px-3 py-2 font-mono text-xs text-zinc-600">{i.sku}</td>
+                      <td className="min-w-[12rem] px-3 py-2 text-zinc-800">{i.nome_produto}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{i.quantidade}</td>
+                      {canSeeFinancial && <td className="whitespace-nowrap px-3 py-2 text-right">{money(i.cmv_unitario)}</td>}
+                      {canSeeFinancial && <td className="whitespace-nowrap px-3 py-2 text-right">{money(i.cmv_total)}</td>}
+                      <td className="whitespace-nowrap px-3 py-2 text-xs text-zinc-600">
+                        <div>{i.peso ? `${num(i.peso)} kg` : '-'}{i.cubagem ? ` · ${num(i.cubagem, 3)} m³` : ''}</div>
+                        {(i.altura || i.largura || i.profundidade) && (
+                          <div className="text-zinc-400">{num(i.altura, 1)} × {num(i.largura, 1)} × {num(i.profundidade, 1)} cm</div>
+                        )}
+                      </td>
+                      {hasItemStatus && <td className="px-3 py-2 text-zinc-600">{i.status_item ?? '-'}</td>}
+                    </tr>
+                  ))}
+                  {typedItems.length === 0 && (
+                    <tr>
+                      <td colSpan={itemCols} className="px-3 py-4 text-center text-zinc-400">Nenhum item ainda.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             </div>
           </CardBody>
         </Card>
-      )}
 
-      <Card>
-        <CardHeader title="Checklist operacional" />
-        <CardBody>
-          {checklist ? (
-            <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-              {CHECKLIST_FIELDS.map((field) => {
-                const done = !!checklist[field.key];
-                return (
-                  <div key={field.key} className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm ${done ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-zinc-200 text-zinc-500'}`}>
-                    {done ? <CheckCircle2 className="h-4 w-4" /> : <Circle className="h-4 w-4" />}
-                    {field.label}
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <p className="text-sm text-zinc-500">Checklist ainda não disponível para esta carga.</p>
-          )}
-          {!nfEmitida && (
-            <p className="mt-3 flex items-center gap-1 text-xs text-amber-600"><AlertTriangle className="h-3.5 w-3.5" />Atenção: NF ainda não emitida.</p>
-          )}
-          <p className="mt-3 text-xs text-zinc-500">
-            Para marcar etapas do checklist, editar itens, financeiro ou finalizar/cancelar a carga, use o painel em{' '}
-            <Link href="/cargas" className="text-brand-600">/cargas</Link>.
-          </p>
-        </CardBody>
-      </Card>
+        <div className="space-y-4">
+          <Card>
+            <CardHeader title="Checklist" description={checklist ? `${checklistDone} de ${CHECKLIST_FIELDS.length} etapas` : undefined} />
+            <CardBody className="space-y-1.5">
+              {checklist ? (
+                CHECKLIST_FIELDS.map((field) => {
+                  const done = !!checklist[field.key];
+                  return (
+                    <div key={field.key} className={`flex items-center gap-2 text-sm ${done ? 'text-emerald-700' : 'text-zinc-500'}`}>
+                      {done ? <CheckCircle2 className="h-4 w-4 shrink-0" /> : <Circle className="h-4 w-4 shrink-0" />}
+                      {field.label}
+                    </div>
+                  );
+                })
+              ) : (
+                <p className="text-sm text-zinc-500">Checklist ainda não disponível para esta carga.</p>
+              )}
+              {checklist && !nfEmitida && (
+                <p className="flex items-center gap-1 pt-1 text-xs text-amber-600"><AlertTriangle className="h-3.5 w-3.5" />NF ainda não emitida.</p>
+              )}
+            </CardBody>
+          </Card>
 
-      <Card>
-        <CardHeader title="Comentários" />
-        <CardBody className="space-y-3">
-          <CommentForm entidade="load" entidadeId={id} />
-          <ul className="space-y-2 text-sm">
-            {((comments ?? []) as CommentRow[]).map((c) => (
-              <li key={c.id} className="border-b border-zinc-50 pb-2 last:border-0">
-                {c.texto}
-                <br />
-                <span className="text-xs text-zinc-500">{new Date(c.created_at).toLocaleString('pt-BR')}</span>
-              </li>
-            ))}
-            {(comments ?? []).length === 0 && <li className="text-zinc-400">Sem comentários ainda.</li>}
-          </ul>
-        </CardBody>
-      </Card>
-
-      <Card>
-        <CardHeader title="Histórico de alterações" />
-        <CardBody>
-          <p className="text-sm text-zinc-600">
-            Consulte todas as alterações desta carga em{' '}
-            <Link href={`/auditoria?tabela=loads&registro_id=${id}`} className="text-brand-600">
-              Auditoria filtrada por esta carga
-            </Link>.
-          </p>
-        </CardBody>
-      </Card>
+          <Card>
+            <CardHeader title="Comentários" />
+            <CardBody className="space-y-3">
+              <CommentForm entidade="load" entidadeId={id} />
+              <ul className="space-y-2 text-sm">
+                {((comments ?? []) as CommentRow[]).map((c) => (
+                  <li key={c.id} className="rounded-lg bg-zinc-50 px-3 py-2">
+                    <p className="whitespace-pre-wrap text-zinc-800">{c.texto}</p>
+                    <span className="text-xs text-zinc-400">{dateTime(c.created_at)}</span>
+                  </li>
+                ))}
+                {(comments ?? []).length === 0 && <li className="text-zinc-400">Sem comentários ainda.</li>}
+              </ul>
+            </CardBody>
+          </Card>
+        </div>
+      </div>
     </div>
   );
 }

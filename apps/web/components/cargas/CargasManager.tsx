@@ -245,6 +245,21 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
     setChecklist(chk.data as ChecklistRow | null);
   }
 
+  // /cargas?abrir=<id>: abre direto o painel de edição da carga (vindo da tela de detalhe).
+  const openParam = searchParams.get('abrir');
+  useEffect(() => {
+    if (!openParam) return;
+    let cancelled = false;
+    supabase.rpc('get_visible_loads').then(({ data }) => {
+      const found = ((data ?? []) as LoadRow[]).find((l) => l.id === openParam);
+      if (!cancelled && found) openLoad(found);
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openParam]);
+
   async function addItem() {
     if (!selected || !canWrite) return;
     const { data: productRows } = await supabase.rpc('get_visible_product_by_sku', { p_sku: detailNewItem.sku, p_company_id: selectedCompanyId });
