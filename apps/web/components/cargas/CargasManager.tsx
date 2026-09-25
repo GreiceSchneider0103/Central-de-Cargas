@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Plus, AlertTriangle } from 'lucide-react';
+import { Plus, AlertTriangle, Pencil, Trash2 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import type { UserProfile } from '@/lib/auth/roles';
 import { LOAD_STATUSES } from '@/lib/loads/statuses';
@@ -83,6 +83,10 @@ type ItemDraft = {
 };
 
 const PAGE_SIZE = 50;
+
+const brl = (v: number | string | null | undefined) => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+const shortDate = (v: string | null | undefined) =>
+  v ? new Date(v).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-';
 const EMPTY_ITEM: ItemDraft = { sku: '', nome_produto: '', quantidade: '1', cmv_unitario: '0' };
 
 export function CargasManager({ profile }: { profile: UserProfile }) {
@@ -428,22 +432,31 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-zinc-100 text-left text-xs font-medium text-zinc-500">
-                    <th className="px-4 py-2.5">Código</th>
-                    <th className="px-4 py-2.5">Tipo</th>
-                    <th className="px-4 py-2.5">Status</th>
-                    {canSeeFinancial && <th className="px-4 py-2.5">CMV total</th>}
-                    <th className="px-4 py-2.5" />
+                    <th className="px-3 py-2.5">Código</th>
+                    <th className="px-3 py-2.5">Tipo / destino</th>
+                    <th className="px-3 py-2.5">Status</th>
+                    <th className="px-3 py-2.5">Prioridade</th>
+                    <th className="px-3 py-2.5">Agendada</th>
+                    <th className="px-3 py-2.5">Previsão receb.</th>
+                    {canSeeFinancial && <th className="px-3 py-2.5 text-right">CMV total</th>}
+                    <th className="px-3 py-2.5" />
                   </tr>
                 </thead>
                 <tbody>
                   {loads.map((l) => (
-                    <tr key={l.id} className="border-b border-zinc-50 last:border-0 hover:bg-zinc-50">
-                      <td className="px-4 py-2.5 font-medium text-zinc-800">{l.codigo_interno}</td>
-                      <td className="px-4 py-2.5 text-zinc-600">{l.tipo === 'FULL_MARKETPLACE' ? 'Full' : 'Loja'}</td>
-                      <td className="px-4 py-2.5"><Badge tone={loadStatusTone(l.status)} dot>{l.status}</Badge></td>
-                      {canSeeFinancial && <td className="px-4 py-2.5 text-zinc-600">{Number(l.cmv_total || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>}
-                      <td className="px-4 py-2.5 text-right">
-                        <button className="font-medium text-brand-600 hover:text-brand-700" onClick={() => openLoad(l)}>Detalhe</button>
+                    <tr key={l.id} className="cursor-pointer border-b border-zinc-50 last:border-0 hover:bg-zinc-50" onClick={() => openLoad(l)}>
+                      <td className="whitespace-nowrap px-3 py-2 font-medium text-zinc-800">{l.codigo_interno}</td>
+                      <td className="px-3 py-2 text-zinc-600">
+                        {l.tipo === 'FULL_MARKETPLACE' ? 'Full' : 'Loja'}
+                        {(l.loja_nome || l.canal_nome) && <span className="text-zinc-400"> · {String(l.loja_nome || l.canal_nome)}</span>}
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-2"><Badge tone={loadStatusTone(l.status)} dot>{l.status}</Badge></td>
+                      <td className="px-3 py-2 text-zinc-600">{l.prioridade ?? '-'}</td>
+                      <td className="whitespace-nowrap px-3 py-2 text-zinc-600">{shortDate(l.data_agendada)}</td>
+                      <td className="whitespace-nowrap px-3 py-2 text-zinc-600">{shortDate(l.data_prevista_recebimento)}</td>
+                      {canSeeFinancial && <td className="whitespace-nowrap px-3 py-2 text-right text-zinc-600">{brl(l.cmv_total)}</td>}
+                      <td className="px-3 py-2 text-right">
+                        <button className="font-medium text-brand-600 hover:text-brand-700" onClick={(e) => { e.stopPropagation(); openLoad(l); }}>Detalhe</button>
                       </td>
                     </tr>
                   ))}
@@ -598,7 +611,7 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
         onClose={() => setSelected(null)}
         title={selected?.codigo_interno ?? ''}
         description={selected ? <Badge tone={loadStatusTone(selected.status)} dot>{selected.status}</Badge> : undefined}
-        size="lg"
+        size="xl"
       >
         {selected && (
           <div className="space-y-5">
@@ -697,41 +710,47 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
                     <tr className="border-b border-zinc-100 text-left text-xs font-medium text-zinc-500">
                       <th className="px-3 py-2">SKU</th>
                       <th className="px-3 py-2">Nome</th>
-                      <th className="px-3 py-2">Qtd</th>
-                      {canSeeFinancial && <th className="px-3 py-2">CMV unit.</th>}
-                      {canSeeFinancial && <th className="px-3 py-2">CMV total</th>}
-                      <th className="px-3 py-2">Cubagem</th>
+                      <th className="px-3 py-2 text-right">Qtd</th>
+                      {canSeeFinancial && <th className="px-3 py-2 text-right">CMV unit.</th>}
+                      {canSeeFinancial && <th className="px-3 py-2 text-right">CMV total</th>}
+                      <th className="px-3 py-2 text-right">Cubagem</th>
+                      <th className="px-3 py-2">Previsão</th>
                       {canWrite && <th className="px-3 py-2" />}
                     </tr>
                   </thead>
                   <tbody>
                     {items.map((i) => (
                       <tr key={i.id} className="border-b border-zinc-50 last:border-0">
-                        <td className="px-3 py-2">{i.sku}</td>
-                        <td className="px-3 py-2">{i.nome_produto}</td>
-                        <td className="px-3 py-2">{i.quantidade}</td>
-                        {canSeeFinancial && <td className="px-3 py-2">{i.cmv_unitario}</td>}
-                        {canSeeFinancial && <td className="px-3 py-2">{i.cmv_total}</td>}
-                        <td className="px-3 py-2">{i.cubagem ?? '-'}</td>
+                        <td className="whitespace-nowrap px-3 py-2 font-mono text-xs text-zinc-600">{i.sku}</td>
+                        <td className="min-w-[12rem] px-3 py-2">{i.nome_produto}</td>
+                        <td className="px-3 py-2 text-right">{i.quantidade}</td>
+                        {canSeeFinancial && <td className="whitespace-nowrap px-3 py-2 text-right">{brl(i.cmv_unitario)}</td>}
+                        {canSeeFinancial && <td className="whitespace-nowrap px-3 py-2 text-right">{brl(i.cmv_total)}</td>}
+                        <td className="whitespace-nowrap px-3 py-2 text-right">{i.cubagem != null ? `${Number(i.cubagem).toLocaleString('pt-BR', { maximumFractionDigits: 3 })} m³` : '-'}</td>
+                        <td className="whitespace-nowrap px-3 py-2 text-zinc-600">{i.data_prevista_recebimento ? new Date(i.data_prevista_recebimento).toLocaleDateString('pt-BR') : '-'}</td>
                         {canWrite && (
-                          <td className="space-x-2 px-3 py-2 text-right">
+                          <td className="whitespace-nowrap px-3 py-2 text-right">
                             {removingItemId === i.id ? (
-                              <>
-                                <button className="font-medium text-rose-700 hover:text-rose-800" onClick={() => removeItem(i)}>Confirmar remoção</button>
-                                <button className="font-medium text-zinc-500 hover:text-zinc-700" onClick={() => setRemovingItemId(null)}>Cancelar</button>
-                              </>
+                              <span className="space-x-2">
+                                <button className="font-medium text-rose-700 hover:text-rose-800" onClick={() => removeItem(i)}>Remover?</button>
+                                <button className="font-medium text-zinc-500 hover:text-zinc-700" onClick={() => setRemovingItemId(null)}>Não</button>
+                              </span>
                             ) : (
-                              <>
-                                <button className="font-medium text-brand-600 hover:text-brand-700" onClick={() => editItem(i)}>Editar</button>
-                                <button className="font-medium text-rose-600 hover:text-rose-700" onClick={() => removeItem(i)}>Remover</button>
-                              </>
+                              <span className="inline-flex gap-1">
+                                <button aria-label={`Editar ${i.sku}`} title="Editar" className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700" onClick={() => editItem(i)}>
+                                  <Pencil className="h-4 w-4" />
+                                </button>
+                                <button aria-label={`Remover ${i.sku}`} title="Remover" className="rounded-lg p-1.5 text-zinc-400 hover:bg-rose-50 hover:text-rose-600" onClick={() => removeItem(i)}>
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              </span>
                             )}
                           </td>
                         )}
                       </tr>
                     ))}
                     {items.length === 0 && (
-                      <tr><td colSpan={canSeeFinancial ? 7 : 5} className="px-3 py-4 text-center text-zinc-400">Nenhum item ainda.</td></tr>
+                      <tr><td colSpan={5 + (canSeeFinancial ? 2 : 0) + (canWrite ? 1 : 0)} className="px-3 py-4 text-center text-zinc-400">Nenhum item ainda.</td></tr>
                     )}
                   </tbody>
                 </table>

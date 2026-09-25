@@ -20,7 +20,7 @@ export function Dialog({
   description?: ReactNode;
   children: ReactNode;
   footer?: ReactNode;
-  size?: 'sm' | 'md' | 'lg';
+  size?: 'sm' | 'md' | 'lg' | 'xl';
 }) {
   useEffect(() => {
     if (!open) return;
@@ -38,7 +38,7 @@ export function Dialog({
 
   if (!open || typeof document === 'undefined') return null;
 
-  const sizeClass = size === 'sm' ? 'max-w-sm' : size === 'lg' ? 'max-w-3xl' : 'max-w-xl';
+  const sizeClass = size === 'sm' ? 'max-w-sm' : size === 'lg' ? 'max-w-3xl' : size === 'xl' ? 'max-w-6xl' : 'max-w-xl';
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
