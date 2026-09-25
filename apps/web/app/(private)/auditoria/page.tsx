@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import type { UserProfile } from '@/lib/auth/roles';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { Input, FieldGroup } from '@/components/ui/Field';
+import { Input, FieldGroup, Select } from '@/components/ui/Field';
 import { EmptyState } from '@/components/ui/EmptyState';
 
 const PAGE_SIZE = 50;
@@ -45,8 +45,31 @@ const PAYLOAD_KEY_LABELS: Record<string, string> = {
   entidade_id: 'ID',
 };
 
+const TABLE_LABELS: Record<string, string> = {
+  loads: 'Carga',
+  load_items: 'Item de carga',
+  load_checklists: 'Checklist',
+  load_requests: 'Solicitação',
+  load_request_items: 'Item de solicitação',
+  products: 'Produto',
+  companies: 'Empresa',
+  suppliers: 'Fornecedor',
+  users_profile: 'Usuário',
+  channels: 'Canal',
+  stores: 'Loja',
+  full_destinations: 'Destino Full',
+  distribution_centers: 'CD',
+  transport_types: 'Tipo de transporte',
+};
+
 function formatValue(value: unknown) {
-  return value == null || value === '' ? '—' : String(value);
+  if (value == null || value === '') return '—';
+  if (typeof value === 'object') return Array.isArray(value) ? `${value.length} itens` : JSON.stringify(value);
+  return String(value);
+}
+
+function shortDate(iso: string) {
+  return new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
 }
 
 function AuditDetail({ fieldName, oldValue, newValue, payload }: { fieldName: string | null; oldValue: string | null; newValue: string | null; payload: unknown }) {
@@ -55,7 +78,7 @@ function AuditDetail({ fieldName, oldValue, newValue, payload }: { fieldName: st
       <div className="text-xs text-zinc-700">
         <span className="font-medium">{FIELD_LABELS[fieldName] ?? fieldName}</span>
         {(oldValue != null || newValue != null) && (
-          <div className="mt-0.5 text-zinc-500">
+          <div className="mt-0.5 break-words text-zinc-500">
             {formatValue(oldValue)} → {formatValue(newValue)}
           </div>
         )}
@@ -69,9 +92,9 @@ function AuditDetail({ fieldName, oldValue, newValue, payload }: { fieldName: st
   return (
     <dl className="space-y-0.5 text-xs text-zinc-600">
       {entries.map(([key, value]) => (
-        <div key={key} className="flex gap-1">
-          <dt className="font-medium text-zinc-700">{PAYLOAD_KEY_LABELS[key] ?? key}:</dt>
-          <dd>{formatValue(value)}</dd>
+        <div key={key} className="flex min-w-0 gap-1">
+          <dt className="shrink-0 font-medium text-zinc-700">{PAYLOAD_KEY_LABELS[key] ?? key}:</dt>
+          <dd className="truncate" title={formatValue(value)}>{formatValue(value)}</dd>
         </div>
       ))}
     </dl>
@@ -121,7 +144,10 @@ export default async function AuditPage({
   if (from) q = q.gte('created_at', from.toISOString());
   if (to) q = q.lt('created_at', to.toISOString());
 
-  const { data: rows, error, count } = await q;
+  const [{ data: rows, error, count }, { data: users }] = await Promise.all([
+    q,
+    supabase.from('users_profile').select('id,nome,email').order('nome').limit(500),
+  ]);
 
   const totalRows = count ?? 0;
   const totalPages = Math.max(1, Math.ceil(totalRows / PAGE_SIZE));
@@ -162,21 +188,29 @@ export default async function AuditPage({
 
       <Card>
         <CardBody>
-          <form className="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-end" action="/auditoria" method="get">
-            <FieldGroup label="Tabela">
-              <Input name="tabela" defaultValue={sp?.tabela ?? ''} placeholder="loads / load_requests ..." className="w-44" />
+          <form className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6 lg:items-end" action="/auditoria" method="get">
+            <FieldGroup label="Onde">
+              <Select name="tabela" defaultValue={sp?.tabela ?? ''}>
+                <option value="">Tudo</option>
+                {Object.entries(TABLE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+              </Select>
+            </FieldGroup>
+            <FieldGroup label="Usuário">
+              <Select name="profile_id" defaultValue={sp?.profile_id ?? ''}>
+                <option value="">Todos</option>
+                {((users ?? []) as { id: string; nome: string | null; email: string | null }[]).map((u) => (
+                  <option key={u.id} value={u.id}>{u.nome || u.email || u.id}</option>
+                ))}
+              </Select>
             </FieldGroup>
             <FieldGroup label="Registro ID">
-              <Input name="registro_id" defaultValue={sp?.registro_id ?? ''} placeholder="uuid" className="w-48" />
-            </FieldGroup>
-            <FieldGroup label="Usuário (profile_id)">
-              <Input name="profile_id" defaultValue={sp?.profile_id ?? ''} placeholder="uuid" className="w-48" />
+              <Input name="registro_id" defaultValue={sp?.registro_id ?? ''} placeholder="uuid" />
             </FieldGroup>
             <FieldGroup label="De">
-              <Input name="from" type="date" defaultValue={sp?.from ?? ''} className="w-40" />
+              <Input name="from" type="date" defaultValue={sp?.from ?? ''} />
             </FieldGroup>
             <FieldGroup label="Até">
-              <Input name="to" type="date" defaultValue={sp?.to ?? ''} className="w-40" />
+              <Input name="to" type="date" defaultValue={sp?.to ?? ''} />
             </FieldGroup>
             <Button type="submit" variant="primary">Filtrar</Button>
           </form>
@@ -191,31 +225,47 @@ export default async function AuditPage({
             <EmptyState title="Sem resultados" description="Ajuste os filtros acima para encontrar eventos de auditoria." />
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[900px] text-sm">
+              <table className="w-full table-fixed text-sm">
+                <colgroup>
+                  <col className="w-32" />
+                  <col className="w-40" />
+                  <col className="w-48" />
+                  <col className="w-40" />
+                  <col />
+                </colgroup>
                 <thead>
                   <tr className="border-b border-zinc-100 text-left text-xs font-medium text-zinc-500">
-                    <th className="px-4 py-2.5">Data/Hora</th>
-                    <th className="px-4 py-2.5">Tabela</th>
-                    <th className="px-4 py-2.5">Registro</th>
-                    <th className="px-4 py-2.5">Ação</th>
-                    <th className="px-4 py-2.5">Usuário</th>
-                    <th className="px-4 py-2.5">Detalhe</th>
+                    <th className="px-3 py-2.5">Data/hora</th>
+                    <th className="px-3 py-2.5">Onde</th>
+                    <th className="px-3 py-2.5">Ação</th>
+                    <th className="px-3 py-2.5">Usuário</th>
+                    <th className="px-3 py-2.5">Detalhe</th>
                   </tr>
                 </thead>
                 <tbody>
                   {typedRows.map((r) => {
-                    const up = Array.isArray(r.users_profile) ? r.users_profile[0] : null;
+                    const up = Array.isArray(r.users_profile) ? r.users_profile[0] : r.users_profile && !Array.isArray(r.users_profile) ? (r.users_profile as { nome: string | null; email: string | null; perfil: string | null }) : null;
                     return (
-                      <tr key={r.id} className="border-b border-zinc-50 align-top last:border-0">
-                        <td className="whitespace-nowrap px-4 py-2.5 text-zinc-600">{new Date(r.created_at).toLocaleString('pt-BR')}</td>
-                        <td className="px-4 py-2.5 text-zinc-600">{r.tabela}</td>
-                        <td className="px-4 py-2.5 font-mono text-xs text-zinc-500">{r.registro_id ?? '-'}</td>
-                        <td className="px-4 py-2.5 font-medium text-zinc-800">{r.acao}</td>
-                        <td className="px-4 py-2.5">
-                          <div className="text-xs text-zinc-700">{(up?.nome || up?.email || r.profile_id) ?? '-'}</div>
+                      <tr key={r.id} className="border-b border-zinc-50 align-top last:border-0 hover:bg-zinc-50">
+                        <td className="whitespace-nowrap px-3 py-2 text-zinc-600">{shortDate(r.created_at)}</td>
+                        <td className="px-3 py-2 text-zinc-700">
+                          <div>{TABLE_LABELS[r.tabela] ?? r.tabela}</div>
+                          {r.registro_id && (
+                            <Link
+                              href={`/auditoria?registro_id=${r.registro_id}`}
+                              title={`Ver todo o histórico de ${r.registro_id}`}
+                              className="font-mono text-[11px] text-zinc-400 hover:text-brand-600"
+                            >
+                              {r.registro_id.slice(0, 8)}…
+                            </Link>
+                          )}
+                        </td>
+                        <td className="break-words px-3 py-2 text-xs font-medium text-zinc-800">{r.acao}</td>
+                        <td className="px-3 py-2">
+                          <div className="truncate text-xs text-zinc-700" title={up?.email ?? undefined}>{(up?.nome || up?.email || r.profile_id) ?? '-'}</div>
                           {up?.perfil && <div className="text-[10px] text-zinc-500">{up.perfil}</div>}
                         </td>
-                        <td className="max-w-[320px] px-4 py-2.5">
+                        <td className="min-w-0 px-3 py-2">
                           <AuditDetail fieldName={r.field_name} oldValue={r.old_value} newValue={r.new_value} payload={r.payload} />
                         </td>
                       </tr>
