@@ -44,7 +44,7 @@ export function WeekView({
   return (
     <div className="flex flex-1 flex-col overflow-hidden rounded-card border border-zinc-200 bg-white">
       <div className="flex-1 overflow-auto">
-        <div className="min-w-[720px]">
+        <div className="min-w-[560px]">
           <div className="sticky top-0 z-10 grid grid-cols-[56px_repeat(7,1fr)] border-b border-zinc-200 bg-zinc-50 text-xs font-semibold text-zinc-500">
             <div />
             {days.map((d) => (

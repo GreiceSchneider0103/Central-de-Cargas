@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils';
 import { MonthView } from './MonthView';
 import { WeekView } from './WeekView';
 import { DayView } from './DayView';
+import { ListView } from './ListView';
 import { EventDetailDialog } from './EventDetailDialog';
 import {
   addDays,
@@ -21,7 +22,7 @@ import {
   type AgendaOptions,
 } from './types';
 
-type ViewMode = 'month' | 'week' | 'day';
+type ViewMode = 'month' | 'week' | 'day' | 'list';
 
 export function AgendaCalendar({
   loads: initialLoads,
@@ -43,6 +44,9 @@ export function AgendaCalendar({
   const canEditDate = ['admin', 'gerente_estoque', 'gerente_ecommerce'].includes(profile.perfil);
 
   const range = useMemo(() => {
+    if (view === 'list') {
+      return { from: new Date(cursor.getFullYear(), cursor.getMonth(), 1), to: new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1) };
+    }
     if (view === 'month') {
       const first = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
       const from = startOfWeek(first);
@@ -149,7 +153,7 @@ export function AgendaCalendar({
 
   function goPrev() {
     setCursor((c) => {
-      if (view === 'month') return new Date(c.getFullYear(), c.getMonth() - 1, 1);
+      if (view === 'month' || view === 'list') return new Date(c.getFullYear(), c.getMonth() - 1, 1);
       if (view === 'week') return addDays(c, -7);
       return addDays(c, -1);
     });
@@ -157,14 +161,14 @@ export function AgendaCalendar({
 
   function goNext() {
     setCursor((c) => {
-      if (view === 'month') return new Date(c.getFullYear(), c.getMonth() + 1, 1);
+      if (view === 'month' || view === 'list') return new Date(c.getFullYear(), c.getMonth() + 1, 1);
       if (view === 'week') return addDays(c, 7);
       return addDays(c, 1);
     });
   }
 
   const title = useMemo(() => {
-    if (view === 'month') return cursor.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+    if (view === 'month' || view === 'list') return cursor.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
     if (view === 'week') {
       const from = startOfWeek(cursor);
       const to = addDays(from, 6);
@@ -193,7 +197,7 @@ export function AgendaCalendar({
 
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex overflow-hidden rounded-lg border border-zinc-300 text-sm">
-            {([['month', 'Mês'], ['week', 'Semana'], ['day', 'Dia']] as const).map(([v, label]) => (
+            {([['month', 'Mês'], ['week', 'Semana'], ['day', 'Dia'], ['list', 'Lista']] as const).map(([v, label]) => (
               <button
                 key={v}
                 onClick={() => setView(v)}
@@ -212,33 +216,33 @@ export function AgendaCalendar({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
-        <Select className="w-full sm:w-36" value={filters.tipo} onChange={(e) => setFilters((f) => ({ ...f, tipo: e.target.value }))}>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-7">
+        <Select className="w-full" value={filters.tipo} onChange={(e) => setFilters((f) => ({ ...f, tipo: e.target.value }))}>
           <option value="">Tipo</option>
           <option value="FULL_MARKETPLACE">Full</option>
           <option value="LOJA_FISICA">Loja</option>
         </Select>
-        <Select className="w-full sm:w-44" value={filters.status} onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value }))}>
+        <Select className="w-full" value={filters.status} onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value }))}>
           <option value="">Status</option>
           {statusOptions.map((s) => <option key={s} value={s}>{s}</option>)}
         </Select>
-        <Select className="w-full sm:w-44" value={filters.empresa} onChange={(e) => setFilters((f) => ({ ...f, empresa: e.target.value }))}>
+        <Select className="w-full" value={filters.empresa} onChange={(e) => setFilters((f) => ({ ...f, empresa: e.target.value }))}>
           <option value="">Empresa</option>
           {options.companies.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
         </Select>
-        <Select className="w-full sm:w-44" value={filters.marketplace} onChange={(e) => setFilters((f) => ({ ...f, marketplace: e.target.value }))}>
+        <Select className="w-full" value={filters.marketplace} onChange={(e) => setFilters((f) => ({ ...f, marketplace: e.target.value }))}>
           <option value="">Marketplace</option>
           {options.channels.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
         </Select>
-        <Select className="w-full sm:w-40" value={filters.loja} onChange={(e) => setFilters((f) => ({ ...f, loja: e.target.value }))}>
+        <Select className="w-full" value={filters.loja} onChange={(e) => setFilters((f) => ({ ...f, loja: e.target.value }))}>
           <option value="">Loja</option>
           {options.stores.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}
         </Select>
-        <Select className="w-full sm:w-40" value={filters.fornecedor} onChange={(e) => setFilters((f) => ({ ...f, fornecedor: e.target.value }))}>
+        <Select className="w-full" value={filters.fornecedor} onChange={(e) => setFilters((f) => ({ ...f, fornecedor: e.target.value }))}>
           <option value="">Fornecedor</option>
           {supplierTextOptions.map((s) => <option key={s} value={s}>{s}</option>)}
         </Select>
-        <Select className="w-full sm:w-44" value={filters.responsavel} onChange={(e) => setFilters((f) => ({ ...f, responsavel: e.target.value }))}>
+        <Select className="w-full" value={filters.responsavel} onChange={(e) => setFilters((f) => ({ ...f, responsavel: e.target.value }))}>
           <option value="">Responsável</option>
           {responsavelOptions.map((r) => <option key={r.id} value={r.id}>{r.nome}</option>)}
         </Select>
@@ -281,6 +285,17 @@ export function AgendaCalendar({
           canEditDate={canEditDate}
           onOpenLoad={setSelectedLoad}
           onDropLoad={(load, dt) => reschedule(load.id, dt.toISOString())}
+        />
+      )}
+
+      {view === 'list' && (
+        <ListView
+          loads={filteredLoads}
+          from={range.from}
+          to={range.to}
+          conflictByLoadId={conflictByLoadId}
+          destinoDisplay={destinoDisplay}
+          onOpenLoad={setSelectedLoad}
         />
       )}
 
