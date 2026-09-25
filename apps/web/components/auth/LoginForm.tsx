@@ -3,6 +3,9 @@
 import { useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { Button } from '@/components/ui/Button';
+import { FieldGroup, Input } from '@/components/ui/Field';
+import { PasswordInput } from './PasswordInput';
 
 export function LoginForm() {
   const router = useRouter();
@@ -56,34 +59,35 @@ export function LoginForm() {
   if (mode === 'recover') {
     return (
       <form onSubmit={handleRecover} className="space-y-4">
-        <div className="space-y-2">
-          <label htmlFor="recover-email" className="text-sm font-medium">E-mail</label>
-          <input
+        <div className="rounded-lg bg-zinc-100 px-3 py-2.5 text-sm text-zinc-600">
+          Informe seu e-mail. Enviamos um link para você criar uma nova senha.
+        </div>
+        <FieldGroup label="E-mail">
+          <Input
             id="recover-email"
             type="email"
             required
-            className="w-full h-11 rounded-md border border-zinc-300 px-3"
+            autoFocus
+            autoComplete="email"
+            className="h-11"
+            placeholder="voce@empresa.com.br"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
           />
-        </div>
+        </FieldGroup>
 
-        {error && <p className="text-sm text-rose-600">{error}</p>}
-        {recoverMessage && <p className="text-sm text-emerald-600">{recoverMessage}</p>}
+        {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
+        {recoverMessage && <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{recoverMessage}</p>}
 
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full h-11 rounded-md bg-indigo-600 text-white font-medium hover:bg-indigo-700 disabled:opacity-50"
-        >
+        <Button type="submit" variant="primary" disabled={loading} className="h-11 w-full">
           {loading ? 'Enviando...' : 'Enviar link de recuperação'}
-        </button>
+        </Button>
         <button
           type="button"
-          className="w-full text-sm text-zinc-600 hover:underline"
+          className="w-full text-sm font-medium text-zinc-600 hover:text-zinc-900"
           onClick={() => { setMode('login'); setError(null); setRecoverMessage(null); }}
         >
-          Voltar para o login
+          ← Voltar para o login
         </button>
       </form>
     );
@@ -91,45 +95,44 @@ export function LoginForm() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="space-y-2">
-        <label htmlFor="email" className="text-sm font-medium">E-mail</label>
-        <input
+      <FieldGroup label="E-mail">
+        <Input
           id="email"
           type="email"
           required
-          className="w-full h-11 rounded-md border border-zinc-300 px-3"
+          autoFocus
+          autoComplete="email"
+          className="h-11"
+          placeholder="voce@empresa.com.br"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
         />
-      </div>
-      <div className="space-y-2">
-        <label htmlFor="password" className="text-sm font-medium">Senha</label>
-        <input
+      </FieldGroup>
+      <div className="flex flex-col gap-1">
+        <div className="flex items-center justify-between">
+          <label htmlFor="password" className="text-xs font-medium text-zinc-600">Senha</label>
+          <button
+            type="button"
+            className="text-xs font-medium text-brand-600 hover:text-brand-700"
+            onClick={() => { setMode('recover'); setError(null); }}
+          >
+            Esqueci minha senha
+          </button>
+        </div>
+        <PasswordInput
           id="password"
-          type="password"
           required
-          className="w-full h-11 rounded-md border border-zinc-300 px-3"
+          autoComplete="current-password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
         />
       </div>
 
-      {error && <p className="text-sm text-rose-600">{error}</p>}
+      {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
 
-      <button
-        type="submit"
-        disabled={loading}
-        className="w-full h-11 rounded-md bg-indigo-600 text-white font-medium hover:bg-indigo-700 disabled:opacity-50"
-      >
+      <Button type="submit" variant="primary" disabled={loading} className="h-11 w-full">
         {loading ? 'Entrando...' : 'Entrar'}
-      </button>
-      <button
-        type="button"
-        className="w-full text-sm text-zinc-600 hover:underline"
-        onClick={() => { setMode('recover'); setError(null); }}
-      >
-        Esqueci minha senha
-      </button>
+      </Button>
     </form>
   );
 }
