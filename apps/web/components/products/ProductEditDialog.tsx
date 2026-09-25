@@ -120,7 +120,7 @@ export function ProductEditDialog({
         <FieldGroup label="Preço de venda (R$)">
           <Input type="number" step="0.01" value={draft.preco_venda} onChange={(e) => set('preco_venda', e.target.value)} />
         </FieldGroup>
-        <FieldGroup label="Fornecedor">
+        <FieldGroup label="Fornecedor / fabricante">
           <Select value={draft.fornecedor_id} onChange={(e) => set('fornecedor_id', e.target.value)}>
             <option value="">Sem fornecedor</option>
             {suppliers.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}

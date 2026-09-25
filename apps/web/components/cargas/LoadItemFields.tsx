@@ -55,7 +55,7 @@ export function LoadItemFields({
       <FieldGroup label="Quantidade">
         <Input type="number" value={str(value.quantidade)} onChange={(e) => onChange('quantidade', e.target.value)} />
       </FieldGroup>
-      <FieldGroup label="Fornecedor / origem">
+      <FieldGroup label="Fornecedor / fabricante">
         <Select value={str(value.fornecedor_origem_id)} onChange={(e) => onChange('fornecedor_origem_id', e.target.value)}>
           <option value="">Selecionar</option>
           {suppliers.map((o) => <option key={o.id} value={o.id}>{o.nome}</option>)}

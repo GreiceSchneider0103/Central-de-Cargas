@@ -202,7 +202,7 @@ export function ProductsTable({
                     <th className="px-4 py-2.5">Peso</th>
                     <th className="px-4 py-2.5">Medidas (L × A × P)</th>
                     <th className="px-4 py-2.5">Empresas</th>
-                    <th className="px-4 py-2.5">Fornecedor</th>
+                    <th className="px-4 py-2.5">Fornecedor / fabricante</th>
                     <th className="px-4 py-2.5">Status</th>
                     {canManage && <th className="w-10 px-4 py-2.5" />}
                   </tr>

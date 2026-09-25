@@ -79,7 +79,7 @@ export function ProductBulkEditDialog({
       }
     >
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-        <FieldGroup label="Fornecedor">
+        <FieldGroup label="Fornecedor / fabricante">
           <Select value={fornecedor} onChange={(e) => setFornecedor(e.target.value)}>
             <option value={KEEP}>Não alterar</option>
             <option value="">Sem fornecedor</option>
