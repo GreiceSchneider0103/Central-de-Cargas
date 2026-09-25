@@ -33,7 +33,7 @@ type Tab = 'hoje' | 'semana' | 'atrasadas' | 'sem_data';
 // Passos da operação, na ordem. "Concluída" grava o status Finalizada.
 const STEPS = [
   { status: 'Separando', label: 'Separando' },
-  { status: 'Pronta para coleta', label: 'Pronta p/ coleta' },
+  { status: 'Pronta para coleta', label: 'Pronta' },
   { status: 'Carregada', label: 'Carregada' },
   { status: 'Finalizada', label: 'Concluída' },
 ] as const;
@@ -161,50 +161,82 @@ export function OperacaoBoard({ profile }: { profile: UserProfile }) {
       ) : list.length === 0 ? (
         <Card><CardBody><EmptyState title="Nenhuma carga aqui" description="Quando houver cargas agendadas para este período, elas aparecem nesta lista." /></CardBody></Card>
       ) : (
-        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-          {list.map((l) => {
-            const s = summary[l.id];
-            const destino = l.tipo === 'FULL_MARKETPLACE' ? `Full · ${l.canal_nome ?? ''}` : `Loja · ${l.loja_nome ?? ''}`;
-            const done = DONE.includes(l.status);
-            return (
-              <Card key={l.id} className={cn(done && 'opacity-70')}>
-                <CardBody className="space-y-3">
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <div>
-                      <Link href={`/cargas/${l.id}`} className="text-base font-semibold text-brand-700 hover:underline">{l.codigo_interno ?? 'Carga'}</Link>
-                      <p className="text-sm text-zinc-600">{destino}</p>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      {l.prioridade && <Badge tone={priorityTone(l.prioridade)}>{l.prioridade}</Badge>}
-                      <Badge tone={loadStatusTone(l.status)} dot>{l.status === 'Finalizada' ? 'Concluída' : l.status}</Badge>
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-zinc-600">
-                    <span>{l.data_agendada ? new Date(l.data_agendada).toLocaleString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : 'Sem data agendada'}</span>
-                    {s && <span>{s.itens} itens · {s.unidades.toLocaleString('pt-BR')} un.</span>}
-                    {s && s.peso > 0 && <span>{s.peso.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} kg</span>}
-                  </div>
-                  {l.observacoes && <p className="text-xs text-zinc-500">{l.observacoes}</p>}
-                  {canOperate && !done && (
-                    <div className="flex flex-wrap gap-2 border-t border-zinc-100 pt-3">
-                      {STEPS.map((step) => (
-                        <Button
-                          key={step.status}
-                          size="sm"
-                          variant={step.status === 'Finalizada' ? 'primary' : 'secondary'}
-                          disabled={l.status === step.status}
-                          onClick={() => setPending({ load: l, status: step.status })}
-                        >
-                          {step.label}
-                        </Button>
-                      ))}
-                    </div>
-                  )}
-                </CardBody>
-              </Card>
-            );
-          })}
-        </div>
+        <Card>
+          <CardBody className="p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-zinc-100 bg-zinc-50 text-left text-xs font-medium text-zinc-500">
+                    <th className="px-3 py-2.5">Carga</th>
+                    <th className="px-3 py-2.5">Destino</th>
+                    <th className="px-3 py-2.5">Agendada</th>
+                    <th className="px-3 py-2.5">Volume</th>
+                    <th className="px-3 py-2.5">Status</th>
+                    {canOperate && <th className="px-3 py-2.5 text-right">Marcar como</th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {list.map((l) => {
+                    const s = summary[l.id];
+                    const destino = l.tipo === 'FULL_MARKETPLACE' ? `Full · ${l.canal_nome ?? ''}` : `Loja · ${l.loja_nome ?? ''}`;
+                    const done = DONE.includes(l.status);
+                    return (
+                      <tr key={l.id} className={cn('border-b border-zinc-50 align-top last:border-0 hover:bg-zinc-50', done && 'opacity-60')}>
+                        <td className="whitespace-nowrap px-3 py-2">
+                          <Link href={`/cargas/${l.id}`} className="font-semibold text-brand-700 hover:underline">{l.codigo_interno ?? 'Carga'}</Link>
+                          {l.prioridade && <div className="mt-1"><Badge tone={priorityTone(l.prioridade)}>{l.prioridade}</Badge></div>}
+                        </td>
+                        <td className="px-3 py-2 text-zinc-700">
+                          {destino}
+                          {l.observacoes && <div className="mt-0.5 max-w-[18rem] truncate text-xs text-zinc-500" title={l.observacoes}>{l.observacoes}</div>}
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-2 text-zinc-600">
+                          {l.data_agendada ? new Date(l.data_agendada).toLocaleString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : 'Sem data'}
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-2 text-zinc-600">
+                          {s ? (
+                            <>
+                              <div>{s.itens} itens · {s.unidades.toLocaleString('pt-BR')} un.</div>
+                              {s.peso > 0 && <div className="text-xs text-zinc-400">{s.peso.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} kg</div>}
+                            </>
+                          ) : '-'}
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-2">
+                          <Badge tone={loadStatusTone(l.status)} dot>{l.status === 'Finalizada' ? 'Concluída' : l.status}</Badge>
+                        </td>
+                        {canOperate && (
+                          <td className="px-3 py-2 text-right">
+                            {!done && (
+                              <div className="inline-flex flex-wrap justify-end gap-1">
+                                {STEPS.map((step) => (
+                                  <button
+                                    key={step.status}
+                                    type="button"
+                                    title={step.status === 'Finalizada' ? 'Concluída' : step.status}
+                                    disabled={l.status === step.status}
+                                    onClick={() => setPending({ load: l, status: step.status })}
+                                    className={cn(
+                                      'rounded-lg border px-2 py-1 text-xs font-medium disabled:cursor-default disabled:opacity-40',
+                                      step.status === 'Finalizada'
+                                        ? 'border-brand-600 bg-brand-600 text-white hover:bg-brand-700'
+                                        : 'border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-100',
+                                    )}
+                                  >
+                                    {step.label}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </CardBody>
+        </Card>
       )}
 
       <Dialog
