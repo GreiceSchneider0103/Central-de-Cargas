@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Plus } from 'lucide-react';
+import { Check, MessageSquareWarning, Plus, Truck, X } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import type { UserProfile } from '@/lib/auth/roles';
 import { Button } from '@/components/ui/Button';
@@ -28,6 +28,7 @@ type RequestRow = {
   status: string;
   created_at: string;
   data_desejada: string | null;
+  prioridade?: string | null;
   carga_id?: string | null;
   motivo_recusa?: string | null;
   stores?: { nome: string } | null;
@@ -37,6 +38,14 @@ type RequestRow = {
 type ReasonAction = { id: string; kind: 'Recusada' | 'Ajuste solicitado' };
 
 const PAGE_SIZE = 50;
+
+const shortDate = (v: string | null | undefined, withTime = false) =>
+  v
+    ? new Date(v).toLocaleString('pt-BR', withTime
+      ? { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }
+      : { day: '2-digit', month: '2-digit', year: '2-digit' })
+    : '-';
+const iconButton = 'inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium';
 const STATUS_FILTERS = [
   { label: 'Todas', value: '' },
   { label: 'Pendentes', value: 'Pendente' },
@@ -100,7 +109,7 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
     setLoadingList(true);
     let query = supabase
       .from('load_requests')
-      .select('id,codigo,tipo,status,created_at,data_desejada,carga_id,motivo_recusa,stores(nome),full_destinations(nome),load_request_items(count)', { count: 'exact' })
+      .select('id,codigo,tipo,status,created_at,data_desejada,prioridade,carga_id,motivo_recusa,stores(nome),full_destinations(nome),load_request_items(count)', { count: 'exact' })
       .order('created_at', { ascending: false })
       .range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1);
     if (statusFilter) query = query.eq('status', statusFilter);
@@ -258,8 +267,9 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
                   <tr className="border-b border-zinc-100 text-left text-xs font-medium text-zinc-500">
                     <th className="py-2 pr-3">Código</th>
                     <th className="py-2 pr-3">Destino</th>
-                    <th className="py-2 pr-3">Itens</th>
-                    <th className="py-2 pr-3">Data desejada</th>
+                    <th className="py-2 pr-3 text-right">Itens</th>
+                    <th className="py-2 pr-3">Prioridade</th>
+                    <th className="py-2 pr-3">Desejada</th>
                     <th className="py-2 pr-3">Status</th>
                     <th className="py-2 pr-3">Criada em</th>
                     <th className="py-2" />
@@ -267,29 +277,46 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
                 </thead>
                 <tbody>
                   {rows.map((r) => (
-                    <tr key={r.id} className="border-b border-zinc-50 last:border-0">
-                      <td className="py-2 pr-3"><Link className="font-medium text-brand-600 hover:text-brand-700" href={`/solicitacoes/${r.id}`}>{r.codigo}</Link></td>
+                    <tr key={r.id} className="border-b border-zinc-50 last:border-0 hover:bg-zinc-50">
+                      <td className="whitespace-nowrap py-2 pr-3"><Link className="font-medium text-brand-600 hover:text-brand-700" href={`/solicitacoes/${r.id}`}>{r.codigo}</Link></td>
                       <td className="py-2 pr-3 text-zinc-600">{destinationLabel(r)}</td>
-                      <td className="py-2 pr-3 text-zinc-600">{r.load_request_items?.[0]?.count ?? 0}</td>
-                      <td className="py-2 pr-3 text-zinc-600">{r.data_desejada ? new Date(r.data_desejada).toLocaleDateString('pt-BR') : '-'}</td>
+                      <td className="py-2 pr-3 text-right text-zinc-600">{r.load_request_items?.[0]?.count ?? 0}</td>
+                      <td className="py-2 pr-3 text-zinc-600">{r.prioridade ?? '-'}</td>
+                      <td className="whitespace-nowrap py-2 pr-3 text-zinc-600">{shortDate(r.data_desejada)}</td>
                       <td className="py-2 pr-3">
                         <Badge tone={requestStatusTone(r.status)} dot>{r.status}</Badge>
-                        {r.status === 'Recusada' && r.motivo_recusa && <div className="mt-1 max-w-xs text-xs text-zinc-500">{r.motivo_recusa}</div>}
+                        {r.status === 'Recusada' && r.motivo_recusa && <div className="mt-1 max-w-[16rem] truncate text-xs text-zinc-500" title={r.motivo_recusa}>{r.motivo_recusa}</div>}
                         {r.status === 'Ajuste solicitado' && (
                           <div className="mt-1 text-xs"><Link className="text-amber-700 hover:underline" href={`/solicitacoes/${r.id}`}>Ver ajuste e reenviar</Link></div>
                         )}
                       </td>
-                      <td className="py-2 pr-3 text-zinc-500">{new Date(r.created_at).toLocaleString('pt-BR')}</td>
-                      <td className="space-x-3 py-2 text-right whitespace-nowrap">
-                        {canApprove && ['Pendente', 'Em análise', 'Ajuste solicitado'].includes(r.status) && (
-                          <>
-                            <button className="font-medium text-emerald-700 hover:text-emerald-800" onClick={() => changeStatus(r.id, 'Aprovada')}>Aprovar</button>
-                            <button className="font-medium text-rose-700 hover:text-rose-800" onClick={() => setReasonAction({ id: r.id, kind: 'Recusada' })}>Recusar</button>
-                            <button className="font-medium text-amber-700 hover:text-amber-800" onClick={() => setReasonAction({ id: r.id, kind: 'Ajuste solicitado' })}>Ajuste</button>
-                          </>
-                        )}
-                        {canApprove && r.status === 'Aprovada' && !r.carga_id && <button className="font-medium text-brand-600 hover:text-brand-700" onClick={() => setConvertId(r.id)}>Transformar em carga</button>}
-                        {r.carga_id && <Link className="font-medium text-brand-600 hover:text-brand-700" href={`/cargas/${r.carga_id}`}>Acompanhar carga</Link>}
+                      <td className="whitespace-nowrap py-2 pr-3 text-zinc-500">{shortDate(r.created_at, true)}</td>
+                      <td className="py-2 text-right">
+                        <div className="inline-flex flex-wrap justify-end gap-1">
+                          {canApprove && ['Pendente', 'Em análise', 'Ajuste solicitado'].includes(r.status) && (
+                            <>
+                              <button title="Aprovar" className={cn(iconButton, 'text-emerald-700 hover:bg-emerald-50')} onClick={() => changeStatus(r.id, 'Aprovada')}>
+                                <Check className="h-3.5 w-3.5" />Aprovar
+                              </button>
+                              <button title="Recusar" aria-label="Recusar" className={cn(iconButton, 'text-rose-700 hover:bg-rose-50')} onClick={() => setReasonAction({ id: r.id, kind: 'Recusada' })}>
+                                <X className="h-3.5 w-3.5" />
+                              </button>
+                              <button title="Pedir ajuste" aria-label="Pedir ajuste" className={cn(iconButton, 'text-amber-700 hover:bg-amber-50')} onClick={() => setReasonAction({ id: r.id, kind: 'Ajuste solicitado' })}>
+                                <MessageSquareWarning className="h-3.5 w-3.5" />
+                              </button>
+                            </>
+                          )}
+                          {canApprove && r.status === 'Aprovada' && !r.carga_id && (
+                            <button title="Transformar em carga" className={cn(iconButton, 'text-brand-600 hover:bg-brand-50')} onClick={() => setConvertId(r.id)}>
+                              <Truck className="h-3.5 w-3.5" />Gerar carga
+                            </button>
+                          )}
+                          {r.carga_id && (
+                            <Link title="Acompanhar carga" className={cn(iconButton, 'text-brand-600 hover:bg-brand-50')} href={`/cargas/${r.carga_id}`}>
+                              <Truck className="h-3.5 w-3.5" />Ver carga
+                            </Link>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
