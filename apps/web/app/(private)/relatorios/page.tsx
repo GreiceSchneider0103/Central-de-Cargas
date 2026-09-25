@@ -45,6 +45,11 @@ function monthKey(d: Date) {
   return `${y}-${m}`;
 }
 
+function monthLabel(key: string) {
+  const [y, m] = key.split('-').map(Number);
+  return new Date(y, m - 1, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+}
+
 export default async function ReportsPage({
   searchParams,
 }: {
@@ -165,9 +170,9 @@ export default async function ReportsPage({
 
         <div className="flex flex-wrap items-center gap-2">
           <form className="flex items-center gap-2" action="/relatorios" method="get">
-            <Select name="month" defaultValue={monthKey(from)} className="w-36">
+            <Select name="month" defaultValue={monthKey(from)} className="w-44 capitalize">
               {monthOptions.map((m) => (
-                <option key={m} value={m}>{m}</option>
+                <option key={m} value={m}>{monthLabel(m)}</option>
               ))}
             </Select>
             <Button type="submit" variant="secondary">Aplicar</Button>
@@ -210,12 +215,12 @@ export default async function ReportsPage({
         </Card>
       )}
 
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-        <ReportTable title="Cargas por status" rows={rowsStatus} />
-        <ReportTable title="Cargas por empresa" rows={rowsCompany} />
-        <ReportTable title="Cargas por marketplace" rows={rowsMarketplace} />
-        <ReportTable title="Cargas por loja" rows={rowsStore} />
-        <ReportTable title="Cargas por fornecedor" rows={rowsSupplier} />
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <ReportTable title="Cargas por status" rows={rowsStatus} total={loads.length} />
+        <ReportTable title="Cargas por empresa" rows={rowsCompany} total={loads.length} />
+        <ReportTable title="Cargas por marketplace" rows={rowsMarketplace} total={loads.length} />
+        <ReportTable title="Cargas por loja" rows={rowsStore} total={loads.length} />
+        <ReportTable title="Cargas por fornecedor" rows={rowsSupplier} total={loads.length} />
       </div>
     </div>
   );
@@ -224,38 +229,52 @@ export default async function ReportsPage({
 function ReportTable({
   title,
   rows,
+  total,
 }: {
   title: string;
   rows: { id: string; name: string; count: number }[];
+  total: number;
 }) {
   return (
     <Card>
       <CardHeader title={title} />
       <CardBody className="p-0">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[360px] text-sm">
-            <thead>
+        <div className="max-h-80 overflow-y-auto">
+          <table className="w-full text-sm">
+            <thead className="sticky top-0 bg-white">
               <tr className="border-b border-zinc-100 text-left text-xs font-medium text-zinc-500">
                 <th className="px-4 py-2">Nome</th>
                 <th className="px-4 py-2 text-right">Qtd.</th>
+                <th className="w-28 px-4 py-2">%</th>
               </tr>
             </thead>
             <tbody>
-              {rows.slice(0, 50).map((r) => (
-                <tr key={r.id} className="border-b border-zinc-50 last:border-0">
-                  <td className="px-4 py-2">{r.name}</td>
-                  <td className="px-4 py-2 text-right font-medium">{r.count}</td>
-                </tr>
-              ))}
+              {rows.slice(0, 50).map((r) => {
+                const pct = total > 0 ? (r.count / total) * 100 : 0;
+                return (
+                  <tr key={r.id} className="border-b border-zinc-50 last:border-0">
+                    <td className="px-4 py-2 text-zinc-800">{r.name}</td>
+                    <td className="px-4 py-2 text-right font-medium tabular-nums">{r.count}</td>
+                    <td className="px-4 py-2">
+                      <div className="flex items-center gap-2">
+                        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-zinc-100">
+                          <div className="h-full rounded-full bg-brand-500" style={{ width: `${Math.min(100, pct)}%` }} />
+                        </div>
+                        <span className="w-9 text-right text-xs tabular-nums text-zinc-500">{pct.toFixed(0)}%</span>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
               {rows.length === 0 && (
                 <tr>
-                  <td className="px-4 py-4 text-center text-zinc-400" colSpan={2}>Sem dados no período.</td>
+                  <td className="px-4 py-4 text-center text-zinc-400" colSpan={3}>Sem dados no período.</td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
-        {rows.length > 50 && <p className="px-4 py-2 text-xs text-zinc-500">Mostrando top 50.</p>}
+        {rows.length > 50 && <p className="border-t border-zinc-100 px-4 py-2 text-xs text-zinc-500">Mostrando os 50 primeiros.</p>}
       </CardBody>
     </Card>
   );
