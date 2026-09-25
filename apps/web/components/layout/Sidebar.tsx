@@ -17,7 +17,7 @@ import {
   PanelLeftOpen,
   type LucideIcon,
 } from 'lucide-react';
-import { MENU_BY_ROLE, type UserProfile } from '@/lib/auth/roles';
+import { MENU_BY_ROLE, PERFIL_LABEL, type UserProfile } from '@/lib/auth/roles';
 import { LogoutButton } from '@/components/auth/LogoutButton';
 import { cn } from '@/lib/utils';
 
@@ -41,15 +41,6 @@ function initials(name: string | null | undefined, fallback: string) {
   const chars = parts.length > 1 ? [parts[0][0], parts[parts.length - 1][0]] : [source[0]];
   return chars.join('').toUpperCase();
 }
-
-const PERFIL_LABEL: Record<string, string> = {
-  admin: 'Administrador',
-  gerente_estoque: 'Gerente de estoque',
-  gerente_ecommerce: 'Gerente de e-commerce',
-  vendedor_loja: 'Vendedor de loja',
-  operador_carga: 'Operador de carga',
-  financeiro: 'Financeiro',
-};
 
 export function Sidebar({
   profile,

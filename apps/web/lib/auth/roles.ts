@@ -9,6 +9,15 @@ export const USER_PROFILES = [
 
 export type UserProfileRole = (typeof USER_PROFILES)[number];
 
+export const PERFIL_LABEL: Record<string, string> = {
+  admin: 'Administrador',
+  gerente_estoque: 'Gerente de estoque',
+  gerente_ecommerce: 'Gerente de e-commerce',
+  vendedor_loja: 'Vendedor de loja',
+  operador_carga: 'Operador de carga',
+  financeiro: 'Financeiro',
+};
+
 export type UserProfile = {
   id: string;
   auth_user_id: string;
