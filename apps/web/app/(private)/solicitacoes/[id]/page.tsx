@@ -6,6 +6,8 @@ import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { requestStatusTone } from '@/lib/ui/status-styles';
 import { money } from '@/lib/ui/format';
+import Link from 'next/link';
+import { ResubmitRequest } from '@/components/solicitacoes/ResubmitRequest';
 
 type VisibleRequestItem = {
   id: string;
@@ -42,6 +44,13 @@ export default async function SolicitacaoDetailPage({ params }: { params: Promis
   if (!request) redirect('/solicitacoes');
 
   const typedItems = (items ?? []) as VisibleRequestItem[];
+  const historyRows = (history ?? []) as { acao: string; observacao: string | null }[];
+  const lastAdjust = historyRows.find((h) => h.acao === 'REQUEST_ADJUST');
+  const canResubmit =
+    request.status === 'Ajuste solicitado' && (request.solicitante_id === profile.id || ['admin', 'gerente_estoque'].includes(profile.perfil));
+  const { data: load } = request.carga_id
+    ? await supabase.from('loads').select('codigo_interno,status,data_agendada').eq('id', request.carga_id).maybeSingle()
+    : { data: null };
 
   return (
     <div className="space-y-5">
@@ -49,6 +58,32 @@ export default async function SolicitacaoDetailPage({ params }: { params: Promis
         <h1 className="text-2xl font-bold text-zinc-900">{request.codigo}</h1>
         <Badge tone={requestStatusTone(request.status)} dot>{request.status}</Badge>
       </div>
+
+      {canResubmit && (
+        <ResubmitRequest
+          requestId={id}
+          motivo={lastAdjust?.observacao ?? null}
+          companyId={request.empresa_id ?? null}
+          initialObservacoes={request.observacoes ?? null}
+          initialItems={typedItems.map((i) => ({
+            sku: i.sku ?? '',
+            nome_produto: i.nome_produto ?? '',
+            quantidade: String(i.quantidade ?? 1),
+            preco_venda: null,
+          }))}
+        />
+      )}
+
+      {request.carga_id && (
+        <Card>
+          <CardBody className="flex flex-wrap items-center gap-3 text-sm">
+            <span className="text-zinc-500">Carga gerada:</span>
+            <Link className="font-medium text-brand-600 hover:text-brand-700" href={`/cargas/${request.carga_id}`}>{load?.codigo_interno ?? 'Abrir carga'}</Link>
+            {load?.status && <Badge tone="progress" dot>{load.status}</Badge>}
+            {load?.data_agendada && <span className="text-zinc-500">Agendada para {new Date(load.data_agendada).toLocaleString('pt-BR')}</span>}
+          </CardBody>
+        </Card>
+      )}
 
       <Card>
         <CardBody className="grid grid-cols-1 gap-x-6 gap-y-2 text-sm md:grid-cols-2">

@@ -42,6 +42,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   SKU_REQUIRED: 'Informe o SKU.',
   SKU_ALREADY_EXISTS: 'Já existe outro produto com esse SKU.',
   SPREADSHEET_EMPTY: 'A planilha está vazia.',
+  ITEMS_SPREADSHEET_MISSING_COLUMNS: 'A planilha de itens precisa das colunas SKU e Quantidade.',
   SPREADSHEET_MISSING_COLUMNS: 'A planilha precisa ter as colunas de SKU e Nome (ou "Código (SKU)" e "Descrição", como na exportação do Olist).',
   SPREADSHEET_NO_PRODUCTS: 'Nenhum produto válido encontrado na planilha.',
   CANAL_REQUIRED: 'Selecione o canal.',

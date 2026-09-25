@@ -1,8 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useState } from 'react';
-import { Plus, AlertTriangle } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Plus } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import type { UserProfile } from '@/lib/auth/roles';
 import { Button } from '@/components/ui/Button';
@@ -15,12 +15,25 @@ import { SkeletonRows } from '@/components/ui/Skeleton';
 import { useToast } from '@/components/ui/Toast';
 import { cn } from '@/lib/utils';
 import { requestStatusTone } from '@/lib/ui/status-styles';
-import { ProductSkuInput, type ProductSuggestion } from '@/components/products/ProductSkuInput';
 import { translateError } from '@/lib/ui/error-messages';
+import { fromDatetimeLocalValue, toDatetimeLocalValue } from '@/lib/ui/datetime';
+import { EMPTY_NEW_LOAD_ITEM, NewLoadItemsEditor, newLoadItemsRevenue, type NewLoadItem } from '@/components/cargas/NewLoadItemsEditor';
 
-type Item = { sku: string; nome_produto: string; quantidade: number; fornecedor_origem_id?: string; cmv_unitario: number; cmv_total: number };
+type LoadType = 'LOJA_FISICA' | 'FULL_MARKETPLACE';
 type NamedOption = { id: string; nome: string; tipo?: string | null };
-type RequestRow = { id: string; codigo: string; tipo: string; status: string; created_at: string; carga_id?: string | null; motivo_recusa?: string | null };
+type RequestRow = {
+  id: string;
+  codigo: string;
+  tipo: string;
+  status: string;
+  created_at: string;
+  data_desejada: string | null;
+  carga_id?: string | null;
+  motivo_recusa?: string | null;
+  stores?: { nome: string } | null;
+  full_destinations?: { nome: string } | null;
+  load_request_items?: { count: number }[];
+};
 type ReasonAction = { id: string; kind: 'Recusada' | 'Ajuste solicitado' };
 
 const PAGE_SIZE = 50;
@@ -28,137 +41,152 @@ const STATUS_FILTERS = [
   { label: 'Todas', value: '' },
   { label: 'Pendentes', value: 'Pendente' },
   { label: 'Em análise', value: 'Em análise' },
-  { label: 'Aprovadas', value: 'Aprovada' },
-  { label: 'Recusadas', value: 'Recusada' },
   { label: 'Ajuste solicitado', value: 'Ajuste solicitado' },
+  { label: 'Aprovadas', value: 'Aprovada' },
   { label: 'Transformadas em carga', value: 'Transformada em carga' },
+  { label: 'Recusadas', value: 'Recusada' },
   { label: 'Canceladas', value: 'Cancelada' },
 ];
-function emptyItem(): Item {
-  return { sku: '', nome_produto: '', quantidade: 1, cmv_unitario: 0, cmv_total: 0 };
+
+// Quem só pode pedir um tipo de carga já abre o formulário com ele fixo.
+function lockedTypeFor(perfil: UserProfile['perfil']): LoadType | null {
+  if (perfil === 'vendedor_loja') return 'LOJA_FISICA';
+  if (perfil === 'gerente_ecommerce') return 'FULL_MARKETPLACE';
+  return null;
 }
 
 export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
+  const toast = useToast();
+  const lockedType = lockedTypeFor(profile.perfil);
+  const lockedStoreId = profile.perfil === 'vendedor_loja' && profile.loja_id ? profile.loja_id : null;
+  const canApprove = profile.perfil === 'admin' || profile.perfil === 'gerente_estoque';
+  const canSeeFinancial = ['admin', 'gerente_estoque', 'gerente_ecommerce', 'financeiro'].includes(profile.perfil);
+
   const [rows, setRows] = useState<RequestRow[]>([]);
   const [loadingList, setLoadingList] = useState(true);
   const [companies, setCompanies] = useState<NamedOption[]>([]);
   const [stores, setStores] = useState<NamedOption[]>([]);
   const [channels, setChannels] = useState<NamedOption[]>([]);
   const [destinations, setDestinations] = useState<NamedOption[]>([]);
-  const [suppliers, setSuppliers] = useState<NamedOption[]>([]);
-  const [showCreate, setShowCreate] = useState(false);
-  const [items, setItems] = useState<Item[]>(() => [emptyItem()]);
-  const [tipo, setTipo] = useState<'LOJA_FISICA' | 'FULL_MARKETPLACE'>('LOJA_FISICA');
-  const [lojaDestinoId, setLojaDestinoId] = useState('');
-  const [marketplaceId, setMarketplaceId] = useState('');
-  const [destinoFullId, setDestinoFullId] = useState('');
-  const [empresaId, setEmpresaId] = useState('');
-  const [canalId, setCanalId] = useState('');
-  const [prioridade, setPrioridade] = useState('Média');
-  const [dataDesejada, setDataDesejada] = useState('');
-  const [observacoes, setObservacoes] = useState('');
-  const [faturamentoEstimado, setFaturamentoEstimado] = useState('');
-  const toast = useToast();
   const [statusFilter, setStatusFilter] = useState('');
+  const [onlyMine, setOnlyMine] = useState(!canApprove);
   const [page, setPage] = useState(0);
   const [totalRequests, setTotalRequests] = useState(0);
   const [reasonAction, setReasonAction] = useState<ReasonAction | null>(null);
   const [reasonText, setReasonText] = useState('');
   const [convertId, setConvertId] = useState<string | null>(null);
 
-  const canApprove = profile.perfil === 'admin' || profile.perfil === 'gerente_estoque';
-  const canSeeFinancial = ['admin', 'gerente_estoque', 'gerente_ecommerce', 'financeiro'].includes(profile.perfil);
+  const [showCreate, setShowCreate] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [tipo, setTipo] = useState<LoadType>(lockedType ?? 'LOJA_FISICA');
+  const [empresaId, setEmpresaId] = useState(profile.empresa_id ?? '');
+  const [lojaDestinoId, setLojaDestinoId] = useState(lockedStoreId ?? '');
+  const [marketplaceId, setMarketplaceId] = useState('');
+  const [destinoFullId, setDestinoFullId] = useState('');
+  const [prioridade, setPrioridade] = useState('Média');
+  const [dataDesejada, setDataDesejada] = useState('');
+  const [observacoes, setObservacoes] = useState('');
+  const [items, setItems] = useState<NewLoadItem[]>([EMPTY_NEW_LOAD_ITEM]);
+  const [faturamentoManual, setFaturamentoManual] = useState(false);
+  const [faturamentoDigitado, setFaturamentoDigitado] = useState('');
+
+  const suggestedRevenue = newLoadItemsRevenue(items);
+  const faturamentoEstimado = faturamentoManual ? faturamentoDigitado : suggestedRevenue > 0 ? suggestedRevenue.toFixed(2) : '';
+  const storeChannel = channels.find((c) => c.tipo === 'Loja física') ?? channels.find((c) => c.tipo === 'Transferência interna');
+  const marketplaces = channels.filter((c) => c.tipo === 'Marketplace Full');
 
   const load = useCallback(async () => {
     setLoadingList(true);
-    const [reqs, c, s, ch, d, sup] = await Promise.all([
-      (() => {
-        let query = supabase.from('load_requests').select('id,codigo,tipo,status,created_at,carga_id,motivo_recusa', { count: 'exact' }).order('created_at', { ascending: false }).range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1);
-        if (statusFilter) query = query.eq('status', statusFilter);
-        return query;
-      })(),
-      supabase.from('companies').select('id,nome').eq('ativo', true),
-      supabase.from('stores').select('id,nome').eq('ativo', true),
-      supabase.from('channels').select('id,nome,tipo').eq('ativo', true),
-      supabase.from('full_destinations').select('id,nome').eq('ativo', true),
-      supabase.from('suppliers').select('id,nome').eq('ativo', true),
+    let query = supabase
+      .from('load_requests')
+      .select('id,codigo,tipo,status,created_at,data_desejada,carga_id,motivo_recusa,stores(nome),full_destinations(nome),load_request_items(count)', { count: 'exact' })
+      .order('created_at', { ascending: false })
+      .range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1);
+    if (statusFilter) query = query.eq('status', statusFilter);
+    if (onlyMine) query = query.eq('solicitante_id', profile.id);
+    const [reqs, c, s, ch, d] = await Promise.all([
+      query,
+      supabase.from('companies').select('id,nome').eq('ativo', true).order('nome'),
+      supabase.from('stores').select('id,nome').eq('ativo', true).order('nome'),
+      supabase.from('channels').select('id,nome,tipo').eq('ativo', true).order('nome'),
+      supabase.from('full_destinations').select('id,nome').eq('ativo', true).order('nome'),
     ]);
-    setRows((reqs.data ?? []) as RequestRow[]);
+    setRows((reqs.data ?? []) as unknown as RequestRow[]);
     setTotalRequests(reqs.count ?? 0);
-    setCompanies((c.data ?? []) as NamedOption[]); setStores((s.data ?? []) as NamedOption[]); setChannels((ch.data ?? []) as NamedOption[]); setDestinations((d.data ?? []) as NamedOption[]); setSuppliers((sup.data ?? []) as NamedOption[]);
+    setCompanies((c.data ?? []) as NamedOption[]);
+    setStores((s.data ?? []) as NamedOption[]);
+    setChannels((ch.data ?? []) as NamedOption[]);
+    setDestinations((d.data ?? []) as NamedOption[]);
     setLoadingList(false);
-  }, [supabase, page, statusFilter]);
+  }, [supabase, page, statusFilter, onlyMine, profile.id]);
 
   useEffect(() => { load(); }, [load]);
 
-  function updateItem(index: number, field: keyof Item, value: Item[keyof Item]) {
-    setItems((prev) =>
-      prev.map((item, i) => {
-        if (i !== index) return item;
-        const next = { ...item, [field]: value };
-        next.cmv_total = Number(next.quantidade) * Number(next.cmv_unitario || 0);
-        return next;
-      }),
-    );
-  }
-
-  function selectProduct(index: number, product: ProductSuggestion) {
-    setItems((prev) =>
-      prev.map((item, i) => {
-        if (i !== index) return item;
-        const cmv_unitario = Number(product.cmv || 0);
-        return {
-          ...item,
-          sku: product.sku,
-          nome_produto: product.nome,
-          fornecedor_origem_id: product.fornecedor_id ?? item.fornecedor_origem_id,
-          cmv_unitario,
-          cmv_total: cmv_unitario * item.quantidade,
-        };
-      }),
-    );
-  }
-
-  async function handleSkuChange(index: number, sku: string) {
-    setItems((prev) => prev.map((item, i) => (i === index ? { ...item, sku } : item)));
-    const { data: productRows } = await supabase.rpc('get_visible_product_by_sku', { p_sku: sku, p_company_id: empresaId || null });
-    const product = Array.isArray(productRows) ? productRows[0] : null;
-    if (!product) return;
-    setItems((prev) =>
-      prev.map((item, i) => {
-        if (i !== index) return item;
-        const cmv_unitario = Number(product.cmv || 0);
-        return { ...item, nome_produto: product.nome, cmv_unitario, cmv_total: cmv_unitario * item.quantidade };
-      }),
-    );
-  }
-
-  async function createRequest() {
-    if (profile.perfil === 'gerente_ecommerce' && tipo !== 'FULL_MARKETPLACE') return toast.error('Gerente e-commerce cria apenas Full.');
-    if (profile.perfil === 'vendedor_loja' && tipo !== 'LOJA_FISICA') return toast.error('Vendedor cria apenas Loja Física.');
-    if (tipo === 'LOJA_FISICA' && !lojaDestinoId) return toast.error('Solicitação de loja física exige loja destino.');
-    if (tipo === 'FULL_MARKETPLACE' && (!destinoFullId || (!marketplaceId && !canalId))) return toast.error('Solicitação Full exige destino e marketplace/canal.');
-    if (items.some((i) => !i.sku || !i.nome_produto || i.quantidade <= 0)) return toast.error('Cada item precisa SKU, nome e quantidade.');
-
-    const authUser = (await supabase.auth.getUser()).data.user;
-    const { data: me } = await supabase.from('users_profile').select('id').eq('auth_user_id', authUser?.id ?? '').single();
-    if (!me) return toast.error('Perfil do usuário não encontrado.');
-    const code = `REQ-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
-    const { data: req, error } = await supabase.from('load_requests').insert({ codigo: code, tipo, empresa_id: empresaId || null, canal_id: canalId || null, marketplace_id: marketplaceId || null, destino_full_id: destinoFullId || null, loja_destino_id: lojaDestinoId || null, prioridade, data_desejada: dataDesejada || null, status: 'Pendente', solicitante_id: me.id, observacoes: observacoes || null, faturamento_estimado: canSeeFinancial && faturamentoEstimado ? Number(faturamentoEstimado) : null }).select('id').single();
-    if (error) return toast.error(error.message);
-
-    const { error: itemErr } = await supabase.from('load_request_items').insert(items.map((i) => ({ ...i, request_id: req.id })));
-    if (itemErr) return toast.error(itemErr.message);
-
-    await supabase.from('load_request_history').insert({ request_id: req.id, acao: 'CRIADA', status_novo: 'Pendente', autor_profile_id: me.id });
-    setItems([emptyItem()]);
+  function resetForm() {
+    setTipo(lockedType ?? 'LOJA_FISICA');
+    setEmpresaId(profile.empresa_id ?? '');
+    setLojaDestinoId(lockedStoreId ?? '');
+    setMarketplaceId('');
+    setDestinoFullId('');
     setPrioridade('Média');
     setDataDesejada('');
     setObservacoes('');
-    setFaturamentoEstimado('');
+    setItems([EMPTY_NEW_LOAD_ITEM]);
+    setFaturamentoManual(false);
+    setFaturamentoDigitado('');
+  }
+
+  async function createRequest() {
+    const filled = items.filter((i) => i.sku.trim() || i.nome_produto.trim());
+    if (!empresaId) return toast.error('Selecione a empresa.');
+    if (tipo === 'LOJA_FISICA' && !lojaDestinoId) return toast.error('Selecione a loja de destino.');
+    if (tipo === 'FULL_MARKETPLACE' && (!marketplaceId || !destinoFullId)) return toast.error('Selecione o marketplace e o destino Full.');
+    if (filled.length === 0) return toast.error('Adicione ao menos um item.');
+    if (filled.some((i) => !i.sku.trim() || !i.nome_produto.trim() || Number(i.quantidade || 0) <= 0)) {
+      return toast.error('Cada item precisa de SKU, nome e quantidade maior que zero.');
+    }
+
+    setSaving(true);
+    const code = `REQ-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
+    const canalId = tipo === 'FULL_MARKETPLACE' ? marketplaceId : storeChannel?.id ?? null;
+    const { data: req, error } = await supabase
+      .from('load_requests')
+      .insert({
+        codigo: code,
+        tipo,
+        empresa_id: empresaId,
+        canal_id: canalId,
+        marketplace_id: tipo === 'FULL_MARKETPLACE' ? marketplaceId : null,
+        destino_full_id: tipo === 'FULL_MARKETPLACE' ? destinoFullId : null,
+        loja_destino_id: tipo === 'LOJA_FISICA' ? lojaDestinoId : null,
+        prioridade,
+        data_desejada: dataDesejada || null,
+        status: 'Pendente',
+        solicitante_id: profile.id,
+        observacoes: observacoes || null,
+        faturamento_estimado: canSeeFinancial && faturamentoEstimado ? Number(faturamentoEstimado) : null,
+      })
+      .select('id')
+      .single();
+    if (error || !req) {
+      setSaving(false);
+      return toast.error(translateError(error?.message, 'Erro ao criar a solicitação.'));
+    }
+
+    const { error: itemErr } = await supabase.from('load_request_items').insert(
+      filled.map((i) => ({ request_id: req.id, sku: i.sku.trim(), nome_produto: i.nome_produto.trim(), quantidade: Number(i.quantidade) })),
+    );
+    if (itemErr) {
+      setSaving(false);
+      return toast.error(translateError(itemErr.message, 'Erro ao salvar os itens da solicitação.'));
+    }
+
+    await supabase.from('load_request_history').insert({ request_id: req.id, acao: 'CRIADA', status_novo: 'Pendente', autor_profile_id: profile.id });
+    setSaving(false);
+    resetForm();
     setShowCreate(false);
-    toast.success('Solicitação criada com sucesso.');
+    toast.success(`Solicitação ${code} enviada para aprovação.`);
     await load();
   }
 
@@ -184,15 +212,21 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
     const j = await res.json();
     setConvertId(null);
     if (!res.ok) { toast.error(translateError(j.error, 'Erro na conversão.')); return; }
-    toast.success(`Carga criada com sucesso: ${j.loadId}`);
+    toast.success(`Carga ${j.codigoInterno ?? ''} criada a partir da solicitação.`);
     await load();
   }
 
   const totalRequestPages = Math.max(1, Math.ceil(totalRequests / PAGE_SIZE));
+  const destinationLabel = (r: RequestRow) =>
+    r.tipo === 'FULL_MARKETPLACE' ? `Full · ${r.full_destinations?.nome ?? '-'}` : `Loja · ${r.stores?.nome ?? '-'}`;
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <label className="flex items-center gap-2 text-sm text-zinc-700">
+          <input type="checkbox" className="h-4 w-4 accent-brand-600" checked={onlyMine} onChange={(e) => { setOnlyMine(e.target.checked); setPage(0); }} />
+          Só as minhas solicitações
+        </label>
         <Button variant="primary" onClick={() => setShowCreate(true)}>
           <Plus className="h-4 w-4" />
           Nova solicitação
@@ -222,27 +256,32 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-zinc-100 text-left text-xs font-medium text-zinc-500">
-                    <th className="py-2">Código</th>
-                    <th className="py-2">Tipo</th>
-                    <th className="py-2">Status</th>
-                    <th className="py-2">Criada em</th>
+                    <th className="py-2 pr-3">Código</th>
+                    <th className="py-2 pr-3">Destino</th>
+                    <th className="py-2 pr-3">Itens</th>
+                    <th className="py-2 pr-3">Data desejada</th>
+                    <th className="py-2 pr-3">Status</th>
+                    <th className="py-2 pr-3">Criada em</th>
                     <th className="py-2" />
                   </tr>
                 </thead>
                 <tbody>
                   {rows.map((r) => (
                     <tr key={r.id} className="border-b border-zinc-50 last:border-0">
-                      <td className="py-2"><Link className="font-medium text-brand-600 hover:text-brand-700" href={`/solicitacoes/${r.id}`}>{r.codigo}</Link></td>
-                      <td className="py-2 text-zinc-600">{r.tipo === 'FULL_MARKETPLACE' ? 'Full' : 'Loja'}</td>
-                      <td className="py-2">
+                      <td className="py-2 pr-3"><Link className="font-medium text-brand-600 hover:text-brand-700" href={`/solicitacoes/${r.id}`}>{r.codigo}</Link></td>
+                      <td className="py-2 pr-3 text-zinc-600">{destinationLabel(r)}</td>
+                      <td className="py-2 pr-3 text-zinc-600">{r.load_request_items?.[0]?.count ?? 0}</td>
+                      <td className="py-2 pr-3 text-zinc-600">{r.data_desejada ? new Date(r.data_desejada).toLocaleDateString('pt-BR') : '-'}</td>
+                      <td className="py-2 pr-3">
                         <Badge tone={requestStatusTone(r.status)} dot>{r.status}</Badge>
-                        {r.status === 'Recusada' && r.motivo_recusa && (
-                          <div className="mt-1 max-w-xs text-xs text-zinc-500">{r.motivo_recusa}</div>
+                        {r.status === 'Recusada' && r.motivo_recusa && <div className="mt-1 max-w-xs text-xs text-zinc-500">{r.motivo_recusa}</div>}
+                        {r.status === 'Ajuste solicitado' && (
+                          <div className="mt-1 text-xs"><Link className="text-amber-700 hover:underline" href={`/solicitacoes/${r.id}`}>Ver ajuste e reenviar</Link></div>
                         )}
                       </td>
-                      <td className="py-2 text-zinc-500">{new Date(r.created_at).toLocaleString('pt-BR')}</td>
+                      <td className="py-2 pr-3 text-zinc-500">{new Date(r.created_at).toLocaleString('pt-BR')}</td>
                       <td className="space-x-3 py-2 text-right whitespace-nowrap">
-                        {canApprove && r.status !== 'Aprovada' && r.status !== 'Recusada' && r.status !== 'Transformada em carga' && (
+                        {canApprove && ['Pendente', 'Em análise', 'Ajuste solicitado'].includes(r.status) && (
                           <>
                             <button className="font-medium text-emerald-700 hover:text-emerald-800" onClick={() => changeStatus(r.id, 'Aprovada')}>Aprovar</button>
                             <button className="font-medium text-rose-700 hover:text-rose-800" onClick={() => setReasonAction({ id: r.id, kind: 'Recusada' })}>Recusar</button>
@@ -250,7 +289,7 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
                           </>
                         )}
                         {canApprove && r.status === 'Aprovada' && !r.carga_id && <button className="font-medium text-brand-600 hover:text-brand-700" onClick={() => setConvertId(r.id)}>Transformar em carga</button>}
-                        {r.carga_id && <Link className="font-medium text-brand-600 hover:text-brand-700" href={`/cargas/${r.carga_id}`}>Abrir carga</Link>}
+                        {r.carga_id && <Link className="font-medium text-brand-600 hover:text-brand-700" href={`/cargas/${r.carga_id}`}>Acompanhar carga</Link>}
                       </td>
                     </tr>
                   ))}
@@ -269,17 +308,18 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
 
       <Dialog
         open={showCreate}
-        onClose={() => setShowCreate(false)}
-        title="Nova solicitação"
+        onClose={() => !saving && setShowCreate(false)}
+        title="Nova solicitação de carga"
+        description="Depois de enviada, a solicitação vai para aprovação da gerência de cargas. Você acompanha o status nesta tela."
         size="lg"
-        footer={<Button variant="primary" onClick={createRequest}>Criar solicitação</Button>}
+        footer={<Button variant="primary" onClick={createRequest} disabled={saving}>{saving ? 'Enviando...' : 'Enviar para aprovação'}</Button>}
       >
         <div className="space-y-4">
           <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
             <FieldGroup label="Tipo">
-              <Select value={tipo} onChange={(e) => setTipo(e.target.value as 'LOJA_FISICA' | 'FULL_MARKETPLACE')}>
-                <option value="LOJA_FISICA">Loja física</option>
-                <option value="FULL_MARKETPLACE">Full Marketplace</option>
+              <Select value={tipo} onChange={(e) => setTipo(e.target.value as LoadType)} disabled={lockedType !== null}>
+                <option value="LOJA_FISICA">Loja física (transferência do estoque)</option>
+                <option value="FULL_MARKETPLACE">Full marketplace</option>
               </Select>
             </FieldGroup>
             <FieldGroup label="Empresa">
@@ -288,15 +328,9 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
                 {companies.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
               </Select>
             </FieldGroup>
-            <FieldGroup label="Canal">
-              <Select value={canalId} onChange={(e) => setCanalId(e.target.value)}>
-                <option value="">Selecionar</option>
-                {channels.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
-              </Select>
-            </FieldGroup>
             {tipo === 'LOJA_FISICA' ? (
-              <FieldGroup label="Loja destino">
-                <Select value={lojaDestinoId} onChange={(e) => setLojaDestinoId(e.target.value)}>
+              <FieldGroup label="Loja de destino">
+                <Select value={lojaDestinoId} onChange={(e) => setLojaDestinoId(e.target.value)} disabled={lockedStoreId !== null}>
                   <option value="">Selecionar</option>
                   {stores.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}
                 </Select>
@@ -306,7 +340,7 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
                 <FieldGroup label="Marketplace">
                   <Select value={marketplaceId} onChange={(e) => setMarketplaceId(e.target.value)}>
                     <option value="">Selecionar</option>
-                    {channels.filter((c) => c.tipo === 'Marketplace Full').map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                    {marketplaces.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
                   </Select>
                 </FieldGroup>
                 <FieldGroup label="Destino Full">
@@ -325,12 +359,24 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
                 <option value="Urgente">Urgente</option>
               </Select>
             </FieldGroup>
-            <FieldGroup label="Data desejada">
-              <Input type="datetime-local" value={dataDesejada} onChange={(e) => setDataDesejada(e.target.value)} />
+            <FieldGroup label={tipo === 'FULL_MARKETPLACE' ? 'Data desejada de agendamento no Full' : 'Data desejada de entrega'}>
+              <Input
+                type="datetime-local"
+                value={toDatetimeLocalValue(dataDesejada)}
+                onChange={(e) => setDataDesejada(fromDatetimeLocalValue(e.target.value) ?? '')}
+              />
             </FieldGroup>
             {canSeeFinancial && (
               <FieldGroup label="Faturamento estimado">
-                <Input type="number" value={faturamentoEstimado} onChange={(e) => setFaturamentoEstimado(e.target.value)} />
+                <Input
+                  type="number"
+                  value={faturamentoEstimado}
+                  onChange={(e) => {
+                    setFaturamentoManual(true);
+                    setFaturamentoDigitado(e.target.value);
+                  }}
+                />
+                {!faturamentoManual && suggestedRevenue > 0 && <span className="text-xs text-zinc-500">Soma do preço de venda × quantidade</span>}
               </FieldGroup>
             )}
             <FieldGroup label="Observações" className="md:col-span-3">
@@ -339,25 +385,11 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
           </div>
 
           <div className="border-t border-zinc-100 pt-4">
-            <h3 className="mb-2 text-sm font-semibold text-zinc-700">Itens</h3>
-            <div className="space-y-3">
-              {items.map((item, idx) => (
-                <div key={idx} className="grid grid-cols-1 gap-2 md:grid-cols-6">
-                  <FieldGroup label="SKU"><ProductSkuInput value={item.sku} companyId={empresaId} onChange={(sku) => handleSkuChange(idx, sku)} onSelect={(product) => selectProduct(idx, product)} /></FieldGroup>
-                  <FieldGroup label="Nome" className="md:col-span-2"><Input value={item.nome_produto} onChange={(e) => updateItem(idx, 'nome_produto', e.target.value)} /></FieldGroup>
-                  <FieldGroup label="Quantidade"><Input type="number" value={item.quantidade} onChange={(e) => updateItem(idx, 'quantidade', Number(e.target.value))} /></FieldGroup>
-                  <FieldGroup label="Fornecedor">
-                    <Select value={item.fornecedor_origem_id || ''} onChange={(e) => updateItem(idx, 'fornecedor_origem_id', e.target.value)}>
-                      <option value="">Selecionar</option>
-                      {suppliers.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}
-                    </Select>
-                  </FieldGroup>
-                  {canSeeFinancial && <FieldGroup label="CMV unitário"><Input type="number" value={item.cmv_unitario} onChange={(e) => updateItem(idx, 'cmv_unitario', Number(e.target.value))} /></FieldGroup>}
-                  {canSeeFinancial && Number(item.cmv_unitario) <= 0 && <p className="col-span-6 flex items-center gap-1 text-xs text-amber-600"><AlertTriangle className="h-3.5 w-3.5" />Produto sem CMV cadastrado. Informe manualmente.</p>}
-                </div>
-              ))}
-            </div>
-            <Button variant="secondary" size="sm" className="mt-2" onClick={() => setItems((prev) => [...prev, emptyItem()])}>+ Item</Button>
+            <h3 className="text-sm font-semibold text-zinc-700">Itens</h3>
+            <p className="mb-2 text-xs text-zinc-500">
+              Busque pelo SKU ou nome, ou use “Colar lista / planilha” para enviar muitos itens de uma vez (SKU e quantidade).
+            </p>
+            <NewLoadItemsEditor items={items} onChange={setItems} companyId={empresaId} />
           </div>
         </div>
       </Dialog>
@@ -389,7 +421,9 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
           </>
         }
       >
-        <p className="text-sm text-zinc-600">Essa solicitação vai virar uma carga oficial, com os mesmos itens. Deseja continuar?</p>
+        <p className="text-sm text-zinc-600">
+          Essa solicitação vai virar uma carga oficial com os mesmos itens. CMV, fornecedor, peso e medidas vêm do cadastro dos produtos, e a data desejada vira a data agendada.
+        </p>
       </Dialog>
     </div>
   );
