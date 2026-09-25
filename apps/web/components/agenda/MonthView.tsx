@@ -52,7 +52,7 @@ export function MonthView({
   return (
     <div className="flex flex-1 flex-col overflow-hidden rounded-card border border-zinc-200 bg-white">
       <div className="flex-1 overflow-x-auto">
-        <div className="flex h-full min-w-[700px] flex-col">
+        <div className="flex h-full min-w-[560px] flex-col">
           <div className="grid grid-cols-7 border-b border-zinc-200 bg-zinc-50 text-xs font-semibold text-zinc-500">
             {WEEKDAY_LABELS.map((d) => (
               <div key={d} className="px-2 py-2 text-center">{d}</div>
