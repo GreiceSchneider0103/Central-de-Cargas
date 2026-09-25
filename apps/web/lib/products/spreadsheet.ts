@@ -5,6 +5,8 @@ export type ImportProductRow = {
   nome: string;
   cmv: number | null;
   fornecedor: string | null;
+  // Olist: "Marca" = fabricante; usada como fornecedor quando a coluna Fornecedor vem vazia.
+  marca: string | null;
   peso: number | null;
   altura: number | null;
   largura: number | null;
@@ -28,6 +30,7 @@ const HEADERS = {
   // Olist: "Preço" é o preço de venda.
   precoVenda: ['preco', 'preco de venda', 'preco venda', 'valor de venda'],
   fornecedor: ['fornecedor'],
+  marca: ['marca', 'fabricante'],
   tipo: ['tipo do produto'],
   // Olist: peso em kg e medidas da embalagem em cm (comprimento = profundidade).
   pesoBruto: ['peso bruto (kg)', 'peso bruto', 'peso', 'peso (kg)'],
@@ -68,6 +71,7 @@ export function parseProductWorkbook(workbook: WorkBook, utils: typeof import('x
     nome: find(HEADERS.nome),
     cmv: find(HEADERS.cmv),
     fornecedor: find(HEADERS.fornecedor),
+    marca: find(HEADERS.marca),
     tipo: find(HEADERS.tipo),
     pesoBruto: find(HEADERS.pesoBruto),
     pesoLiquido: find(HEADERS.pesoLiquido),
@@ -111,6 +115,7 @@ export function parseProductWorkbook(workbook: WorkBook, utils: typeof import('x
       nome,
       cmv: col.cmv ? toNumber(r[col.cmv]) : null,
       fornecedor: col.fornecedor ? String(t[col.fornecedor] ?? '').trim() || null : null,
+      marca: col.marca ? String(t[col.marca] ?? '').trim() || null : null,
       peso: positive(col.pesoBruto, r) ?? positive(col.pesoLiquido, r),
       altura: positive(col.altura, r),
       largura: positive(col.largura, r),

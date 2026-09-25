@@ -167,6 +167,7 @@ export function ProductImportDialog({ open, onClose, companies }: { open: boolea
               <li>{count((r) => !r.cmv || r.cmv <= 0)} sem preço de custo (mantêm o CMV já cadastrado, se houver)</li>
               <li>{count((r) => Boolean(r.peso || r.altura || r.largura || r.profundidade))} com peso ou medidas da embalagem</li>
               <li>{count((r) => Boolean(r.preco_venda))} com preço de venda</li>
+              <li>{count((r) => Boolean(r.fornecedor || r.marca))} com fornecedor ou marca (fabricante)</li>
             </ul>
             <p className="mt-2 text-xs text-zinc-500">
               SKUs que já existem são atualizados e ganham o vínculo com as empresas marcadas, sem perder os vínculos que já tinham.
