@@ -43,6 +43,11 @@ export function AgendaCalendar({
 
   const canEditDate = ['admin', 'gerente_estoque', 'gerente_ecommerce'].includes(profile.perfil);
 
+  // No celular o calendário do mês fica apertado: começa na lista.
+  useEffect(() => {
+    if (window.matchMedia('(max-width: 767px)').matches) setView('list');
+  }, []);
+
   const range = useMemo(() => {
     if (view === 'list') {
       return { from: new Date(cursor.getFullYear(), cursor.getMonth(), 1), to: new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1) };
@@ -183,7 +188,7 @@ export function AgendaCalendar({
   const newLoadHref = `/cargas?data_agendada=${encodeURIComponent(new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate(), 9, 0, 0).toISOString())}`;
 
   return (
-    <div className="flex h-[calc(100vh-8rem)] min-h-[560px] flex-col gap-3">
+    <div className="flex flex-col gap-3 md:h-[calc(100vh-8rem)] md:min-h-[560px]">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="secondary" size="sm" onClick={goToday}>Hoje</Button>

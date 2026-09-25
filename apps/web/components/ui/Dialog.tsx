@@ -41,19 +41,23 @@ export function Dialog({
   const sizeClass = size === 'sm' ? 'max-w-sm' : size === 'lg' ? 'max-w-3xl' : size === 'xl' ? 'max-w-6xl' : 'max-w-xl';
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4">
       <button
         aria-label="Fechar"
         className="absolute inset-0 bg-zinc-900/50"
         onClick={onClose}
       />
+      {/* No celular a janela sobe de baixo e ocupa quase a tela toda. */}
       <div
         role="dialog"
         aria-modal="true"
-        className={cn('relative z-10 w-full rounded-card bg-white shadow-popover max-h-[85vh] flex flex-col', sizeClass)}
+        className={cn(
+          'relative z-10 flex max-h-[92dvh] w-full flex-col rounded-t-2xl bg-white shadow-popover sm:max-h-[85vh] sm:rounded-card',
+          sizeClass,
+        )}
       >
         <div className="flex items-start justify-between gap-3 border-b border-zinc-100 p-4">
-          <div>
+          <div className="min-w-0">
             <h2 className="font-semibold text-zinc-900">{title}</h2>
             {description && <p className="mt-0.5 text-sm text-zinc-500">{description}</p>}
           </div>
@@ -66,7 +70,9 @@ export function Dialog({
           </button>
         </div>
         <div className="overflow-y-auto p-4">{children}</div>
-        {footer && <div className="flex justify-end gap-2 border-t border-zinc-100 p-4">{footer}</div>}
+        {footer && (
+          <div className="flex flex-wrap justify-end gap-2 border-t border-zinc-100 p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">{footer}</div>
+        )}
       </div>
     </div>,
     document.body,
