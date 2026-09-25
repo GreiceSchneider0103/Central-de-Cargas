@@ -12,6 +12,7 @@ import {
   History,
   Users,
   Settings2,
+  ClipboardCheck,
   type LucideIcon,
 } from 'lucide-react';
 import { MENU_BY_ROLE, type UserProfile } from '@/lib/auth/roles';
@@ -20,6 +21,7 @@ import { cn } from '@/lib/utils';
 
 const ITEMS: Record<string, { label: string; icon: LucideIcon }> = {
   '/': { label: 'Dashboard', icon: LayoutDashboard },
+  '/operacao': { label: 'Operação', icon: ClipboardCheck },
   '/agenda': { label: 'Agenda', icon: CalendarDays },
   '/solicitacoes': { label: 'Solicitações', icon: ClipboardList },
   '/cargas': { label: 'Cargas', icon: Truck },

@@ -1,9 +1,11 @@
 'use client';
 
-import { Plus, Trash2 } from 'lucide-react';
+import { useState } from 'react';
+import { ClipboardPaste, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Field';
 import { ProductSkuInput } from '@/components/products/ProductSkuInput';
+import { ItemsBulkAddDialog } from './ItemsBulkAddDialog';
 
 // Itens da nova carga: só SKU, nome e quantidade. O resto (CMV, fornecedor,
 // peso, medidas, datas) vem do cadastro do produto ou é preenchido depois,
@@ -18,6 +20,23 @@ export type NewLoadItem = {
 
 export const EMPTY_NEW_LOAD_ITEM: NewLoadItem = { sku: '', nome_produto: '', quantidade: '1', preco_venda: null };
 
+// Junta itens novos à lista: SKU que já existe soma a quantidade; linhas
+// vazias são descartadas.
+export function mergeNewLoadItems(current: NewLoadItem[], added: NewLoadItem[]) {
+  const result = current.filter((i) => i.sku.trim() || i.nome_produto.trim()).map((i) => ({ ...i }));
+  for (const item of added) {
+    const existing = result.find((i) => i.sku.trim() === item.sku);
+    if (existing) {
+      existing.quantidade = String(Number(existing.quantidade || 0) + Number(item.quantidade || 0));
+      if (!existing.nome_produto) existing.nome_produto = item.nome_produto;
+      if (existing.preco_venda == null) existing.preco_venda = item.preco_venda;
+    } else {
+      result.push(item);
+    }
+  }
+  return result.length > 0 ? result : [EMPTY_NEW_LOAD_ITEM];
+}
+
 export function newLoadItemsRevenue(items: NewLoadItem[]) {
   return items.reduce((sum, i) => sum + (i.preco_venda ?? 0) * Number(i.quantidade || 0), 0);
 }
@@ -31,6 +50,9 @@ export function NewLoadItemsEditor({
   onChange: (items: NewLoadItem[]) => void;
   companyId: string | null | undefined;
 }) {
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const filled = items.filter((i) => i.sku.trim());
+  const totalQuantity = filled.reduce((sum, i) => sum + Number(i.quantidade || 0), 0);
   const update = (index: number, patch: Partial<NewLoadItem>) =>
     onChange(items.map((item, i) => (i === index ? { ...item, ...patch } : item)));
 
@@ -74,10 +96,22 @@ export function NewLoadItemsEditor({
           </button>
         </div>
       ))}
-      <Button variant="secondary" size="sm" onClick={() => onChange([...items, EMPTY_NEW_LOAD_ITEM])}>
-        <Plus className="h-3.5 w-3.5" />
-        Adicionar item
-      </Button>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button variant="secondary" size="sm" onClick={() => onChange([...items, EMPTY_NEW_LOAD_ITEM])}>
+          <Plus className="h-3.5 w-3.5" />
+          Adicionar item
+        </Button>
+        <Button variant="secondary" size="sm" onClick={() => setBulkOpen(true)}>
+          <ClipboardPaste className="h-3.5 w-3.5" />
+          Colar lista / planilha
+        </Button>
+        {filled.length > 0 && (
+          <span className="ml-auto text-xs text-zinc-500">
+            {filled.length} {filled.length === 1 ? 'item' : 'itens'} · {totalQuantity.toLocaleString('pt-BR')} unidades
+          </span>
+        )}
+      </div>
+      <ItemsBulkAddDialog open={bulkOpen} onClose={() => setBulkOpen(false)} companyId={companyId} onAdd={(added) => onChange(mergeNewLoadItems(items, added))} />
     </div>
   );
 }
