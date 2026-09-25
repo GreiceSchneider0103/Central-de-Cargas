@@ -16,6 +16,7 @@ import { SkeletonRows } from '@/components/ui/Skeleton';
 import { useToast } from '@/components/ui/Toast';
 import { loadStatusTone } from '@/lib/ui/status-styles';
 import { translateError } from '@/lib/ui/error-messages';
+import { cn } from '@/lib/utils';
 import { toDatetimeLocalValue, fromDatetimeLocalValue } from '@/lib/ui/datetime';
 import { LoadItemFields } from './LoadItemFields';
 import { EMPTY_NEW_LOAD_ITEM, NewLoadItemsEditor, newLoadItemsRevenue, type NewLoadItem } from './NewLoadItemsEditor';
@@ -98,6 +99,7 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
   const [items, setItems] = useState<LoadItemRow[]>([]);
   const [checklist, setChecklist] = useState<ChecklistRow | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [creating, setCreating] = useState(false);
   const [form, setForm] = useState<Record<string, string>>(() => ({
     tipo: 'LOJA_FISICA',
     status: 'Rascunho',
@@ -177,6 +179,9 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
   }, [supabase]);
 
   const suggestedRevenue = newLoadItemsRevenue(newItems);
+  const filledNewItems = newItems.filter((i) => i.sku.trim() || i.nome_produto.trim());
+  const newItemsCount = filledNewItems.length;
+  const newItemsUnits = filledNewItems.reduce((sum, i) => sum + Number(i.quantidade || 0), 0);
   const faturamentoEstimado = faturamentoManual ? (form.faturamento_estimado ?? '') : suggestedRevenue > 0 ? suggestedRevenue.toFixed(2) : '';
 
   async function createLoad() {
@@ -191,36 +196,44 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
       return;
     }
 
-    const response = await fetch('/api/loads', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        load: {
-          tipo: form.tipo,
-          status: form.status,
-          prioridade: form.prioridade,
-          empresa_id: form.empresa_id || null,
-          canal_id: form.canal_id || null,
-          marketplace_id: form.marketplace_id || null,
-          destino_full_id: form.destino_full_id || null,
-          loja_destino_id: form.loja_destino_id || null,
-          cd_origem_id: form.cd_origem_id || null,
-          responsavel_operacional_id: form.responsavel_operacional_id || null,
-          data_agendada: form.data_agendada || null,
-          custo_frete: form.custo_frete || 0,
-          outros_custos: form.outros_custos || 0,
-          faturamento_estimado: faturamentoEstimado || null,
-          numero_carga_marketplace: form.numero_carga_marketplace || null,
-          codigo_agendamento: form.codigo_agendamento || null,
-          tipo_coleta_id: form.tipo_coleta_id || null,
-          transportador_id: form.transportador_id || null,
-          observacoes: form.observacoes || null,
-        },
-        items: itemsToSave.map((i) => ({ sku: i.sku.trim(), nome_produto: i.nome_produto.trim(), quantidade: i.quantidade })),
-      }),
-    });
-
-    const result = await response.json();
+    setCreating(true);
+    let response: Response;
+    let result: { error?: string };
+    try {
+      response = await fetch('/api/loads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          load: {
+            tipo: form.tipo,
+            status: form.status,
+            prioridade: form.prioridade,
+            empresa_id: form.empresa_id || null,
+            canal_id: form.canal_id || null,
+            marketplace_id: form.marketplace_id || null,
+            destino_full_id: form.destino_full_id || null,
+            loja_destino_id: form.loja_destino_id || null,
+            cd_origem_id: form.cd_origem_id || null,
+            responsavel_operacional_id: form.responsavel_operacional_id || null,
+            data_agendada: form.data_agendada || null,
+            custo_frete: form.custo_frete || 0,
+            outros_custos: form.outros_custos || 0,
+            faturamento_estimado: faturamentoEstimado || null,
+            numero_carga_marketplace: form.numero_carga_marketplace || null,
+            codigo_agendamento: form.codigo_agendamento || null,
+            tipo_coleta_id: form.tipo_coleta_id || null,
+            transportador_id: form.transportador_id || null,
+            observacoes: form.observacoes || null,
+          },
+          items: itemsToSave.map((i) => ({ sku: i.sku.trim(), nome_produto: i.nome_produto.trim(), quantidade: i.quantidade })),
+        }),
+      });
+      result = await response.json();
+    } catch {
+      setCreating(false);
+      return toast.error('Erro ao criar carga. Tente de novo.');
+    }
+    setCreating(false);
     if (!response.ok) return toast.error(translateError(result.error, 'Erro ao criar carga.'));
 
     setNewItems([EMPTY_NEW_LOAD_ITEM]);
@@ -489,97 +502,146 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
 
       <Dialog
         open={showCreate}
-        onClose={() => setShowCreate(false)}
+        onClose={() => !creating && setShowCreate(false)}
         title="Nova carga"
-        size="lg"
-        footer={canWrite && <Button variant="primary" onClick={createLoad}>Criar carga</Button>}
+        description="Preencha o destino e os itens. Os demais dados podem ser completados depois, no detalhe da carga."
+        size="xl"
+        footer={
+          canWrite && (
+            <div className="flex w-full flex-wrap items-center justify-between gap-2">
+              <span className="text-sm text-zinc-500">
+                {newItemsCount} {newItemsCount === 1 ? 'item' : 'itens'} · {newItemsUnits.toLocaleString('pt-BR')} un.
+                {canEditFinancial && Number(faturamentoEstimado) > 0 && <> · faturamento {Number(faturamentoEstimado).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</>}
+              </span>
+              <div className="flex gap-2">
+                <Button variant="secondary" onClick={() => setShowCreate(false)} disabled={creating}>Cancelar</Button>
+                <Button variant="primary" onClick={createLoad} disabled={creating}>{creating ? 'Criando...' : 'Criar carga'}</Button>
+              </div>
+            </div>
+          )
+        }
       >
-        <div className="space-y-4">
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-            <FieldGroup label="Tipo">
-              <Select value={form.tipo} onChange={(e) => setForm({ ...form, tipo: e.target.value })} disabled={profile.perfil === 'gerente_ecommerce'}>
-                <option value="LOJA_FISICA">Loja física</option>
-                <option value="FULL_MARKETPLACE">Full Marketplace</option>
-              </Select>
-            </FieldGroup>
-            <FieldGroup label="Empresa">
-              <Select value={form.empresa_id ?? ''} onChange={(e) => setForm({ ...form, empresa_id: e.target.value })}>
-                <option value="">Selecionar</option>
-                {options.companies.map((o) => <option key={o.id} value={o.id}>{o.nome}</option>)}
-              </Select>
-            </FieldGroup>
-            <FieldGroup label="Canal">
-              <Select value={form.canal_id ?? ''} onChange={(e) => setForm({ ...form, canal_id: e.target.value })}>
-                <option value="">Selecionar</option>
-                {options.channels.map((o) => <option key={o.id} value={o.id}>{o.nome}</option>)}
-              </Select>
-            </FieldGroup>
-            {form.tipo === 'LOJA_FISICA' ? (
-              <FieldGroup label="Loja destino">
-                <Select value={form.loja_destino_id ?? ''} onChange={(e) => setForm({ ...form, loja_destino_id: e.target.value })}>
+        <div className="space-y-6">
+          <section className="space-y-3">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">1. Destino</h3>
+            <div className="inline-flex overflow-hidden rounded-lg border border-zinc-300 text-sm">
+              {([['LOJA_FISICA', 'Loja física'], ['FULL_MARKETPLACE', 'Full marketplace']] as const).map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  disabled={profile.perfil === 'gerente_ecommerce' && value === 'LOJA_FISICA'}
+                  onClick={() => setForm({ ...form, tipo: value })}
+                  className={cn(
+                    'px-4 py-2 font-medium disabled:cursor-not-allowed disabled:opacity-40',
+                    form.tipo === value ? 'bg-brand-600 text-white' : 'bg-white text-zinc-600 hover:bg-zinc-50',
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+              <FieldGroup label="Empresa">
+                <Select value={form.empresa_id ?? ''} onChange={(e) => setForm({ ...form, empresa_id: e.target.value })}>
                   <option value="">Selecionar</option>
-                  {options.stores.map((o) => <option key={o.id} value={o.id}>{o.nome}</option>)}
+                  {options.companies.map((o) => <option key={o.id} value={o.id}>{o.nome}</option>)}
                 </Select>
               </FieldGroup>
-            ) : (
-              <>
-                <FieldGroup label="Marketplace">
-                  <Select value={form.marketplace_id ?? ''} onChange={(e) => setForm({ ...form, marketplace_id: e.target.value })}>
+              {form.tipo === 'LOJA_FISICA' ? (
+                <FieldGroup label="Loja destino">
+                  <Select value={form.loja_destino_id ?? ''} onChange={(e) => setForm({ ...form, loja_destino_id: e.target.value })}>
                     <option value="">Selecionar</option>
-                    {options.channels.filter((o) => o.tipo === 'Marketplace Full').map((o) => <option key={o.id} value={o.id}>{o.nome}</option>)}
+                    {options.stores.map((o) => <option key={o.id} value={o.id}>{o.nome}</option>)}
                   </Select>
                 </FieldGroup>
-                <FieldGroup label="Destino Full">
-                  <Select value={form.destino_full_id ?? ''} onChange={(e) => setForm({ ...form, destino_full_id: e.target.value })}>
-                    <option value="">Selecionar</option>
-                    {options.destinations.map((o) => <option key={o.id} value={o.id}>{o.nome}</option>)}
-                  </Select>
-                </FieldGroup>
-                <FieldGroup label="Nº carga marketplace">
-                  <Input value={form.numero_carga_marketplace ?? ''} onChange={(e) => setForm({ ...form, numero_carga_marketplace: e.target.value })} />
-                </FieldGroup>
-                <FieldGroup label="Código de agendamento">
-                  <Input value={form.codigo_agendamento ?? ''} onChange={(e) => setForm({ ...form, codigo_agendamento: e.target.value })} />
-                </FieldGroup>
-              </>
-            )}
-            <FieldGroup label="CD de origem">
-              <Select value={form.cd_origem_id ?? ''} onChange={(e) => setForm({ ...form, cd_origem_id: e.target.value })}>
-                <option value="">Selecionar</option>
-                {options.cds.map((o) => <option key={o.id} value={o.id}>{o.nome}</option>)}
-              </Select>
-            </FieldGroup>
-            <FieldGroup label="Responsável operacional">
-              <Select value={form.responsavel_operacional_id ?? ''} onChange={(e) => setForm({ ...form, responsavel_operacional_id: e.target.value })}>
-                <option value="">Selecionar</option>
-                {options.profiles.map((o) => <option key={o.id} value={o.id}>{o.nome}</option>)}
-              </Select>
-            </FieldGroup>
-            <FieldGroup label="Prioridade">
-              <Select value={form.prioridade} onChange={(e) => setForm({ ...form, prioridade: e.target.value })}>
-                <option value="Baixa">Baixa</option>
-                <option value="Média">Média</option>
-                <option value="Alta">Alta</option>
-                <option value="Urgente">Urgente</option>
-              </Select>
-            </FieldGroup>
-            <FieldGroup label="Data agendada">
-              <Input type="datetime-local" value={toDatetimeLocalValue(form.data_agendada)} onChange={(e) => setForm({ ...form, data_agendada: fromDatetimeLocalValue(e.target.value) ?? '' })} />
-            </FieldGroup>
-            <FieldGroup label="Tipo de coleta">
-              <Select value={form.tipo_coleta_id ?? ''} onChange={(e) => setForm({ ...form, tipo_coleta_id: e.target.value })}>
-                <option value="">Selecionar</option>
-                {options.transports.map((o) => <option key={o.id} value={o.id}>{o.nome}</option>)}
-              </Select>
-            </FieldGroup>
-            <FieldGroup label="Transportador">
-              <Select value={form.transportador_id ?? ''} onChange={(e) => setForm({ ...form, transportador_id: e.target.value })}>
-                <option value="">Selecionar</option>
-                {options.transports.map((o) => <option key={o.id} value={o.id}>{o.nome}</option>)}
-              </Select>
-            </FieldGroup>
-            {canEditFinancial && (
-              <>
+              ) : (
+                <>
+                  <FieldGroup label="Marketplace">
+                    <Select value={form.marketplace_id ?? ''} onChange={(e) => setForm({ ...form, marketplace_id: e.target.value })}>
+                      <option value="">Selecionar</option>
+                      {options.channels.filter((o) => o.tipo === 'Marketplace Full').map((o) => <option key={o.id} value={o.id}>{o.nome}</option>)}
+                    </Select>
+                  </FieldGroup>
+                  <FieldGroup label="Destino Full">
+                    <Select value={form.destino_full_id ?? ''} onChange={(e) => setForm({ ...form, destino_full_id: e.target.value })}>
+                      <option value="">Selecionar</option>
+                      {options.destinations.map((o) => <option key={o.id} value={o.id}>{o.nome}</option>)}
+                    </Select>
+                  </FieldGroup>
+                </>
+              )}
+              <FieldGroup label="Canal">
+                <Select value={form.canal_id ?? ''} onChange={(e) => setForm({ ...form, canal_id: e.target.value })}>
+                  <option value="">Selecionar</option>
+                  {options.channels.map((o) => <option key={o.id} value={o.id}>{o.nome}</option>)}
+                </Select>
+              </FieldGroup>
+            </div>
+          </section>
+
+          <section className="space-y-2 border-t border-zinc-100 pt-5">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">2. Itens</h3>
+            <p className="text-xs text-zinc-500">
+              Informe SKU, nome e quantidade{form.empresa_id ? ' (a busca mostra os produtos da empresa escolhida)' : ''}. CMV, fornecedor, peso e medidas vêm do cadastro do produto.
+            </p>
+            <NewLoadItemsEditor items={newItems} onChange={setNewItems} companyId={form.empresa_id} />
+          </section>
+
+          <section className="space-y-3 border-t border-zinc-100 pt-5">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">3. Agendamento e operação <span className="font-normal normal-case text-zinc-400">(opcional)</span></h3>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+              <FieldGroup label="Data agendada">
+                <Input type="datetime-local" value={toDatetimeLocalValue(form.data_agendada)} onChange={(e) => setForm({ ...form, data_agendada: fromDatetimeLocalValue(e.target.value) ?? '' })} />
+              </FieldGroup>
+              <FieldGroup label="Prioridade">
+                <Select value={form.prioridade} onChange={(e) => setForm({ ...form, prioridade: e.target.value })}>
+                  <option value="Baixa">Baixa</option>
+                  <option value="Média">Média</option>
+                  <option value="Alta">Alta</option>
+                  <option value="Urgente">Urgente</option>
+                </Select>
+              </FieldGroup>
+              <FieldGroup label="CD de origem">
+                <Select value={form.cd_origem_id ?? ''} onChange={(e) => setForm({ ...form, cd_origem_id: e.target.value })}>
+                  <option value="">Selecionar</option>
+                  {options.cds.map((o) => <option key={o.id} value={o.id}>{o.nome}</option>)}
+                </Select>
+              </FieldGroup>
+              <FieldGroup label="Responsável operacional">
+                <Select value={form.responsavel_operacional_id ?? ''} onChange={(e) => setForm({ ...form, responsavel_operacional_id: e.target.value })}>
+                  <option value="">Selecionar</option>
+                  {options.profiles.map((o) => <option key={o.id} value={o.id}>{o.nome}</option>)}
+                </Select>
+              </FieldGroup>
+              <FieldGroup label="Tipo de coleta">
+                <Select value={form.tipo_coleta_id ?? ''} onChange={(e) => setForm({ ...form, tipo_coleta_id: e.target.value })}>
+                  <option value="">Selecionar</option>
+                  {options.transports.map((o) => <option key={o.id} value={o.id}>{o.nome}</option>)}
+                </Select>
+              </FieldGroup>
+              <FieldGroup label="Transportador">
+                <Select value={form.transportador_id ?? ''} onChange={(e) => setForm({ ...form, transportador_id: e.target.value })}>
+                  <option value="">Selecionar</option>
+                  {options.transports.map((o) => <option key={o.id} value={o.id}>{o.nome}</option>)}
+                </Select>
+              </FieldGroup>
+              {form.tipo === 'FULL_MARKETPLACE' && (
+                <>
+                  <FieldGroup label="Nº carga marketplace">
+                    <Input value={form.numero_carga_marketplace ?? ''} onChange={(e) => setForm({ ...form, numero_carga_marketplace: e.target.value })} />
+                  </FieldGroup>
+                  <FieldGroup label="Código de agendamento">
+                    <Input value={form.codigo_agendamento ?? ''} onChange={(e) => setForm({ ...form, codigo_agendamento: e.target.value })} />
+                  </FieldGroup>
+                </>
+              )}
+            </div>
+          </section>
+
+          {canEditFinancial && (
+            <section className="space-y-3 border-t border-zinc-100 pt-5">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">4. Financeiro</h3>
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
                 <FieldGroup label="Faturamento estimado">
                   <Input
                     type="number"
@@ -604,20 +666,15 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
                 <FieldGroup label="Outros custos">
                   <Input type="number" value={form.outros_custos} onChange={(e) => setForm({ ...form, outros_custos: e.target.value })} />
                 </FieldGroup>
-              </>
-            )}
-            <FieldGroup label="Observações" className="md:col-span-3">
+              </div>
+            </section>
+          )}
+
+          <section className="border-t border-zinc-100 pt-5">
+            <FieldGroup label="Observações">
               <Textarea value={form.observacoes ?? ''} onChange={(e) => setForm({ ...form, observacoes: e.target.value })} />
             </FieldGroup>
-          </div>
-
-          <div className="border-t border-zinc-100 pt-4">
-            <h3 className="text-sm font-semibold text-zinc-700">Itens da carga</h3>
-            <p className="mb-2 text-xs text-zinc-500">
-              Informe SKU, nome e quantidade. CMV, fornecedor, peso e medidas vêm do cadastro do produto; o resto você completa no detalhe da carga.
-            </p>
-            <NewLoadItemsEditor items={newItems} onChange={setNewItems} companyId={form.empresa_id} />
-          </div>
+          </section>
         </div>
       </Dialog>
 
