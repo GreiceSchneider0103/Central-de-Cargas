@@ -229,6 +229,35 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
   const filledItemsCount = filledItems.length;
   const filledUnits = filledItems.reduce((sum, i) => sum + Number(i.quantidade || 0), 0);
   const totalRequestPages = Math.max(1, Math.ceil(totalRequests / PAGE_SIZE));
+  const rowActions = (r: RequestRow) => (
+    <>
+      {canApprove && ['Pendente', 'Em análise', 'Ajuste solicitado'].includes(r.status) && (
+        <>
+          <button title="Aprovar" className={cn(iconButton, 'text-emerald-700 hover:bg-emerald-50')} onClick={() => changeStatus(r.id, 'Aprovada')}>
+            <Check className="h-3.5 w-3.5" />Aprovar
+          </button>
+          <button title="Recusar" aria-label="Recusar" className={cn(iconButton, 'text-rose-700 hover:bg-rose-50')} onClick={() => setReasonAction({ id: r.id, kind: 'Recusada' })}>
+            <X className="h-3.5 w-3.5" />
+            <span className="md:hidden">Recusar</span>
+          </button>
+          <button title="Pedir ajuste" aria-label="Pedir ajuste" className={cn(iconButton, 'text-amber-700 hover:bg-amber-50')} onClick={() => setReasonAction({ id: r.id, kind: 'Ajuste solicitado' })}>
+            <MessageSquareWarning className="h-3.5 w-3.5" />
+            <span className="md:hidden">Ajuste</span>
+          </button>
+        </>
+      )}
+      {canApprove && r.status === 'Aprovada' && !r.carga_id && (
+        <button title="Transformar em carga" className={cn(iconButton, 'text-brand-600 hover:bg-brand-50')} onClick={() => setConvertId(r.id)}>
+          <Truck className="h-3.5 w-3.5" />Gerar carga
+        </button>
+      )}
+      {r.carga_id && (
+        <Link title="Acompanhar carga" className={cn(iconButton, 'text-brand-600 hover:bg-brand-50')} href={`/cargas/${r.carga_id}`}>
+          <Truck className="h-3.5 w-3.5" />Ver carga
+        </Link>
+      )}
+    </>
+  );
   const destinationLabel = (r: RequestRow) =>
     r.tipo === 'FULL_MARKETPLACE' ? `Full · ${r.full_destinations?.nome ?? '-'}` : `Loja · ${r.stores?.nome ?? '-'}`;
 
@@ -264,7 +293,30 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
           ) : rows.length === 0 ? (
             <EmptyState title="Nenhuma solicitação encontrada" description="Ajuste os filtros ou crie uma nova solicitação." />
           ) : (
-            <div className="overflow-x-auto">
+            <>
+            {/* Celular: um cartão por solicitação, com as ações embaixo. */}
+            <ul className="-mx-4 divide-y divide-zinc-100 border-t border-zinc-100 md:hidden">
+              {rows.map((r) => (
+                <li key={r.id} className="space-y-1.5 px-4 py-3">
+                  <Link href={`/solicitacoes/${r.id}`} className="block space-y-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-semibold text-brand-700">{r.codigo}</span>
+                      <Badge tone={requestStatusTone(r.status)} dot>{r.status}</Badge>
+                    </div>
+                    <p className="text-sm text-zinc-600">{destinationLabel(r)}</p>
+                    <p className="flex flex-wrap gap-x-3 text-xs text-zinc-500">
+                      <span>{r.load_request_items?.[0]?.count ?? 0} itens</span>
+                      <span>Desejada {shortDate(r.data_desejada)}</span>
+                      {r.prioridade && <span>{r.prioridade}</span>}
+                    </p>
+                    {r.status === 'Recusada' && r.motivo_recusa && <p className="text-xs text-rose-700">{r.motivo_recusa}</p>}
+                    {r.status === 'Ajuste solicitado' && <p className="text-xs font-medium text-amber-700">Ver ajuste e reenviar →</p>}
+                  </Link>
+                  <div className="flex flex-wrap gap-1">{rowActions(r)}</div>
+                </li>
+              ))}
+            </ul>
+            <div className="hidden overflow-x-auto md:block">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-zinc-100 text-left text-xs font-medium text-zinc-500">
@@ -295,42 +347,19 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
                       </td>
                       <td className="whitespace-nowrap py-2 pr-3 text-zinc-500">{shortDate(r.created_at, true)}</td>
                       <td className="py-2 text-right">
-                        <div className="inline-flex flex-wrap justify-end gap-1">
-                          {canApprove && ['Pendente', 'Em análise', 'Ajuste solicitado'].includes(r.status) && (
-                            <>
-                              <button title="Aprovar" className={cn(iconButton, 'text-emerald-700 hover:bg-emerald-50')} onClick={() => changeStatus(r.id, 'Aprovada')}>
-                                <Check className="h-3.5 w-3.5" />Aprovar
-                              </button>
-                              <button title="Recusar" aria-label="Recusar" className={cn(iconButton, 'text-rose-700 hover:bg-rose-50')} onClick={() => setReasonAction({ id: r.id, kind: 'Recusada' })}>
-                                <X className="h-3.5 w-3.5" />
-                              </button>
-                              <button title="Pedir ajuste" aria-label="Pedir ajuste" className={cn(iconButton, 'text-amber-700 hover:bg-amber-50')} onClick={() => setReasonAction({ id: r.id, kind: 'Ajuste solicitado' })}>
-                                <MessageSquareWarning className="h-3.5 w-3.5" />
-                              </button>
-                            </>
-                          )}
-                          {canApprove && r.status === 'Aprovada' && !r.carga_id && (
-                            <button title="Transformar em carga" className={cn(iconButton, 'text-brand-600 hover:bg-brand-50')} onClick={() => setConvertId(r.id)}>
-                              <Truck className="h-3.5 w-3.5" />Gerar carga
-                            </button>
-                          )}
-                          {r.carga_id && (
-                            <Link title="Acompanhar carga" className={cn(iconButton, 'text-brand-600 hover:bg-brand-50')} href={`/cargas/${r.carga_id}`}>
-                              <Truck className="h-3.5 w-3.5" />Ver carga
-                            </Link>
-                          )}
-                        </div>
+                        <div className="inline-flex flex-wrap justify-end gap-1">{rowActions(r)}</div>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
+            </>
           )}
 
-          <div className="flex items-center justify-between border-t border-zinc-100 pt-3 text-sm">
+          <div className="flex items-center justify-between gap-2 border-t border-zinc-100 pt-3 text-sm">
             <Button variant="secondary" size="sm" disabled={page === 0} onClick={() => setPage((p) => Math.max(0, p - 1))}>Anterior</Button>
-            <span className="text-zinc-500">Página {page + 1} de {totalRequestPages} ({totalRequests} solicitações)</span>
+            <span className="text-center text-xs text-zinc-500 sm:text-sm">Página {page + 1} de {totalRequestPages} ({totalRequests} solicitações)</span>
             <Button variant="secondary" size="sm" disabled={page + 1 >= totalRequestPages} onClick={() => setPage((p) => p + 1)}>Próxima</Button>
           </div>
         </CardBody>

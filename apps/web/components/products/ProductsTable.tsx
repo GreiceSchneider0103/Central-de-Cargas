@@ -199,7 +199,40 @@ export function ProductsTable({
           {products.length === 0 ? (
             <EmptyState title="Nenhum produto encontrado" description="Ajuste a busca ou o filtro de empresa, ou importe uma planilha de produtos." />
           ) : (
-            <div className="overflow-x-auto">
+            <>
+            {/* Celular: um cartão por produto. */}
+            <ul className="divide-y divide-zinc-100 md:hidden">
+              {products.map((p) => (
+                <li key={p.id} className={`flex gap-3 p-3 ${selected.includes(p.id) ? 'bg-brand-50/60' : ''}`}>
+                  {canManage && (
+                    <input type="checkbox" aria-label={`Selecionar ${p.sku}`} className="mt-1 h-4 w-4 shrink-0 accent-brand-600" checked={selected.includes(p.id)} onChange={() => toggle(p.id)} />
+                  )}
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="font-medium leading-snug text-zinc-800">{p.nome}</p>
+                      {canManage && (
+                        <button type="button" aria-label={`Editar ${p.sku}`} className="-mr-1 -mt-1 shrink-0 rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-100" onClick={() => setEditing(p)}>
+                          <Pencil className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
+                    <p className="font-mono text-xs text-zinc-500">{p.sku}</p>
+                    <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-zinc-600">
+                      {canSeeFinancial && <span>CMV {Number(p.cmv) > 0 ? money(p.cmv) : <span className="text-rose-600">pendente</span>}</span>}
+                      {canSeeFinancial && p.preco_venda ? <span>Venda {money(p.preco_venda)}</span> : null}
+                      {p.peso ? <span>{Number(p.peso).toLocaleString('pt-BR')} kg</span> : null}
+                      {formatDimensions(p) && <span>{formatDimensions(p)}</span>}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-zinc-500">
+                      <span>{p.supplier_name || 'Sem fornecedor'}</span>
+                      <CompaniesCell names={p.company_names} />
+                      {!p.ativo && <Badge tone="neutral">Inativo</Badge>}
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+            <div className="hidden overflow-x-auto md:block">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-zinc-100 bg-zinc-50 text-left text-xs font-medium text-zinc-500">
@@ -262,6 +295,7 @@ export function ProductsTable({
                 </tbody>
               </table>
             </div>
+            </>
           )}
         </CardBody>
       </Card>

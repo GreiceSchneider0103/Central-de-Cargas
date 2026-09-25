@@ -135,6 +135,27 @@ export function OperacaoBoard({ profile }: { profile: UserProfile }) {
   ];
   const list = byTab[tab];
 
+  // Botões de etapa; `large` = versão do celular (mais altos, fáceis de tocar).
+  const stepButtons = (l: OpLoad, large = false) =>
+    STEPS.map((step) => (
+      <button
+        key={step.status}
+        type="button"
+        title={step.status === 'Finalizada' ? 'Concluída' : step.status}
+        disabled={l.status === step.status}
+        onClick={() => setPending({ load: l, status: step.status })}
+        className={cn(
+          'rounded-lg border font-medium disabled:cursor-default disabled:opacity-40',
+          large ? 'h-10 px-3 text-sm' : 'px-2 py-1 text-xs',
+          step.status === 'Finalizada'
+            ? 'border-brand-600 bg-brand-600 text-white hover:bg-brand-700'
+            : 'border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-100',
+        )}
+      >
+        {step.label}
+      </button>
+    ));
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
@@ -163,7 +184,36 @@ export function OperacaoBoard({ profile }: { profile: UserProfile }) {
       ) : (
         <Card>
           <CardBody className="p-0">
-            <div className="overflow-x-auto">
+            {/* Celular: um cartão por carga, com botões grandes para marcar a etapa. */}
+            <ul className="divide-y divide-zinc-100 md:hidden">
+              {list.map((l) => {
+                const s = summary[l.id];
+                const destino = l.tipo === 'FULL_MARKETPLACE' ? `Full · ${l.canal_nome ?? ''}` : `Loja · ${l.loja_nome ?? ''}`;
+                const done = DONE.includes(l.status);
+                return (
+                  <li key={l.id} className={cn('space-y-2 p-3', done && 'opacity-60')}>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <Link href={`/cargas/${l.id}`} className="font-semibold text-brand-700">{l.codigo_interno ?? 'Carga'}</Link>
+                        <p className="text-sm text-zinc-700">{destino}</p>
+                      </div>
+                      <div className="flex shrink-0 flex-col items-end gap-1">
+                        <Badge tone={loadStatusTone(l.status)} dot>{l.status === 'Finalizada' ? 'Concluída' : l.status}</Badge>
+                        {l.prioridade && <Badge tone={priorityTone(l.prioridade)}>{l.prioridade}</Badge>}
+                      </div>
+                    </div>
+                    <p className="flex flex-wrap gap-x-3 text-xs text-zinc-500">
+                      <span>{l.data_agendada ? new Date(l.data_agendada).toLocaleString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : 'Sem data'}</span>
+                      {s && <span>{s.itens} itens · {s.unidades.toLocaleString('pt-BR')} un.</span>}
+                      {s && s.peso > 0 && <span>{s.peso.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} kg</span>}
+                    </p>
+                    {l.observacoes && <p className="text-xs text-zinc-500">{l.observacoes}</p>}
+                    {canOperate && !done && <div className="grid grid-cols-2 gap-2">{stepButtons(l, true)}</div>}
+                  </li>
+                );
+              })}
+            </ul>
+            <div className="hidden overflow-x-auto md:block">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-zinc-100 bg-zinc-50 text-left text-xs font-medium text-zinc-500">
@@ -206,27 +256,7 @@ export function OperacaoBoard({ profile }: { profile: UserProfile }) {
                         </td>
                         {canOperate && (
                           <td className="px-3 py-2 text-right">
-                            {!done && (
-                              <div className="inline-flex flex-wrap justify-end gap-1">
-                                {STEPS.map((step) => (
-                                  <button
-                                    key={step.status}
-                                    type="button"
-                                    title={step.status === 'Finalizada' ? 'Concluída' : step.status}
-                                    disabled={l.status === step.status}
-                                    onClick={() => setPending({ load: l, status: step.status })}
-                                    className={cn(
-                                      'rounded-lg border px-2 py-1 text-xs font-medium disabled:cursor-default disabled:opacity-40',
-                                      step.status === 'Finalizada'
-                                        ? 'border-brand-600 bg-brand-600 text-white hover:bg-brand-700'
-                                        : 'border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-100',
-                                    )}
-                                  >
-                                    {step.label}
-                                  </button>
-                                ))}
-                              </div>
-                            )}
+                            {!done && <div className="inline-flex flex-wrap justify-end gap-1">{stepButtons(l)}</div>}
                           </td>
                         )}
                       </tr>

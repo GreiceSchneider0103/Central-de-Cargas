@@ -457,7 +457,30 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
           ) : loads.length === 0 ? (
             <EmptyState title="Nenhuma carga ainda" description="Crie a primeira carga pelo botão acima ou transforme uma solicitação aprovada." />
           ) : (
-            <div className="overflow-x-auto">
+            <>
+            {/* Celular: um cartão por carga. */}
+            <ul className="divide-y divide-zinc-100 md:hidden">
+              {loads.map((l) => (
+                <li key={l.id}>
+                  <button type="button" className="w-full space-y-1 p-3 text-left active:bg-zinc-50" onClick={() => openLoad(l)}>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-semibold text-zinc-800">{l.codigo_interno}</span>
+                      <Badge tone={loadStatusTone(l.status)} dot>{l.status}</Badge>
+                    </div>
+                    <p className="text-sm text-zinc-600">
+                      {l.tipo === 'FULL_MARKETPLACE' ? 'Full' : 'Loja'}
+                      {(l.loja_nome || l.canal_nome) && <> · {String(l.loja_nome || l.canal_nome)}</>}
+                      {l.prioridade && <span className="text-zinc-400"> · {l.prioridade}</span>}
+                    </p>
+                    <p className="flex flex-wrap gap-x-3 text-xs text-zinc-500">
+                      <span>Agendada {shortDate(l.data_agendada)}</span>
+                      {canSeeFinancial && <span>CMV {brl(l.cmv_total)}</span>}
+                    </p>
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <div className="hidden overflow-x-auto md:block">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-zinc-100 text-left text-xs font-medium text-zinc-500">
@@ -492,10 +515,11 @@ export function CargasManager({ profile }: { profile: UserProfile }) {
                 </tbody>
               </table>
             </div>
+            </>
           )}
-          <div className="flex items-center justify-between border-t border-zinc-100 px-4 py-3 text-sm">
+          <div className="flex items-center justify-between gap-2 border-t border-zinc-100 px-4 py-3 text-sm">
             <Button variant="secondary" size="sm" disabled={page === 0} onClick={() => setPage((p) => Math.max(0, p - 1))}>Anterior</Button>
-            <span className="text-zinc-500">Página {page + 1} de {totalLoadPages} ({totalLoads} cargas)</span>
+            <span className="text-center text-xs text-zinc-500 sm:text-sm">Página {page + 1} de {totalLoadPages} ({totalLoads} cargas)</span>
             <Button variant="secondary" size="sm" disabled={page + 1 >= totalLoadPages} onClick={() => setPage((p) => p + 1)}>Próxima</Button>
           </div>
         </CardBody>

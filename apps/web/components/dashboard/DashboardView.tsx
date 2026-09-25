@@ -179,13 +179,13 @@ export function DashboardView({ profile, loads, upcoming = [], pendingRequests, 
           <h1 className="text-2xl font-bold text-zinc-900">Dashboard operacional</h1>
           <p className="text-sm text-zinc-500">Visão geral das cargas e do que precisa de atenção agora.</p>
         </div>
-        <div className="flex gap-2">
-          <Select className="w-40" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
+        <div className="flex w-full gap-2 sm:w-auto">
+          <Select className="flex-1 sm:w-40 sm:flex-none" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
             <option value="">Todos os tipos</option>
             <option value="FULL_MARKETPLACE">Full</option>
             <option value="LOJA_FISICA">Loja</option>
           </Select>
-          <Select className="w-48" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+          <Select className="flex-1 sm:w-48 sm:flex-none" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
             <option value="">Todos os status</option>
             {statusOptions.map((s) => (
               <option key={s} value={s}>{s}</option>
