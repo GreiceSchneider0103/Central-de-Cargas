@@ -13,7 +13,10 @@ import {
   PackageCheck,
   ArrowRight,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import type { UserProfile } from '@/lib/auth/roles';
+import { Badge } from '@/components/ui/Badge';
+import { loadStatusTone, type StatusTone } from '@/lib/ui/status-styles';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { StatCard } from '@/components/ui/StatCard';
 import { Select } from '@/components/ui/Field';
@@ -43,15 +46,24 @@ type DashboardMetrics = {
 type Props = {
   profile: UserProfile;
   loads: Load[];
+  upcoming?: Load[];
   pendingRequests: number;
   metrics?: null | DashboardMetrics;
 };
+
+function LinkedStat({ href, ...props }: { href: string; label: string; value: string | number; icon: LucideIcon; tone: StatusTone; hint?: string }) {
+  return (
+    <Link href={href} className="block rounded-card transition-shadow hover:shadow-popover focus:outline-none focus:ring-2 focus:ring-brand-200">
+      <StatCard {...props} className="h-full" />
+    </Link>
+  );
+}
 
 function countBy(loads: Load[], pred: (l: Load) => boolean) {
   return loads.filter(pred).length;
 }
 
-export function DashboardView({ profile, loads, pendingRequests, metrics = null }: Props) {
+export function DashboardView({ profile, loads, upcoming = [], pendingRequests, metrics = null }: Props) {
   const [statusFilter, setStatusFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
   const [liveMetrics, setLiveMetrics] = useState<DashboardMetrics | null>(metrics);
@@ -138,17 +150,27 @@ export function DashboardView({ profile, loads, pendingRequests, metrics = null 
   }, [filtered, liveMetrics]);
 
   const alerts = useMemo(() => {
-    const list: { label: string; count: number }[] = [
-      { label: 'Cargas atrasadas', count: cards.atras },
-      { label: 'Cargas sem CMV', count: countBy(filtered, (l) => l.cmv_total != null && Number(l.cmv_total) <= 0) },
-      { label: 'Sem data de recebimento', count: countBy(filtered, (l) => !l.data_prevista_recebimento) },
-      { label: 'Aguardando fornecedor', count: cards.aguForn },
-      { label: 'Aguardando NF', count: cards.aguNF },
-      { label: 'Aguardando etiqueta', count: cards.aguEtiq },
-      { label: 'Solicitações pendentes', count: pendingRequests },
+    const list: { label: string; count: number; href: string }[] = [
+      { label: 'Cargas atrasadas', count: cards.atras, href: '/operacao' },
+      { label: 'Cargas sem CMV', count: countBy(filtered, (l) => l.cmv_total != null && Number(l.cmv_total) <= 0), href: '/cargas' },
+      { label: 'Sem data de recebimento', count: countBy(filtered, (l) => !l.data_prevista_recebimento), href: '/cargas' },
+      { label: 'Aguardando fornecedor', count: cards.aguForn, href: '/cargas' },
+      { label: 'Aguardando NF', count: cards.aguNF, href: '/cargas' },
+      { label: 'Aguardando etiqueta', count: cards.aguEtiq, href: '/cargas' },
+      { label: 'Solicitações pendentes', count: pendingRequests, href: '/solicitacoes' },
     ];
     return list.filter((a) => a.count > 0);
   }, [filtered, cards, pendingRequests]);
+
+  const upcomingRows = useMemo(
+    () =>
+      upcoming
+        .filter((l) => l.status !== 'Cancelada')
+        .filter((l) => (!typeFilter || l.tipo === typeFilter) && (!statusFilter || l.status === statusFilter))
+        .sort((a, b) => String(a.data_agendada ?? '').localeCompare(String(b.data_agendada ?? '')))
+        .slice(0, 12),
+    [upcoming, typeFilter, statusFilter],
+  );
 
   return (
     <div className="space-y-6">
@@ -173,54 +195,96 @@ export function DashboardView({ profile, loads, pendingRequests, metrics = null 
       </div>
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatCard
-          label="Cargas de hoje"
-          value={cards.d}
-          hint={`Semana: ${cards.w} · Mês: ${cards.m}`}
-          icon={CalendarClock}
-          tone="brand"
-        />
-        <StatCard label="Solicitações pendentes" value={pendingRequests} icon={ClipboardList} tone="warning" />
-        <StatCard label="Aguardando fornecedor" value={cards.aguForn} icon={Truck} tone="warning" />
-        <StatCard label="Aguardando recebimento" value={cards.aguRec} icon={Boxes} tone="warning" />
-        <StatCard label="Aguardando etiqueta" value={cards.aguEtiq} icon={Tag} tone="progress" />
-        <StatCard label="Aguardando NF" value={cards.aguNF} icon={FileWarning} tone="warning" />
-        <StatCard label="Prontas para coleta" value={cards.prontaCol} icon={PackageCheck} tone="brand" />
+        <LinkedStat href="/operacao" label="Cargas de hoje" value={cards.d} hint={`Semana: ${cards.w} · Mês: ${cards.m}`} icon={CalendarClock} tone="brand" />
+        <LinkedStat href="/operacao" label="Atrasadas" value={cards.atras} icon={AlertTriangle} tone={cards.atras > 0 ? 'danger' : 'neutral'} />
+        <LinkedStat href="/solicitacoes" label="Solicitações pendentes" value={pendingRequests} icon={ClipboardList} tone="warning" />
+        <LinkedStat href="/operacao" label="Prontas para coleta" value={cards.prontaCol} icon={PackageCheck} tone="success" />
+        <LinkedStat href="/cargas" label="Aguardando fornecedor" value={cards.aguForn} icon={Truck} tone="warning" />
+        <LinkedStat href="/cargas" label="Aguardando recebimento" value={cards.aguRec} icon={Boxes} tone="warning" />
+        <LinkedStat href="/cargas" label="Aguardando etiqueta" value={cards.aguEtiq} icon={Tag} tone="progress" />
+        <LinkedStat href="/cargas" label="Aguardando NF" value={cards.aguNF} icon={FileWarning} tone="warning" />
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
-          <CardHeader title="Precisa de atenção" description="Cargas e solicitações que pedem uma ação sua." />
-          <CardBody>
-            {alerts.length === 0 ? (
-              <EmptyState icon={PackageCheck} title="Tudo em dia" description="Nenhum alerta pendente no momento." />
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+        <Card className="xl:col-span-2">
+          <CardHeader
+            title="Próximas cargas"
+            description="Agendadas de hoje até os próximos 7 dias."
+            action={<Link href="/agenda" className="text-sm font-medium text-brand-600 hover:text-brand-700">Ver agenda</Link>}
+          />
+          <CardBody className="p-0">
+            {upcomingRows.length === 0 ? (
+              <EmptyState icon={CalendarClock} title="Nenhuma carga agendada" description="Nada agendado para os próximos 7 dias." />
             ) : (
-              <ul className="divide-y divide-zinc-100">
-                {alerts.map((a) => (
-                  <li key={a.label} className="flex items-center justify-between py-2.5 text-sm">
-                    <span className="flex items-center gap-2 text-zinc-700">
-                      <AlertTriangle className="h-4 w-4 text-amber-500" />
-                      {a.label}
-                    </span>
-                    <span className="font-semibold text-zinc-900">{a.count}</span>
-                  </li>
-                ))}
-              </ul>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-zinc-100 bg-zinc-50 text-left text-xs font-medium text-zinc-500">
+                      <th className="px-4 py-2">Quando</th>
+                      <th className="px-4 py-2">Carga</th>
+                      <th className="px-4 py-2">Destino</th>
+                      <th className="px-4 py-2">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {upcomingRows.map((l) => (
+                      <tr key={String(l.id)} className="border-b border-zinc-50 last:border-0 hover:bg-zinc-50">
+                        <td className="whitespace-nowrap px-4 py-2 text-zinc-600">
+                          {new Date(String(l.data_agendada)).toLocaleString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-2">
+                          <Link href={`/cargas/${l.id}`} className="font-medium text-brand-700 hover:underline">{String(l.codigo_interno ?? 'Carga')}</Link>
+                        </td>
+                        <td className="px-4 py-2 text-zinc-600">
+                          {l.tipo === 'FULL_MARKETPLACE' ? 'Full' : 'Loja'}
+                          {(l.loja_nome || l.canal_nome) && <span className="text-zinc-400"> · {String(l.loja_nome || l.canal_nome)}</span>}
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-2"><Badge tone={loadStatusTone(String(l.status ?? ''))} dot>{String(l.status ?? '-')}</Badge></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </CardBody>
         </Card>
 
-        {canSeeFinancial && (
+        <div className="space-y-4">
           <Card>
-            <CardHeader title="Financeiro do mês" />
-            <CardBody className="space-y-3 text-sm">
-              <div className="flex justify-between"><span className="text-zinc-500">CMV total</span><span className="font-medium">{money(cards.cmv)}</span></div>
-              <div className="flex justify-between"><span className="text-zinc-500">Custo de frete</span><span className="font-medium">{money(cards.frete)}</span></div>
-              <div className="flex justify-between"><span className="text-zinc-500">Faturamento</span><span className="font-medium">{money(cards.fat)}</span></div>
-              <div className="flex justify-between border-t border-zinc-100 pt-3"><span className="text-zinc-500">Margem</span><span className={cards.margem >= 0 ? 'font-semibold text-emerald-700' : 'font-semibold text-rose-700'}>{money(cards.margem)}</span></div>
+            <CardHeader title="Precisa de atenção" />
+            <CardBody className="py-1">
+              {alerts.length === 0 ? (
+                <EmptyState icon={PackageCheck} title="Tudo em dia" description="Nenhum alerta pendente no momento." />
+              ) : (
+                <ul className="divide-y divide-zinc-100">
+                  {alerts.map((a) => (
+                    <li key={a.label}>
+                      <Link href={a.href} className="-mx-2 flex items-center justify-between rounded-lg px-2 py-2 text-sm hover:bg-zinc-50">
+                        <span className="flex items-center gap-2 text-zinc-700">
+                          <AlertTriangle className="h-4 w-4 text-amber-500" />
+                          {a.label}
+                        </span>
+                        <span className="font-semibold text-zinc-900">{a.count}</span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </CardBody>
           </Card>
-        )}
+
+          {canSeeFinancial && (
+            <Card>
+              <CardHeader title="Financeiro do mês" />
+              <CardBody className="space-y-2.5 text-sm">
+                <div className="flex justify-between"><span className="text-zinc-500">Faturamento</span><span className="font-medium">{money(cards.fat)}</span></div>
+                <div className="flex justify-between"><span className="text-zinc-500">CMV total</span><span className="font-medium">{money(cards.cmv)}</span></div>
+                <div className="flex justify-between"><span className="text-zinc-500">Custo de frete</span><span className="font-medium">{money(cards.frete)}</span></div>
+                <div className="flex justify-between border-t border-zinc-100 pt-2.5"><span className="text-zinc-500">Margem</span><span className={cards.margem >= 0 ? 'font-semibold text-emerald-700' : 'font-semibold text-rose-700'}>{money(cards.margem)}</span></div>
+              </CardBody>
+            </Card>
+          )}
+        </div>
       </div>
 
       <Link href="/relatorios" className="inline-flex items-center gap-1 text-sm font-medium text-brand-600 hover:text-brand-700">

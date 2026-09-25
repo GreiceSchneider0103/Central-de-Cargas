@@ -33,9 +33,13 @@ export default async function DashboardPage() {
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
   const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString();
 
-  const [{ data: metricsRows }, { data: loads }] = await Promise.all([
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const upcomingEnd = new Date(todayStart.getTime() + 8 * 86400000);
+
+  const [{ data: metricsRows }, { data: loads }, { data: upcoming }] = await Promise.all([
     supabase.rpc('get_dashboard_metrics', { p_now: now.toISOString() }),
     supabase.rpc('get_visible_loads_enriched_range', { p_from: monthStart, p_to: monthEnd, p_limit: 1200 }),
+    supabase.rpc('get_visible_loads_enriched_range', { p_from: todayStart.toISOString(), p_to: upcomingEnd.toISOString(), p_limit: 200 }),
   ]);
 
   const metrics = Array.isArray(metricsRows) ? metricsRows[0] : metricsRows;
@@ -43,6 +47,11 @@ export default async function DashboardPage() {
   const { count: pendingRequests } = await supabase.from('load_requests').select('*', { count: 'exact', head: true }).eq('status', 'Pendente');
 
   return (
-    <DashboardView profile={profile} loads={(loads ?? []) as DashboardLoad[]} pendingRequests={pendingRequests ?? 0} metrics={metrics ?? null} />
+    <DashboardView
+      profile={profile}
+      loads={(loads ?? []) as DashboardLoad[]}
+      upcoming={(upcoming ?? []) as DashboardLoad[]}
+      pendingRequests={pendingRequests ?? 0} metrics={metrics ?? null}
+    />
   );
 }
