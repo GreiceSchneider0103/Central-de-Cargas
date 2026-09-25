@@ -20,7 +20,7 @@ export default async function SolicitacoesPage() {
     <div className="space-y-4">
       <div>
         <h1 className="text-2xl font-bold text-zinc-900">Solicitações de carga</h1>
-        <p className="text-sm text-zinc-500">Criação e fluxo de aprovação inicial da operação.</p>
+        <p className="text-sm text-zinc-500">Peça uma carga e acompanhe a aprovação até ela virar carga.</p>
       </div>
       <SolicitacoesManager profile={profile} />
     </div>

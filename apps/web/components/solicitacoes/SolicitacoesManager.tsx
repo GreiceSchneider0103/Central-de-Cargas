@@ -225,6 +225,9 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
     await load();
   }
 
+  const filledItems = items.filter((i) => i.sku.trim() || i.nome_produto.trim());
+  const filledItemsCount = filledItems.length;
+  const filledUnits = filledItems.reduce((sum, i) => sum + Number(i.quantidade || 0), 0);
   const totalRequestPages = Math.max(1, Math.ceil(totalRequests / PAGE_SIZE));
   const destinationLabel = (r: RequestRow) =>
     r.tipo === 'FULL_MARKETPLACE' ? `Full · ${r.full_destinations?.nome ?? '-'}` : `Loja · ${r.stores?.nome ?? '-'}`;
@@ -338,61 +341,95 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
         onClose={() => !saving && setShowCreate(false)}
         title="Nova solicitação de carga"
         description="Depois de enviada, a solicitação vai para aprovação da gerência de cargas. Você acompanha o status nesta tela."
-        size="lg"
-        footer={<Button variant="primary" onClick={createRequest} disabled={saving}>{saving ? 'Enviando...' : 'Enviar para aprovação'}</Button>}
+        size="xl"
+        footer={
+          <div className="flex w-full flex-wrap items-center justify-between gap-2">
+            <span className="text-sm text-zinc-500">
+              {filledItemsCount} {filledItemsCount === 1 ? 'item' : 'itens'} · {filledUnits.toLocaleString('pt-BR')} un.
+            </span>
+            <div className="flex gap-2">
+              <Button variant="secondary" onClick={() => setShowCreate(false)} disabled={saving}>Cancelar</Button>
+              <Button variant="primary" onClick={createRequest} disabled={saving}>{saving ? 'Enviando...' : 'Enviar para aprovação'}</Button>
+            </div>
+          </div>
+        }
       >
-        <div className="space-y-4">
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-            <FieldGroup label="Tipo">
-              <Select value={tipo} onChange={(e) => setTipo(e.target.value as LoadType)} disabled={lockedType !== null}>
-                <option value="LOJA_FISICA">Loja física (transferência do estoque)</option>
-                <option value="FULL_MARKETPLACE">Full marketplace</option>
-              </Select>
-            </FieldGroup>
-            <FieldGroup label="Empresa">
-              <Select value={empresaId} onChange={(e) => setEmpresaId(e.target.value)}>
-                <option value="">Selecionar</option>
-                {companies.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
-              </Select>
-            </FieldGroup>
-            {tipo === 'LOJA_FISICA' ? (
-              <FieldGroup label="Loja de destino">
-                <Select value={lojaDestinoId} onChange={(e) => setLojaDestinoId(e.target.value)} disabled={lockedStoreId !== null}>
+        <div className="space-y-6">
+          <section className="space-y-3">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">1. Para onde</h3>
+            <div className="inline-flex overflow-hidden rounded-lg border border-zinc-300 text-sm">
+              {([['LOJA_FISICA', 'Loja física (transferência)'], ['FULL_MARKETPLACE', 'Full marketplace']] as const).map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  disabled={lockedType !== null && lockedType !== value}
+                  onClick={() => setTipo(value as LoadType)}
+                  className={cn(
+                    'px-4 py-2 font-medium disabled:cursor-not-allowed disabled:opacity-40',
+                    tipo === value ? 'bg-brand-600 text-white' : 'bg-white text-zinc-600 hover:bg-zinc-50',
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+              <FieldGroup label="Empresa">
+                <Select value={empresaId} onChange={(e) => setEmpresaId(e.target.value)}>
                   <option value="">Selecionar</option>
-                  {stores.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}
+                  {companies.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
                 </Select>
               </FieldGroup>
-            ) : (
-              <>
-                <FieldGroup label="Marketplace">
-                  <Select value={marketplaceId} onChange={(e) => setMarketplaceId(e.target.value)}>
+              {tipo === 'LOJA_FISICA' ? (
+                <FieldGroup label="Loja de destino">
+                  <Select value={lojaDestinoId} onChange={(e) => setLojaDestinoId(e.target.value)} disabled={lockedStoreId !== null}>
                     <option value="">Selecionar</option>
-                    {marketplaces.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                    {stores.map((st) => <option key={st.id} value={st.id}>{st.nome}</option>)}
                   </Select>
                 </FieldGroup>
-                <FieldGroup label="Destino Full">
-                  <Select value={destinoFullId} onChange={(e) => setDestinoFullId(e.target.value)}>
-                    <option value="">Selecionar</option>
-                    {destinations.map((d) => <option key={d.id} value={d.id}>{d.nome}</option>)}
-                  </Select>
-                </FieldGroup>
-              </>
-            )}
-            <FieldGroup label="Prioridade">
-              <Select value={prioridade} onChange={(e) => setPrioridade(e.target.value)}>
-                <option value="Baixa">Baixa</option>
-                <option value="Média">Média</option>
-                <option value="Alta">Alta</option>
-                <option value="Urgente">Urgente</option>
-              </Select>
-            </FieldGroup>
-            <FieldGroup label={tipo === 'FULL_MARKETPLACE' ? 'Data desejada de agendamento no Full' : 'Data desejada de entrega'}>
-              <Input
-                type="datetime-local"
-                value={toDatetimeLocalValue(dataDesejada)}
-                onChange={(e) => setDataDesejada(fromDatetimeLocalValue(e.target.value) ?? '')}
-              />
-            </FieldGroup>
+              ) : (
+                <>
+                  <FieldGroup label="Marketplace">
+                    <Select value={marketplaceId} onChange={(e) => setMarketplaceId(e.target.value)}>
+                      <option value="">Selecionar</option>
+                      {marketplaces.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                    </Select>
+                  </FieldGroup>
+                  <FieldGroup label="Destino Full">
+                    <Select value={destinoFullId} onChange={(e) => setDestinoFullId(e.target.value)}>
+                      <option value="">Selecionar</option>
+                      {destinations.map((d) => <option key={d.id} value={d.id}>{d.nome}</option>)}
+                    </Select>
+                  </FieldGroup>
+                </>
+              )}
+              <FieldGroup label={tipo === 'FULL_MARKETPLACE' ? 'Data desejada no Full' : 'Data desejada de entrega'}>
+                <Input
+                  type="datetime-local"
+                  value={toDatetimeLocalValue(dataDesejada)}
+                  onChange={(e) => setDataDesejada(fromDatetimeLocalValue(e.target.value) ?? '')}
+                />
+              </FieldGroup>
+              <FieldGroup label="Prioridade">
+                <Select value={prioridade} onChange={(e) => setPrioridade(e.target.value)}>
+                  <option value="Baixa">Baixa</option>
+                  <option value="Média">Média</option>
+                  <option value="Alta">Alta</option>
+                  <option value="Urgente">Urgente</option>
+                </Select>
+              </FieldGroup>
+            </div>
+          </section>
+
+          <section className="space-y-2 border-t border-zinc-100 pt-5">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">2. Itens</h3>
+            <p className="text-xs text-zinc-500">
+              Busque pelo SKU ou nome, ou use “Colar lista / planilha” para enviar muitos itens de uma vez (SKU e quantidade).
+            </p>
+            <NewLoadItemsEditor items={items} onChange={setItems} companyId={empresaId} />
+          </section>
+
+          <section className="grid grid-cols-1 gap-3 border-t border-zinc-100 pt-5 md:grid-cols-3">
             {canSeeFinancial && (
               <FieldGroup label="Faturamento estimado">
                 <Input
@@ -406,18 +443,10 @@ export function SolicitacoesManager({ profile }: { profile: UserProfile }) {
                 {!faturamentoManual && suggestedRevenue > 0 && <span className="text-xs text-zinc-500">Soma do preço de venda × quantidade</span>}
               </FieldGroup>
             )}
-            <FieldGroup label="Observações" className="md:col-span-3">
-              <Textarea value={observacoes} onChange={(e) => setObservacoes(e.target.value)} />
+            <FieldGroup label="Observações" className={canSeeFinancial ? 'md:col-span-2' : 'md:col-span-3'}>
+              <Textarea value={observacoes} onChange={(e) => setObservacoes(e.target.value)} placeholder="Algo que a gerência ou o estoque precisa saber?" />
             </FieldGroup>
-          </div>
-
-          <div className="border-t border-zinc-100 pt-4">
-            <h3 className="text-sm font-semibold text-zinc-700">Itens</h3>
-            <p className="mb-2 text-xs text-zinc-500">
-              Busque pelo SKU ou nome, ou use “Colar lista / planilha” para enviar muitos itens de uma vez (SKU e quantidade).
-            </p>
-            <NewLoadItemsEditor items={items} onChange={setItems} companyId={empresaId} />
-          </div>
+          </section>
         </div>
       </Dialog>
 

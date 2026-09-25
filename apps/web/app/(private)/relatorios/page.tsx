@@ -165,7 +165,7 @@ export default async function ReportsPage({
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-zinc-900">Relatórios</h1>
-          <p className="text-sm text-zinc-500">Agregações por período (o escopo respeita as permissões do seu perfil).</p>
+          <p className="text-sm text-zinc-500">Resumo das cargas do mês por status, empresa, marketplace, loja e fornecedor.</p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">

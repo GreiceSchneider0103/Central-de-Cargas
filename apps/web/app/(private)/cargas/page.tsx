@@ -14,8 +14,8 @@ export default async function CargasPage() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-bold text-zinc-900">Cargas oficiais</h1>
-        <p className="text-sm text-zinc-500">Núcleo operacional de cargas, itens, checklist e financeiro.</p>
+        <h1 className="text-2xl font-bold text-zinc-900">Cargas</h1>
+        <p className="text-sm text-zinc-500">Crie cargas, complete os itens e acompanhe checklist e financeiro.</p>
       </div>
       <CargasManager profile={profile} />
     </div>

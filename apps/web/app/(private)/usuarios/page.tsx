@@ -21,7 +21,7 @@ export default async function UsuariosPage() {
     <div className="space-y-4">
       <div>
         <h1 className="text-2xl font-bold text-zinc-900">Usuários</h1>
-        <p className="text-sm text-zinc-500">Administração de perfis, acesso e vínculos operacionais.</p>
+        <p className="text-sm text-zinc-500">Quem acessa o sistema, com qual perfil e em qual loja ou empresa.</p>
       </div>
       <UsersManager profiles={(profiles ?? []) as UserProfile[]} stores={stores ?? []} companies={companies ?? []} />
     </div>

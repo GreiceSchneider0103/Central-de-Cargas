@@ -183,7 +183,7 @@ export default async function AuditPage({
     <div className="space-y-4">
       <div>
         <h1 className="text-2xl font-bold text-zinc-900">Auditoria</h1>
-        <p className="text-sm text-zinc-500">{totalRows} evento{totalRows === 1 ? '' : 's'}, restrito por perfil.</p>
+        <p className="text-sm text-zinc-500">Quem mudou o quê e quando · {totalRows} evento{totalRows === 1 ? '' : 's'}.</p>
       </div>
 
       <Card>
